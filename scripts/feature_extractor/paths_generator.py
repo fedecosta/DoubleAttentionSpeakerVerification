@@ -40,8 +40,14 @@ class PathsGenerator:
         self.parser.add_argument(
             '--valid_audio_formats', 
             action = 'append',
-            default = ['.wav', '.m4a'],
+            default = ['wav', 'm4a'],
             help = 'Audio files extension to search for.',
+            )
+
+        self.parser.add_argument(
+            "--verbose", 
+            action = "store_true",
+            help = "Increase output verbosity.",
             )
 
         
@@ -60,11 +66,11 @@ class PathsGenerator:
         
         for (dir_path, dir_names, file_names) in os.walk(self.params.load_data_dir):
 
-                print(f"Searching in {dir_path}")
+                if self.params.verbose: print(f"Searching in {dir_path}")
 
                 for file_name in file_names:
-                    # TODO split by . and get the last part.
-                    if file_name[-4:] in self.params.valid_audio_formats:
+        
+                    if file_name.split(".")[-1] in self.params.valid_audio_formats:
                         
                         path_to_write = f"{dir_path}/{file_name}"
                         self.lines_to_write.append(path_to_write)
