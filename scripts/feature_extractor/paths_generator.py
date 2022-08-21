@@ -1,13 +1,12 @@
 import argparse
+import os
 
 class PathsGenerator:
 
     def __init__(self):
+        self.parse_args()
 
-        self.test = 1
-        #self.initialize_training_variables()
-
-    
+        
     def initialize_parser(self):
 
         self.parser = argparse.ArgumentParser(
@@ -25,9 +24,16 @@ class PathsGenerator:
             )
 
         self.parser.add_argument(
-            'dump_data_dir', 
+            '--dump_file_name', 
             type = str, 
-            default = '/scripts/feature_extractor/feature_extractor_paths.lst', 
+            default = 'feature_extractor_paths.lst', 
+            help = 'Name of the .lst file we want to dump paths into.',
+            )
+
+        self.parser.add_argument(
+            '--dump_data_dir', 
+            type = str, 
+            default = 'scripts/feature_extractor/', 
             help = 'Data directory where we want to dump the .lst file.',
             )
         
@@ -41,17 +47,50 @@ class PathsGenerator:
         
     def parse_args(self):
 
+        self.initialize_parser()
+        self.add_parser_args()
         self.params = self.parser.parse_args()
-        #params.model_name = getModelName(params)
+    
+    
+    def search_files(self):
+
+        self.lines_to_write = []
+
+        print(f"Searching {self.params.valid_audio_formats} files in {self.params.load_data_dir}")
+        
+        for (dir_path, dir_names, file_names) in os.walk(self.params.load_data_dir):
+
+                print(f"Searching in {dir_path}")
+
+                for file_name in file_names:
+                    # TODO split by . and get the last part.
+                    if file_name[-4:] in self.params.valid_audio_formats:
+                        
+                        path_to_write = f"{dir_path}/{file_name}"
+                        self.lines_to_write.append(path_to_write)
+
+        print(f"{len(self.lines_to_write)} files founded in {self.params.load_data_dir}")
+
+    
+    def dump_paths(self):
+
+        if not os.path.exists(self.params.dump_data_dir):
+            os.makedirs(self.params.dump_data_dir)
+        
+        dump_path = self.params.dump_data_dir + self.params.dump_file_name
+        with open(dump_path, 'w') as file:
+
+            for line_to_write in self.lines_to_write:
+                file.write(line_to_write)
+                file.write('\n')
+
+        print(f"{len(self.lines_to_write)} files paths dumped in {self.params.dump_data_dir}")
 
     
     def main(self):
 
-        self.initialize_parser()
-        self.add_parser_args()
-        self.parse_args()
-
-        print(self.params)
+        self.search_files()
+        self.dump_paths()
         
 
 if __name__=="__main__":
