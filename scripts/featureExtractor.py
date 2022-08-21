@@ -44,7 +44,6 @@ def main(params):
 
 if __name__=='__main__':
 
-
     parser = argparse.ArgumentParser(description='Extract Features. Looks for .wav files and extract Features')
     parser.add_argument('--audioFilesList', '-i', type=str, required=True, default='', help='Wav Files List.')
     params=parser.parse_args()
