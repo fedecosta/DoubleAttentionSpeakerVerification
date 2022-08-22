@@ -1,61 +1,12 @@
 import argparse
 import os
 
+from settings import paths_generator_default_settings
+
 class PathsGenerator:
 
-    def __init__(self):
-        self.parse_args()
-
-        
-    def initialize_parser(self):
-
-        self.parser = argparse.ArgumentParser(
-            description = 'Generate audio paths file as input for the feature exctractor script. \
-                It searches audio files in a directory and dumps their paths into a .lst file.',
-            )
-
-    
-    def add_parser_args(self):
-
-        self.parser.add_argument(
-            'load_data_dir',
-            type = str, 
-            help = 'Data directory containing the audio files we want to extract features from.',
-            )
-
-        self.parser.add_argument(
-            '--dump_file_name', 
-            type = str, 
-            default = 'feature_extractor_paths.lst', 
-            help = 'Name of the .lst file we want to dump paths into.',
-            )
-
-        self.parser.add_argument(
-            '--dump_data_dir', 
-            type = str, 
-            default = 'scripts/feature_extractor/', 
-            help = 'Data directory where we want to dump the .lst file.',
-            )
-        
-        self.parser.add_argument(
-            '--valid_audio_formats', 
-            action = 'append',
-            default = ['wav', 'm4a'],
-            help = 'Audio files extension to search for.',
-            )
-
-        self.parser.add_argument(
-            "--verbose", 
-            action = "store_true",
-            help = "Increase output verbosity.",
-            )
-
-        
-    def parse_args(self):
-
-        self.initialize_parser()
-        self.add_parser_args()
-        self.params = self.parser.parse_args()
+    def __init__(self, params):
+        self.params = params
     
     
     def search_files(self):
@@ -99,8 +50,69 @@ class PathsGenerator:
         self.dump_paths()
         
 
+class ArgsParser:
+
+    def __init__(self):
+        
+        self.initialize_parser()
+
+    
+    def initialize_parser(self):
+
+        self.parser = argparse.ArgumentParser(
+            description = 'Generate audio paths file as input for the feature exctractor script. \
+                It searches audio files in a directory and dumps their paths into a .lst file.',
+            )
+
+
+    def add_parser_args(self):
+
+        self.parser.add_argument(
+            'load_data_dir',
+            type = str, 
+            help = 'Data directory containing the audio files we want to extract features from.',
+            )
+
+        self.parser.add_argument(
+            '--dump_file_name', 
+            type = str, 
+            default = paths_generator_default_settings['dump_file_name'], 
+            help = 'Name of the .lst file we want to dump paths into.',
+            )
+
+        self.parser.add_argument(
+            '--dump_data_dir', 
+            type = str, 
+            default = paths_generator_default_settings['dump_data_dir'], 
+            help = 'Data directory where we want to dump the .lst file.',
+            )
+        
+        self.parser.add_argument(
+            '--valid_audio_formats', 
+            action = 'append',
+            default = paths_generator_default_settings['valid_audio_formats'],
+            help = 'Audio files extension to search for.',
+            )
+
+        self.parser.add_argument(
+            "--verbose", 
+            action = "store_true",
+            help = "Increase output verbosity.",
+            )
+
+
+    def main(self):
+
+        self.add_parser_args()
+        self.arguments = self.parser.parse_args()
+
+
 if __name__=="__main__":
 
-    instance = PathsGenerator()
-    instance.main()
+    args_parser = ArgsParser()
+    args_parser.main()
+    parameters = args_parser.arguments
+
+    paths_generator = PathsGenerator(parameters)
+    paths_generator.main()
     

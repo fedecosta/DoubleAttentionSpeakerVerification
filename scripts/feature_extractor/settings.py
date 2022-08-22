@@ -8,3 +8,9 @@ feature_extractor_default_settings = {
     'pre_emph_coef' : 0.97,
     'n_mels' : 80,
 }
+
+paths_generator_default_settings = {
+    'dump_file_name' : 'feature_extractor_paths.lst',
+    'dump_data_dir' : 'scripts/feature_extractor/',
+    'valid_audio_formats': ['wav', 'm4a'],
+}
