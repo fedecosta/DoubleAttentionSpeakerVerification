@@ -4,6 +4,11 @@ import librosa
 import numpy as np
 import pickle
 
+# In this particular case we ignore warnings of loading a .m4a audio
+# Not a good practice
+import warnings
+warnings.filterwarnings("ignore")
+
 class FeatureExtractor:
 
     def __init__(self):
@@ -31,49 +36,49 @@ class FeatureExtractor:
         self.parser.add_argument(
             "--sampling_rate", "-sr", 
             type = int,
-            default = 16000
+            default = 16000,
             help = "Audio sampling rate (in Hz).",
             )
 
         self.parser.add_argument(
-            "--n_fft_ms", 
+            "--n_fft_secs", 
             type = int,
-            default = 0.023
-            help = "Length of the windowed signal after padding with zeros (in miliseconds).",
+            default = 0.023,
+            help = "Length of the windowed signal after padding with zeros (in seconds).",
             )
 
         self.parser.add_argument(
             "--window", 
             type = str,
-            default = "hamming"
+            default = "hamming",
             help = "Windowing function (librosa parameter).",
             )
 
         self.parser.add_argument(
-            "--win_length_ms", 
+            "--win_length_secs", 
             type = float,
-            default = 0.023
-            help = "Each frame of audio is windowed by window of length win_length_ms and then padded with zeros to match n_fft_ms.",
+            default = 0.023,
+            help = "(In seconds). Each frame of audio is windowed by window of length win_length_secs and then padded with zeros to match n_fft_secs.",
             )
 
         self.parser.add_argument(
-            "--hop_length_ms", 
+            "--hop_length_secs", 
             type = float,
-            default = 0.010
-            help = "Hop length (in miliseconds).",
+            default = 0.010,
+            help = "Hop length (in seconds).",
             )
 
         self.parser.add_argument(
             "--pre_emph_coef", 
             type = float,
-            default = 0.97
+            default = 0.97,
             help = "Pre-emphasis coefficient.",
             )
 
         self.parser.add_argument(
             "--n_mels", 
             type = int,
-            default = 80
+            default = 80,
             help = "Number of Mel bands to generate.",
             )
 
@@ -109,9 +114,9 @@ class FeatureExtractor:
         # Short time Fourier Transform
         D = librosa.stft(
             samples, 
-            n_fft = self.params.n_fft_ms * sampling_rate, 
-            hop_length = self.params.hop_length_ms * sampling_rate,
-            win_length = self.params.win_length_ms * sampling_rate, 
+            n_fft = int(self.params.n_fft_secs * sampling_rate), 
+            hop_length = int(self.params.hop_length_secs * sampling_rate),
+            win_length = int(self.params.win_length_secs * sampling_rate), 
             window = self.params.window, 
             center = False,
             )
