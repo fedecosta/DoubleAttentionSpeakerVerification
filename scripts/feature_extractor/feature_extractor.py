@@ -84,7 +84,17 @@ class FeatureExtractor:
 
         return log_mel_spectrogram
 
-    
+
+    def normalize_features(self, features):
+
+        # Used when getting embeddings
+        
+        norm_features = np.transpose(features)
+        norm_features = norm_features - np.mean(norm_features, axis = 0)
+        
+        return norm_features
+
+
     def main(self):
 
         self.count_input_lines()
