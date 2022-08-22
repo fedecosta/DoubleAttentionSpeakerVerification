@@ -113,14 +113,16 @@ class FeatureExtractor:
                 log_mel_spectrogram = self.extract_features(audio_path)
 
                 # Dump the spectrogram
-                # TODO fix this hardcoded -4
-                with open(f'{line[:-4]}.pickle', 'wb') as handle:
+                file_dump_path = '.'.join(line.split(".")[:-1]) # remove the file extension
+                file_dump_path = file_dump_path + ".pickle" # add the pickle extension
+                
+                with open(file_dump_path, 'wb') as handle:
                     pickle.dump(log_mel_spectrogram, handle)
 
-                if self.params.verbose: print(f"[Feature Extractor] File processed. Dumped pickle in {line[:-4]}.pickle")
+                if self.params.verbose: print(f"[Feature Extractor] File processed. Dumped pickle in {file_dump_path}")
                 
                 progress_pctg = line_num / self.total_lines * 100
-                print(f"[Feature Extractor] {progress_pctg:.2f}% audios processed...")
+                print(f"[Feature Extractor] {progress_pctg:.1f}% audios processed...")
                 
                 line_num = line_num + 1
 
