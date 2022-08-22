@@ -3,6 +3,9 @@ import os
 
 from settings import paths_generator_default_settings
 
+# TODO add the usage instructions in README.md
+
+
 class PathsGenerator:
 
     def __init__(self, params):

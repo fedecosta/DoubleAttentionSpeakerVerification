@@ -11,6 +11,9 @@ from settings import feature_extractor_default_settings
 import warnings
 warnings.filterwarnings("ignore")
 
+# TODO add the usage instructions in README.md
+
+
 class FeatureExtractor:
 
     def __init__(self, params):
