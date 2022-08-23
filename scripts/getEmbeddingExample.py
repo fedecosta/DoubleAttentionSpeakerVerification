@@ -1,9 +1,13 @@
+# TODO fix this hack
+# import sys
+# sys.path.append('./scripts/')
+
 import pickle
 import torch
 import argparse
-from model import *
-from scripts.feature_extractor.feature_extractor import FeatureExtractor
-from scripts.feature_extractor.settings import feature_extractor_default_settings
+from model import * # TODO fix this *
+from feature_extractor import FeatureExtractor
+from settings import feature_extractor_default_settings
 
 def prepareInput(features, device):
     

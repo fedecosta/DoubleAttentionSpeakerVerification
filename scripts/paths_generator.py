@@ -1,3 +1,7 @@
+# TODO fix this hack
+# import sys
+# sys.path.append('./scripts/')
+
 import argparse
 import os
 
