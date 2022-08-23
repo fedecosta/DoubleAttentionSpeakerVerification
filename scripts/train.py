@@ -10,11 +10,11 @@ import torch.nn as nn
 from torch.nn import functional as F
 from torch import optim
 from torch.utils.data import DataLoader
-sys.path.append('./scripts/')
-from data import *
+# sys.path.append('./scripts/') # TODO fix this hack
+from data import * # TODO fix this *
 from model import SpeakerClassifier
-from loss import *
-from utils import *
+from loss import * # TODO fix this *
+from utils import * # TODO fix this *
 
 class Trainer:
 

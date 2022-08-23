@@ -1,8 +1,13 @@
+# TODO fix this hack
+# import sys
+# sys.path.append('./scripts/')
+
 import pickle
 import torch
 import argparse
-from model import *
-from featureExtractor import *
+from model import * # TODO fix this *
+from feature_extractor import FeatureExtractor
+from settings import feature_extractor_default_settings
 
 def prepareInput(features, device):
     
@@ -14,7 +19,11 @@ def prepareInput(features, device):
 
 def getAudioEmbedding(audioPath, net, device):
 
-    features = extractFeatures(audioPath)
+    default_params_dict = feature_extractor_default_settings
+    default_params = argparse.Namespace(**default_params_dict)
+    feature_extractor = FeatureExtractor(default_params)
+    features = feature_extractor.extract_features(audioPath)
+    
     with torch.no_grad():
         networkInputs = prepareInput(features, device)
         return net.getEmbedding(networkInputs)
