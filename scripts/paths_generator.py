@@ -5,7 +5,7 @@
 import argparse
 import os
 
-from settings import paths_generator_default_settings
+from settings import PATHS_GENERATOR_DEFAULT_SETTINGS
 
 # TODO add the usage instructions in README.md
 
@@ -83,21 +83,21 @@ class ArgsParser:
         self.parser.add_argument(
             '--dump_file_name', 
             type = str, 
-            default = paths_generator_default_settings['dump_file_name'], 
+            default = PATHS_GENERATOR_DEFAULT_SETTINGS['dump_file_name'], 
             help = 'Name of the .lst file we want to dump paths into.',
             )
 
         self.parser.add_argument(
             '--dump_data_dir', 
             type = str, 
-            default = paths_generator_default_settings['dump_data_dir'], 
+            default = PATHS_GENERATOR_DEFAULT_SETTINGS['dump_data_dir'], 
             help = 'Data directory where we want to dump the .lst file.',
             )
         
         self.parser.add_argument(
             '--valid_audio_formats', 
             action = 'append',
-            default = paths_generator_default_settings['valid_audio_formats'],
+            default = PATHS_GENERATOR_DEFAULT_SETTINGS['valid_audio_formats'],
             help = 'Audio files extension to search for.',
             )
 

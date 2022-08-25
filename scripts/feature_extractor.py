@@ -8,7 +8,7 @@ import librosa
 import numpy as np
 import pickle
 
-from settings import feature_extractor_default_settings
+from settings import FEATURE_EXTRACTOR_DEFAULT_SETTINGS
 
 # In this particular case we ignore warnings of loading a .m4a audio
 # Not a good practice
@@ -156,56 +156,56 @@ class ArgsParser:
         self.parser.add_argument(
             'audio_paths_file_dir',
             type = str, 
-            default = feature_extractor_default_settings['audio_paths_file_dir'],
+            default = FEATURE_EXTRACTOR_DEFAULT_SETTINGS['audio_paths_file_dir'],
             help = '.lst file path containing the audio files paths we want to extract features from.',
             )
 
         self.parser.add_argument(
             "--sampling_rate", "-sr", 
             type = int,
-            default = feature_extractor_default_settings['sampling_rate'],
+            default = FEATURE_EXTRACTOR_DEFAULT_SETTINGS['sampling_rate'],
             help = "Audio sampling rate (in Hz).",
             )
 
         self.parser.add_argument(
             "--n_fft_secs", 
             type = int,
-            default = feature_extractor_default_settings['n_fft_secs'],
+            default = FEATURE_EXTRACTOR_DEFAULT_SETTINGS['n_fft_secs'],
             help = "Length of the windowed signal after padding with zeros (in seconds).",
             )
 
         self.parser.add_argument(
             "--window", 
             type = str,
-            default = feature_extractor_default_settings['window'],
+            default = FEATURE_EXTRACTOR_DEFAULT_SETTINGS['window'],
             help = "Windowing function (librosa parameter).",
             )
 
         self.parser.add_argument(
             "--win_length_secs", 
             type = float,
-            default = feature_extractor_default_settings['win_length_secs'],
+            default = FEATURE_EXTRACTOR_DEFAULT_SETTINGS['win_length_secs'],
             help = "(In seconds). Each frame of audio is windowed by window of length win_length_secs and then padded with zeros to match n_fft_secs.",
             )
 
         self.parser.add_argument(
             "--hop_length_secs", 
             type = float,
-            default = feature_extractor_default_settings['hop_length_secs'],
+            default = FEATURE_EXTRACTOR_DEFAULT_SETTINGS['hop_length_secs'],
             help = "Hop length (in seconds).",
             )
 
         self.parser.add_argument(
             "--pre_emph_coef", 
             type = float,
-            default = feature_extractor_default_settings['pre_emph_coef'],
+            default = FEATURE_EXTRACTOR_DEFAULT_SETTINGS['pre_emph_coef'],
             help = "Pre-emphasis coefficient.",
             )
 
         self.parser.add_argument(
             "--n_mels", 
             type = int,
-            default = feature_extractor_default_settings['n_mels'],
+            default = FEATURE_EXTRACTOR_DEFAULT_SETTINGS['n_mels'],
             help = "Number of Mel bands to generate.",
             )
 
