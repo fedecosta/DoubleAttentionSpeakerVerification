@@ -1,12 +1,13 @@
 PATHS_GENERATOR_DEFAULT_SETTINGS = {
     'dump_file_name' : 'feature_extractor_paths.lst',
-    'dump_data_dir' : 'scripts/feature_extractor/',
+    'dump_file_folder' : 'scripts/feature_extractor/',
     'valid_audio_formats': ['wav', 'm4a'],
 }
 
 FEATURE_EXTRACTOR_DEFAULT_SETTINGS = {
-    'audio_paths_file_dir' : 'scripts/feature_extractor/feature_extractor_paths.lst',
-    'sampling_rate' : 16000,
+    'audio_paths_file_folder' : 'scripts/feature_extractor/',
+    'audio_paths_file_name' : 'feature_extractor_paths.lst',
+    'sampling_rate' : 22500,
     'n_fft_secs': 0.023,
     'window' : 'hamming',
     'win_length_secs' : 0.023,
@@ -16,9 +17,12 @@ FEATURE_EXTRACTOR_DEFAULT_SETTINGS = {
 }
 
 LABELS_GENERATOR_DEFAULT_SETTINGS = {
-    'train_labels_dump_file_name' : 'scripts/labels/train/train_labels.ndx',
-    'valid_impostors_labels_dump_file_name' : 'scripts/labels/valid/valid_impostors_labels.ndx',
-    'valid_clients_labels_dump_file_name' : 'scripts/labels/valid/valid_clients_labels.ndx',
+    'train_labels_dump_file_folder' : 'scripts/labels/train/',
+    'train_labels_dump_file_name' : 'train_labels.ndx',
+    'valid_impostors_labels_dump_file_folder' : 'scripts/labels/valid/',
+    'valid_impostors_labels_dump_file_name' : 'valid_impostors_labels.ndx',
+    'valid_clients_labels_dump_file_folder' : 'scripts/labels/valid/',
+    'valid_clients_labels_dump_file_name' : 'valid_clients_labels.ndx',
     'train_speakers_pctg': 0.7,
     'random_split' : True,
     'clients_lines_max' : None,

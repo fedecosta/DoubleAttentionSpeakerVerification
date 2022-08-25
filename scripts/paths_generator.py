@@ -20,9 +20,9 @@ class PathsGenerator:
 
         self.lines_to_write = []
 
-        print(f"Searching {self.params.valid_audio_formats} files in {self.params.load_data_dir}")
+        print(f"Searching {self.params.valid_audio_formats} files in {self.params.load_data_folder}")
         
-        for (dir_path, dir_names, file_names) in os.walk(self.params.load_data_dir):
+        for (dir_path, dir_names, file_names) in os.walk(self.params.load_data_folder):
 
                 if self.params.verbose: print(f"Searching in {dir_path}")
 
@@ -33,22 +33,22 @@ class PathsGenerator:
                         path_to_write = f"{dir_path}/{file_name}"
                         self.lines_to_write.append(path_to_write)
 
-        print(f"{len(self.lines_to_write)} files founded in {self.params.load_data_dir}")
+        print(f"{len(self.lines_to_write)} files founded in {self.params.load_data_folder}")
 
     
     def dump_paths(self):
 
-        if not os.path.exists(self.params.dump_data_dir):
-            os.makedirs(self.params.dump_data_dir)
+        if not os.path.exists(self.params.dump_file_folder):
+            os.makedirs(self.params.dump_file_folder)
         
-        dump_path = self.params.dump_data_dir + self.params.dump_file_name
+        dump_path = self.params.dump_file_folder + self.params.dump_file_name
         with open(dump_path, 'w') as file:
 
             for line_to_write in self.lines_to_write:
                 file.write(line_to_write)
                 file.write('\n')
 
-        print(f"{len(self.lines_to_write)} files paths dumped in {self.params.dump_data_dir}")
+        print(f"{len(self.lines_to_write)} files paths dumped in {dump_path}")
 
     
     def main(self):
@@ -75,9 +75,9 @@ class ArgsParser:
     def add_parser_args(self):
 
         self.parser.add_argument(
-            'load_data_dir',
+            'load_data_folder',
             type = str, 
-            help = 'Data directory containing the audio files we want to extract features from.',
+            help = 'Data folder containing the audio files we want to extract features from.',
             )
 
         self.parser.add_argument(
@@ -88,10 +88,10 @@ class ArgsParser:
             )
 
         self.parser.add_argument(
-            '--dump_data_dir', 
+            '--dump_file_folder', 
             type = str, 
-            default = PATHS_GENERATOR_DEFAULT_SETTINGS['dump_data_dir'], 
-            help = 'Data directory where we want to dump the .lst file.',
+            default = PATHS_GENERATOR_DEFAULT_SETTINGS['dump_file_folder'], 
+            help = 'Data folder where we want to dump the .lst file.',
             )
         
         self.parser.add_argument(

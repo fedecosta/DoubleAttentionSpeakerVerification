@@ -22,12 +22,13 @@ class FeatureExtractor:
 
     def __init__(self, params):
         self.params = params
+        self.params.audio_paths_file_path = self.params.audio_paths_file_folder + '/' + self.params.audio_paths_file_name
 
 
     def count_input_lines(self):
         
         # Doing this to be able to print progress of processing files
-        with open(self.params.audio_paths_file_dir, 'r') as file:
+        with open(self.params.audio_paths_file_path, 'r') as file:
             self.total_lines = sum(1 for line in list(file))
             file.close()
 
@@ -106,7 +107,7 @@ class FeatureExtractor:
 
         self.count_input_lines()
 
-        with open(self.params.audio_paths_file_dir, 'r') as file:
+        with open(self.params.audio_paths_file_path, 'r') as file:
         
             print(f"[Feature Extractor] {self.total_lines} audios ready for feature extraction.")
 
@@ -147,17 +148,24 @@ class ArgsParser:
         self.parser = argparse.ArgumentParser(
             description = 'Looks for audio files and extract features. \
                 It searches audio files in a paths file and dumps the  \
-                extracted features in the same directory in a .pickle format.',
+                extracted features in a .pickle file in the same directory.',
             )
 
 
     def add_parser_args(self):
 
         self.parser.add_argument(
-            'audio_paths_file_dir',
+            'audio_paths_file_folder',
             type = str, 
-            default = FEATURE_EXTRACTOR_DEFAULT_SETTINGS['audio_paths_file_dir'],
-            help = '.lst file path containing the audio files paths we want to extract features from.',
+            default = FEATURE_EXTRACTOR_DEFAULT_SETTINGS['audio_paths_file_folder'],
+            help = 'Folder containing the .lst file with the audio files paths we want to extract features from.',
+            )
+
+        self.parser.add_argument(
+            'audio_paths_file_name',
+            type = str, 
+            default = FEATURE_EXTRACTOR_DEFAULT_SETTINGS['audio_paths_file_name'],
+            help = '.lst file name containing the audio files paths we want to extract features from.',
             )
 
         self.parser.add_argument(

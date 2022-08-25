@@ -61,7 +61,7 @@ class LabelsGenerator:
         return speakers_dict
 
 
-    def train_valid_split_dict(speakers_dict, train_speakers_pctg, random_split = True):
+    def train_valid_split_dict(self, speakers_dict, train_speakers_pctg, random_split = True):
 
         print(f"Spliting data into train and valid...")
         
@@ -124,10 +124,14 @@ class LabelsGenerator:
         return train_speakers_dict, valid_speakers_dict
     
     
-    def generate_labels_file(self, dump_path, speakers_dict):
+    def generate_labels_file(self, dump_file_folder, dump_file_name, speakers_dict):
     
         print(f"Generating training labels...")
         
+        if not os.path.exists(dump_file_folder):
+            os.makedirs(dump_file_folder)
+        
+        dump_path = dump_file_folder + '/' + dump_file_name
         with open(dump_path, 'w') as f:
             for key, value in speakers_dict.items():
                 speaker_num = value["speaker_num"]
@@ -141,7 +145,9 @@ class LabelsGenerator:
 
     
     def generate_clients_impostors_files(
-        impostors_dump_path, clients_dump_path, 
+        self,
+        impostors_dump_file_folder, impostors_dump_file_name,
+        clients_dump_file_folder, clients_dump_file_name,
         speakers_dict, 
         clients_lines_max = None, impostors_lines_max = None):
         
@@ -180,12 +186,18 @@ class LabelsGenerator:
         print(f"{len(clients_lines_to_write)} lines to write for clients.")
         print(f"{len(impostors_lines_to_write)} lines to write for impostors.")
         
+        if not os.path.exists(clients_dump_file_folder):
+            os.makedirs(clients_dump_file_folder)
+        clients_dump_path = clients_dump_file_folder + '/' + clients_dump_file_name
         with open(clients_dump_path, 'w') as f:
             for line_to_write in clients_lines_to_write: 
                 f.write(line_to_write)
                 f.write('\n')
             f.close()
 
+        if not os.path.exists(impostors_dump_file_folder):
+            os.makedirs(impostors_dump_file_folder)
+        impostors_dump_path = impostors_dump_file_folder + '/' + impostors_dump_file_name
         with open(impostors_dump_path, 'w') as f:
             for line_to_write in impostors_lines_to_write: 
                 f.write(line_to_write)
@@ -198,27 +210,29 @@ class LabelsGenerator:
     def main(self):
 
         self.dev_speakers_dict = self.generate_speakers_dict(
-            load_path = self.params.dev_dataset_dir,
+            load_path = self.params.dev_dataset_folder,
         )
 
         self.num_speakers = len(self.dev_speakers_dict)
         print(f"Total number of distinct speakers loaded: {self.num_speakers}")
 
         self.train_speakers_dict, self.valid_speakers_dict = self.train_valid_split_dict(
-            speakers_dict = self.dev_speakers_dict, 
-            train_speakers_pctg = self.params.train_speakers_pctg, 
-            random_split = self.params.random_split,
+            self.dev_speakers_dict, 
+            self.params.train_speakers_pctg, 
+            self.params.random_split,
         )
         
         self.generate_labels_file(
-            dump_path = self.params.train_labels_dump_file_name, 
+            dump_file_folder = self.params.train_labels_dump_file_folder,
+            dump_file_name = self.params.train_labels_dump_file_name, 
             speakers_dict = self.train_speakers_dict,
         )
         
-        
         self.generate_clients_impostors_files(
-            impostors_dump_path = self.params.valid_impostors_labels_dump_file_name, 
-            clients_dump_path = self.params.valid_clients_labels_dump_file_name, 
+            impostors_dump_file_folder = self.params.valid_impostors_labels_dump_file_folder, 
+            impostors_dump_file_name = self.params.valid_impostors_labels_dump_file_name, 
+            clients_dump_file_folder = self.params.valid_clients_labels_dump_file_folder, 
+            clients_dump_file_name = self.params.valid_clients_labels_dump_file_name, 
             speakers_dict = self.valid_speakers_dict, 
             clients_lines_max = self.params.clients_lines_max, 
             impostors_lines_max = self.params.impostors_lines_max,
@@ -245,9 +259,16 @@ class ArgsParser:
     def add_parser_args(self):
 
         self.parser.add_argument(
-            'dev_dataset_dir',
+            'dev_dataset_folder',
             type = str, 
-            help = 'Directory containing the extracted features from the development data.',
+            help = 'Folder containing the extracted features from the development data.',
+            )
+
+        self.parser.add_argument(
+            '--train_labels_dump_file_folder', 
+            type = str, 
+            default = LABELS_GENERATOR_DEFAULT_SETTINGS['train_labels_dump_file_folder'], 
+            help = 'Folder where we want to dump the .ndx file with the training labels.',
             )
 
         self.parser.add_argument(
@@ -258,12 +279,26 @@ class ArgsParser:
             )
 
         self.parser.add_argument(
+            '--valid_impostors_labels_dump_file_folder', 
+            type = str, 
+            default = LABELS_GENERATOR_DEFAULT_SETTINGS['valid_impostors_labels_dump_file_folder'], 
+            help = 'Folder where we want to dump the .ndx file with the validation impostors labels.',
+            )
+
+        self.parser.add_argument(
             '--valid_impostors_labels_dump_file_name', 
             type = str, 
             default = LABELS_GENERATOR_DEFAULT_SETTINGS['valid_impostors_labels_dump_file_name'], 
             help = 'Name of the .ndx file we want to dump validation impostors labels into.',
             )
         
+        self.parser.add_argument(
+            '--valid_clients_labels_dump_file_folder', 
+            type = str, 
+            default = LABELS_GENERATOR_DEFAULT_SETTINGS['valid_clients_labels_dump_file_folder'], 
+            help = 'Folder where we want to dump the .ndx file with the validation clients labels.',
+            )
+
         self.parser.add_argument(
             '--valid_clients_labels_dump_file_name', 
             type = str, 
