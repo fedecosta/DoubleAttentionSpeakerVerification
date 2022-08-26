@@ -5,7 +5,7 @@
 import pickle
 import torch
 import argparse
-from model import * # TODO fix this *
+from model import SpeakerClassifier
 from feature_extractor import FeatureExtractor
 from settings import feature_extractor_default_settings
 

@@ -1,9 +1,9 @@
 import torch
 from torch import nn
 from torch.nn import functional as F
-from poolings import *
-from CNNs import *
-from loss import *
+from poolings import Attention, MultiHeadAttention, DoubleMHA
+from CNNs import getVGG3LOutputDimension, getVGG4LOutputDimension, VGG3L, VGG4L
+from loss import AMSoftmax
 
 class SpeakerClassifier(nn.Module):
 
@@ -15,7 +15,13 @@ class SpeakerClassifier(nn.Module):
         self.__initFrontEnd(parameters)        
         self.__initPoolingLayers(parameters)
         self.__initFullyConnectedBlock(parameters)
-        self.predictionLayer = AMSoftmax(parameters.embedding_size, parameters.num_spkrs, s=parameters.scalingFactor, m=parameters.marginFactor, annealing = parameters.annealing)
+        self.predictionLayer = AMSoftmax(
+            parameters.embedding_size, 
+            parameters.num_spkrs, 
+            s=parameters.scalingFactor, 
+            m=parameters.marginFactor, 
+            annealing = parameters.annealing
+            )
  
 
     def __initFrontEnd(self, parameters):
