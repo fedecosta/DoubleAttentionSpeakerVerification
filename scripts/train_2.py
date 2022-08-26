@@ -11,10 +11,10 @@ from torch.nn import functional as F
 from torch import optim
 from torch.utils.data import DataLoader
 
-from data import Dataset
+from data import Dataset, normalizeFeatures, featureReader
 from model import SpeakerClassifier
 #from loss import * 
-from utils import getModelName, getNumberOfSpeakers, Accuracy
+from utils import getModelName, getNumberOfSpeakers, Accuracy, Score, scoreCosineDistance, chkptsave
 
 class Trainer:
 
@@ -27,6 +27,9 @@ class Trainer:
         self.__load_criterion()
         self.__load_optimizer()
         self.__initialize_training_variables()
+
+        self.break_epoch = 10000000
+        self.break_batch = 10000000
 
     
     # Init methods
@@ -158,104 +161,29 @@ class Trainer:
         print("    Batch variables initialized.")
 
 
-    def train_single_epoch(self):
-
-        print(f"Epoch {self.epoch}...")
-
-        self.net.train()
-
-        self.__initialize_batch_variables()
-
-        for batch, (input, label) in enumerate(self.training_generator):
-
-            #print(f"\r Batch {batch} of {len(self.training_generator)}...", end='', flush = True)
-            print(f"    Batch {batch} of {len(self.training_generator)}...")
-
-            self.batch_debug_info = {}
-            self.batch_debug_info["epoch"] = self.epoch
-            self.batch_debug_info["batch"] = batch
-            self.batch_debug_info["variables_step_1"] = {
-                "train_accuracy" : self.train_accuracy,
-                "train_loss" : self.train_loss,
-            }
-
-            # Step 1
-            input, label = input.float().to(self.device), label.long().to(self.device)
-
-            # TODO understand this
-            input = self.__randomSlice(input) if self.params.randomSlicing else input 
-
-            prediction, AMPrediction  = self.net(input, label = label, step = self.step)
-
-            loss = self.criterion(AMPrediction, label)
-
-            # is optimiser.zero_grad() missing here?
-            loss.backward()
-
-            # Step 2
-            self.train_accuracy += Accuracy(prediction, label)
-            self.train_loss += loss.item()
-
-            self.batch_debug_info["variables_step_2"] = {
-                "train_accuracy" : self.train_accuracy,
-                "train_loss" : self.train_loss,
-            }
-
-            self.train_batch += 1
-            if self.train_batch % self.params.gradientAccumulation == 0:
-                    self.__update()
-
-            if self.stopping > self.params.early_stopping:
-                print('--Best Model EER%%: %.2f' %(self.best_EER))
-                break
-            
-            # Step 3
-            self.__updateTrainningVariables()
-
-            self.batch_debug_info["variables_step_3"] = {
-                "train_accuracy" : self.train_accuracy,
-                "train_loss" : self.train_loss,
-            }
+    def __randomSlice(self, inputTensor):
+        index = random.randrange(200,self.params.window_size*100)
+        return inputTensor[:,:index,:]
 
 
-    def train(self):
-
-        print(f'Starting training for {self.params.max_epochs} epochs.')
-
-        self.debug_info = []
-
-        for self.epoch in range(self.starting_epoch, self.params.max_epochs):  
-            
-            self.train_single_epoch()
-            
-        print('Training finished!')
-
-    
-
-
-
-
-
-
-
-
-    def __update_optimizer(self):
-
-        if self.params.optimizer == 'SGD' or self.params.optimizer == 'Adam':
-            for paramGroup in self.optimizer.param_groups:
-                paramGroup['lr'] *= 0.5
-            print('New Learning Rate: {}'.format(paramGroup['lr']))
-    
-    
     def __extractInputFromFeature(self, sline):
 
-        features1 = normalizeFeatures(featureReader(self.params.valid_data_dir + '/' + sline[0] + '.pickle'), normalization=self.params.normalization)
-        features2 = normalizeFeatures(featureReader(self.params.valid_data_dir + '/' + sline[1] + '.pickle'), normalization=self.params.normalization)
+        features1 = normalizeFeatures(
+            featureReader(
+                self.params.valid_data_dir + '/' + sline[0] + '.pickle'), 
+                normalization=self.params.normalization,
+                )
+        features2 = normalizeFeatures(
+            featureReader(
+                self.params.valid_data_dir + '/' + sline[1] + '.pickle'), 
+                normalization=self.params.normalization,
+                )
 
         input1 = torch.FloatTensor(features1).to(self.device)
         input2 = torch.FloatTensor(features2).to(self.device)
         
         return input1.unsqueeze(0), input2.unsqueeze(0)
+
 
     def __extract_scores(self, trials):
 
@@ -275,6 +203,7 @@ class Trainer:
 
         return scores
 
+
     def __calculate_EER(self, CL, IM):
 
         thresholds = np.arange(-1,1,0.01)
@@ -291,13 +220,7 @@ class Trainer:
         else:
             EER = 50.00
         return EER
-
-    def __getAnnealedFactor(self):
-        if torch.cuda.device_count() > 1:
-            return self.net.module.predictionLayer.getAnnealedFactor(self.step)
-        else:
-            return self.net.predictionLayer.getAnnealedFactor(self.step)
-
+    
     def __validate(self):
 
         with torch.no_grad():
@@ -325,7 +248,7 @@ class Trainer:
                 print('Better Accuracy is: {}. {} epochs of no improvement'.format(self.best_EER, self.stopping))
             self.print_time = time.time()
             self.net.train()
-
+    
     def __update(self):
 
         self.optimizer.step()
@@ -333,21 +256,136 @@ class Trainer:
         self.step += 1
 
         if self.step % int(self.params.print_every) == 0:
-            print('Training Epoch:{epoch: d}, Updates:{Num_Batch: d} -----> xent:{xnet: .3f}, Accuracy:{acc: .2f}, elapse:{elapse: 3.3f} min'.format(epoch=self.epoch, Num_Batch=self.step, xnet=self.train_loss / self.train_batch, acc=self.train_accuracy *100/ self.train_batch, elapse=(time.time()-self.print_time)/60))
+            print(
+                'Training Epoch:{epoch: d}, Updates:{Num_Batch: d} -----> \
+                xent:{xnet: .3f}, Accuracy:{acc: .2f}, elapse:{elapse: 3.3f} min'. \
+                format(
+                    epoch=self.epoch, 
+                    Num_Batch=self.step, 
+                    xnet=self.train_loss / self.train_batch, 
+                    acc=self.train_accuracy *100/ self.train_batch, 
+                    elapse=(time.time()-self.print_time)/60
+                    )
+            )
             self.__initialize_batch_variables()
 
         # validation
         if self.step % self.params.validate_every == 0:
             self.__validate()
 
+
+    def train_single_epoch(self):
+
+        print(f"Epoch {self.epoch}...")
+
+        self.net.train()
+
+        self.__initialize_batch_variables()
+
+        for batch, (input, label) in enumerate(self.training_generator):
+
+            #print(f"\r Batch {batch} of {len(self.training_generator)}...", end='', flush = True)
+            print(f"    Batch {batch} of {len(self.training_generator)}...")
+
+            print("     Initial variables:")
+            print(f"    self.train_accuracy: {self.train_accuracy}")
+            print(f"    self.train_loss: {self.train_loss}")
+
+            # Step 1
+            input, label = input.float().to(self.device), label.long().to(self.device)
+
+            # TODO understand this
+            input = self.__randomSlice(input) if self.params.randomSlicing else input 
+
+            prediction, AMPrediction  = self.net(input, label = label, step = self.step)
+
+            loss = self.criterion(AMPrediction, label)
+
+            # is optimiser.zero_grad() missing here?
+            loss.backward()
+
+            # Step 2
+            self.train_accuracy += Accuracy(prediction, label)
+            self.train_loss += loss.item()
+
+            print("     Updated variables:")
+            print(f"    self.train_accuracy: {self.train_accuracy} (accuracy: {Accuracy(prediction, label)})")
+            print(f"    self.train_loss: {self.train_loss} (loss: {loss.item()})")
+
+            self.train_batch += 1
+            if self.train_batch % self.params.gradientAccumulation == 0:
+                print("Using __update()!")
+                self.__update()
+
+            if self.stopping > self.params.early_stopping:
+                print('--Best Model EER%%: %.2f' %(self.best_EER))
+                break
+            
+            # Step 3
+            self.__updateTrainningVariables()
+
+            print("     Final variables:")
+            print(f"    self.train_accuracy: {self.train_accuracy}")
+            print(f"    self.train_loss: {self.train_loss}")
+
+            if self.epoch >= self.break_epoch and batch >= self.break_batch: 
+                print("    Exit because of break point")
+                break
+
+
+    def train(self):
+
+        print(f'Starting training for {self.params.max_epochs} epochs.')
+
+        self.debug_info = []
+
+        for self.epoch in range(self.starting_epoch, self.params.max_epochs):  
+            
+            self.train_single_epoch()
+
+            if self.epoch == self.break_epoch: break
+            
+        print('Training finished!')
+
+    
+
+
+
+
+
+
+
+
+    def __update_optimizer(self):
+
+        if self.params.optimizer == 'SGD' or self.params.optimizer == 'Adam':
+            for paramGroup in self.optimizer.param_groups:
+                paramGroup['lr'] *= 0.5
+            print('New Learning Rate: {}'.format(paramGroup['lr']))
+    
+    
+    
+
+    
+
+
+
+    def __getAnnealedFactor(self):
+        if torch.cuda.device_count() > 1:
+            return self.net.module.predictionLayer.getAnnealedFactor(self.step)
+        else:
+            return self.net.predictionLayer.getAnnealedFactor(self.step)
+
+
+
+
+
     def __updateTrainningVariables(self):
 
         if (self.stopping+1)% 15 ==0:
             self.__update_optimizer()
 
-    def __randomSlice(self, inputTensor):
-        index = random.randrange(200,self.params.window_size*100)
-        return inputTensor[:,:index,:]
+
 
 
 def main(opt):
