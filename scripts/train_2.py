@@ -13,8 +13,8 @@ from torch.utils.data import DataLoader
 
 from data import Dataset
 from model import SpeakerClassifier
-#from loss import * # TODO fix this *
-from utils import getModelName, getNumberOfSpeakers
+#from loss import * 
+from utils import getModelName, getNumberOfSpeakers, Accuracy
 
 class Trainer:
 
@@ -26,12 +26,15 @@ class Trainer:
         self.__load_network()
         self.__load_criterion()
         self.__load_optimizer()
-        #self.__initialize_training_variables()
+        self.__initialize_training_variables()
 
+    
+    # Init methods
 
+    # Load the Dataset
     def __load_data(self):
             
-        print('Loading Data and Labels')
+        print(f'Loading Data and Labels from {self.params.train_labels_path}')
         
         with open(self.params.train_labels_path, 'r') as data_labels_file:
             train_labels = data_labels_file.readlines()
@@ -47,22 +50,39 @@ class Trainer:
             **data_loader_parameters,
             )
 
+        print("Data and labels loaded.")
 
+
+    # Load the model (Neural Network)
     def __load_network(self):
+
+        print("Loading the network...")
 
         self.net = SpeakerClassifier(self.params, self.device)
         self.net.to(self.device)
 
         if torch.cuda.device_count() > 1:
-            print("Let's use", torch.cuda.device_count(), "GPUs!")
+            #print("Let's use", torch.cuda.device_count(), "GPUs!")
             self.net = nn.DataParallel(self.net)
+        
+        print("Network loaded.")
 
 
+    # Load the loss function
     def __load_criterion(self):
-            self.criterion = nn.CrossEntropyLoss()
+
+        print("Loading the loss function...")
+
+        self.criterion = nn.CrossEntropyLoss()
+
+        print("Loss function loaded.")
 
 
+    # Load the optimizer
     def __load_optimizer(self):
+
+        print("Loading the optimizer...")
+
         if self.params.optimizer == 'Adam':
             self.optimizer = optim.Adam(
                 self.net.parameters(), 
@@ -82,12 +102,12 @@ class Trainer:
                 weight_decay=self.params.weight_decay
                 )
 
-
-
-
+        print(f"Optimizer {self.params.optimizer} loaded.")
 
 
     def __load_previous_states(self):
+
+        print("Loading previous states...")
 
         list_files = os.listdir(self.params.out_dir)
         list_files = [self.params.out_dir + '/' + f for f in list_files if '.chkpt' in f]
@@ -107,9 +127,14 @@ class Trainer:
             self.step = 0
             self.starting_epoch = 1
 
+        print("Previous states loaded.")
+
+
     def __initialize_training_variables(self):
 
-        if self.params.requeue:
+        print("Initializing training variables...")
+
+        if self.params.requeue: # in the case we want to continue an unfinished training
             self.__load_previous_states()
         else:
             self.step = 0
@@ -118,11 +143,102 @@ class Trainer:
         self.best_EER = 50.0
         self.stopping = 0.0
 
+        print("Training variables initialized.")
+
+
+    def __initialize_batch_variables(self):
+
+        print("    Initializing batch variables...")
+
+        self.print_time = time.time()
+        self.train_loss = 0.0
+        self.train_accuracy = 0.0
+        self.train_batch = 0
+
+        print("    Batch variables initialized.")
+
+
+    def train_single_epoch(self):
+
+        print(f"Epoch {self.epoch}...")
+
+        self.net.train()
+
+        self.__initialize_batch_variables()
+
+        for batch, (input, label) in enumerate(self.training_generator):
+
+            #print(f"\r Batch {batch} of {len(self.training_generator)}...", end='', flush = True)
+            print(f"    Batch {batch} of {len(self.training_generator)}...")
+
+            self.batch_debug_info = {}
+            self.batch_debug_info["epoch"] = self.epoch
+            self.batch_debug_info["batch"] = batch
+            self.batch_debug_info["variables_step_1"] = {
+                "train_accuracy" : self.train_accuracy,
+                "train_loss" : self.train_loss,
+            }
+
+            # Step 1
+            input, label = input.float().to(self.device), label.long().to(self.device)
+
+            # TODO understand this
+            input = self.__randomSlice(input) if self.params.randomSlicing else input 
+
+            prediction, AMPrediction  = self.net(input, label = label, step = self.step)
+
+            loss = self.criterion(AMPrediction, label)
+
+            # is optimiser.zero_grad() missing here?
+            loss.backward()
+
+            # Step 2
+            self.train_accuracy += Accuracy(prediction, label)
+            self.train_loss += loss.item()
+
+            self.batch_debug_info["variables_step_2"] = {
+                "train_accuracy" : self.train_accuracy,
+                "train_loss" : self.train_loss,
+            }
+
+            self.train_batch += 1
+            if self.train_batch % self.params.gradientAccumulation == 0:
+                    self.__update()
+
+            if self.stopping > self.params.early_stopping:
+                print('--Best Model EER%%: %.2f' %(self.best_EER))
+                break
+            
+            # Step 3
+            self.__updateTrainningVariables()
+
+            self.batch_debug_info["variables_step_3"] = {
+                "train_accuracy" : self.train_accuracy,
+                "train_loss" : self.train_loss,
+            }
+
+
+    def train(self):
+
+        print(f'Starting training for {self.params.max_epochs} epochs.')
+
+        self.debug_info = []
+
+        for self.epoch in range(self.starting_epoch, self.params.max_epochs):  
+            
+            self.train_single_epoch()
+            
+        print('Training finished!')
 
     
 
 
-    
+
+
+
+
+
+
     def __update_optimizer(self):
 
         if self.params.optimizer == 'SGD' or self.params.optimizer == 'Adam':
@@ -131,14 +247,6 @@ class Trainer:
             print('New Learning Rate: {}'.format(paramGroup['lr']))
     
     
-
-    def __initialize_batch_variables(self):
-
-        self.print_time = time.time()
-        self.train_loss = 0.0
-        self.train_accuracy = 0.0
-        self.train_batch = 0
-
     def __extractInputFromFeature(self, sline):
 
         features1 = normalizeFeatures(featureReader(self.params.valid_data_dir + '/' + sline[0] + '.pickle'), normalization=self.params.normalization)
@@ -241,51 +349,31 @@ class Trainer:
         index = random.randrange(200,self.params.window_size*100)
         return inputTensor[:,:index,:]
 
-    def train(self):
-
-        print('Start Training')
-        for self.epoch in range(self.starting_epoch, self.params.max_epochs):  # loop over the dataset multiple times
-            self.net.train()
-            self.__initialize_batch_variables()
-            for input, label in self.training_generator:
-                input, label = input.float().to(self.device), label.long().to(self.device)
-                input = self.__randomSlice(input) if self.params.randomSlicing else input 
-                prediction, AMPrediction  = self.net(input, label=label, step=self.step)
-                loss = self.criterion(AMPrediction, label)
-                loss.backward()
-                self.train_accuracy += Accuracy(prediction, label)
-                self.train_loss += loss.item()
-                
-                self.train_batch += 1
-                if self.train_batch % self.params.gradientAccumulation == 0:
-                    self.__update()
-
-            if self.stopping > self.params.early_stopping:
-                print('--Best Model EER%%: %.2f' %(self.best_EER))
-                break
-            
-            self.__updateTrainningVariables()
-
-
-        print('Finished Training')
 
 def main(opt):
 
+    # Set the seed for experimental reproduction
     torch.manual_seed(1234)
     np.random.seed(1234)
     
-    print('Defining Device')
-    if torch.cuda.is_available():
-        device = "cuda"
-    else:
-        device = "cpu"
-    print(f"Using {device}")
+    # Set the device
+    print('Defining device...')
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"Running on {device} device.")
+    if torch.cuda.device_count() > 1:
+        print(f"{torch.cuda.device_count()} GPUs available.")
+    print("Device defined.")
 
-    print('Loading Trainer')
+    print('Loading Trainer class...')
     trainer = Trainer(opt, device)
-    #trainer.train()
+    print("Trainer class loaded.")
+
+    trainer.train()
+
 
 if __name__=="__main__":
+
+    # TODO refactor this to a class
 
     parser = argparse.ArgumentParser(description='Train a VGG based Speaker Embedding Extractor')
    
