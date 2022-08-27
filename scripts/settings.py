@@ -28,3 +28,19 @@ LABELS_GENERATOR_DEFAULT_SETTINGS = {
     'clients_lines_max' : None,
     'impostors_lines_max' : None,
 }
+
+TRAIN_DEFAULT_SETTINGS = {
+    'max_epochs' : 3,
+    'train_labels_path' : 'scripts/labels/train/train_labels.ndx',
+    'batch_size' : 64,
+    'num_workers' : 2,
+    'front_end' : 'VGG4L',
+    'kernel_size' : 1024,
+    'pooling_method' : 'dmha',
+    'embedding_size' : 400,
+    'scaling_factor' : 30.0,
+    'margin_factor' : 0.4,
+    'optimizer' : 'adam',
+    'learning_rate' : 0.0001,
+    'weight_decay' : 0.001,
+}
