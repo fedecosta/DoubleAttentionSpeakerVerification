@@ -13,7 +13,6 @@ from torch.utils.data import DataLoader
 
 from data import Dataset, normalizeFeatures, featureReader
 from model import SpeakerClassifier
-#from loss import * 
 from utils import getModelName, getNumberOfSpeakers, Accuracy, Score, scoreCosineDistance, chkptsave
 
 class Trainer:
@@ -34,9 +33,11 @@ class Trainer:
     
     # Init methods
 
+
     # Load the Dataset
     def __load_data(self):
             
+        print("Using __load_data")
         print(f'Loading Data and Labels from {self.params.train_labels_path}')
         
         with open(self.params.train_labels_path, 'r') as data_labels_file:
@@ -54,11 +55,13 @@ class Trainer:
             )
 
         print("Data and labels loaded.")
+        print("__load_data used")
 
 
     # Load the model (Neural Network)
     def __load_network(self):
 
+        print("Using __load_network")
         print("Loading the network...")
 
         self.net = SpeakerClassifier(self.params, self.device)
@@ -69,21 +72,25 @@ class Trainer:
             self.net = nn.DataParallel(self.net)
         
         print("Network loaded.")
+        print("__load_network used")
 
 
     # Load the loss function
     def __load_criterion(self):
 
+        print("Using __load_criterion")
         print("Loading the loss function...")
 
         self.criterion = nn.CrossEntropyLoss()
 
         print("Loss function loaded.")
+        print("__load_criterion used")
 
 
     # Load the optimizer
     def __load_optimizer(self):
 
+        print("Using __load_optimizer")
         print("Loading the optimizer...")
 
         if self.params.optimizer == 'Adam':
@@ -106,10 +113,12 @@ class Trainer:
                 )
 
         print(f"Optimizer {self.params.optimizer} loaded.")
+        print("__load_optimizer used")
 
 
     def __load_previous_states(self):
 
+        print("Using __load_previous_states")
         print("Loading previous states...")
 
         list_files = os.listdir(self.params.out_dir)
@@ -131,10 +140,12 @@ class Trainer:
             self.starting_epoch = 1
 
         print("Previous states loaded.")
+        print("__load_previous_states used")
 
 
     def __initialize_training_variables(self):
 
+        print("Using __initialize_training_variables")
         print("Initializing training variables...")
 
         if self.params.requeue: # in the case we want to continue an unfinished training
@@ -147,26 +158,39 @@ class Trainer:
         self.stopping = 0.0
 
         print("Training variables initialized.")
+        print("__initialize_training_variables used")
 
 
+    # Training methods
+
+    # Reset some variables
     def __initialize_batch_variables(self):
 
-        print("    Initializing batch variables...")
+        print("Using __initialize_batch_variables")
+        print("Initializing batch variables...")
 
         self.print_time = time.time()
         self.train_loss = 0.0
         self.train_accuracy = 0.0
-        self.train_batch = 0
+        self.train_batch_number = 0
 
-        print("    Batch variables initialized.")
+        print("Batch variables initialized.")
+        print("__initialize_batch_variables used")
 
-
+    # TODO understand this function
     def __randomSlice(self, inputTensor):
+
+        print("Using __randomSlice")
+
         index = random.randrange(200,self.params.window_size*100)
-        return inputTensor[:,:index,:]
+        
+        print("__randomSlice used")
+        return inputTensor[:,:index,:]   
 
 
     def __extractInputFromFeature(self, sline):
+
+        print("Using __extractInputFromFeature")
 
         features1 = normalizeFeatures(
             featureReader(
@@ -182,10 +206,14 @@ class Trainer:
         input1 = torch.FloatTensor(features1).to(self.device)
         input2 = torch.FloatTensor(features2).to(self.device)
         
+        print("__extractInputFromFeature used")
+        
         return input1.unsqueeze(0), input2.unsqueeze(0)
 
 
     def __extract_scores(self, trials):
+
+        print("Using __extract_scores")
 
         scores = []
         for line in trials:
@@ -201,10 +229,14 @@ class Trainer:
             dist = scoreCosineDistance(emb1, emb2)
             scores.append(dist.item())
 
+        print("__extract_scores used")
+        
         return scores
 
 
     def __calculate_EER(self, CL, IM):
+
+        print("Using __calculate_EER")
 
         thresholds = np.arange(-1,1,0.01)
         FRR, FAR = np.zeros(len(thresholds)), np.zeros(len(thresholds))
@@ -219,9 +251,28 @@ class Trainer:
             EER = round((FAR[int(EER_Idx)] + FRR[int(EER_Idx)])/2,4)
         else:
             EER = 50.00
+
+        print("__calculate_EER used")
+
         return EER
     
+
+    def __getAnnealedFactor(self):
+
+        print("Using __getAnnealedFactor")
+
+        if torch.cuda.device_count() > 1:
+            annealed_factor = self.net.module.predictionLayer.getAnnealedFactor(self.step)   
+        else:
+            annealed_factor = self.net.predictionLayer.getAnnealedFactor(self.step)    
+
+        print("__getAnnealedFactor used")
+
+        return annealed_factor
+
     def __validate(self):
+
+        print("Using __validate")
 
         with torch.no_grad():
             valid_time = time.time()
@@ -236,7 +287,14 @@ class Trainer:
             
             annealedFactor = self.__getAnnealedFactor()
             print('Annealed Factor is {}.'.format(annealedFactor))
-            print('--Validation Epoch:{epoch: d}, Updates:{Num_Batch: d}, EER:{eer: 3.3f}, elapse:{elapse: 3.3f} min'.format(epoch=self.epoch, Num_Batch=self.step, eer=EER, elapse=(time.time()-valid_time)/60))
+            print('--Validation Epoch:{epoch: d}, Updates:{Num_Batch: d}, EER:{eer: 3.3f}, elapse:{elapse: 3.3f} min'. \
+                format(
+                    epoch=self.epoch, 
+                    Num_Batch=self.step, 
+                    eer=EER, 
+                    elapse=(time.time()-valid_time)/60)
+                    )
+
             # early stopping and save the best model
             if EER < self.best_EER:
                 self.best_EER = EER
@@ -246,13 +304,45 @@ class Trainer:
             else:
                 self.stopping += 1
                 print('Better Accuracy is: {}. {} epochs of no improvement'.format(self.best_EER, self.stopping))
+            
             self.print_time = time.time()
             self.net.train()
+
+            print("__validate used")
     
+
+    def __update_optimizer(self):
+
+        print("Using __update_optimizer")
+
+        if self.params.optimizer == 'SGD' or self.params.optimizer == 'Adam':
+            for paramGroup in self.optimizer.param_groups:
+                paramGroup['lr'] *= 0.5
+            print('New Learning Rate: {}'.format(paramGroup['lr']))
+
+        print("__update_optimizer used")
+
+
+    def __updateTrainningVariables(self):
+
+        print("Using __updateTrainningVariables")
+
+        if (self.stopping+1)% 15 ==0:
+            self.__update_optimizer()
+
+        print("__updateTrainningVariables used")
+
+
     def __update(self):
 
+        print("Using __update")
+
+        print("Using optimizer.step")
         self.optimizer.step()
+        
+        print("Using optimizer.zero_grad")
         self.optimizer.zero_grad()
+        
         self.step += 1
 
         if self.step % int(self.params.print_every) == 0:
@@ -260,11 +350,11 @@ class Trainer:
                 'Training Epoch:{epoch: d}, Updates:{Num_Batch: d} -----> \
                 xent:{xnet: .3f}, Accuracy:{acc: .2f}, elapse:{elapse: 3.3f} min'. \
                 format(
-                    epoch=self.epoch, 
-                    Num_Batch=self.step, 
-                    xnet=self.train_loss / self.train_batch, 
-                    acc=self.train_accuracy *100/ self.train_batch, 
-                    elapse=(time.time()-self.print_time)/60
+                    epoch = self.epoch, 
+                    Num_Batch = self.step, 
+                    xnet = self.train_loss / self.train_batch_number, 
+                    acc = self.train_accuracy * 100 / self.train_batch_number, 
+                    elapse = (time.time() - self.print_time) / 60
                     )
             )
             self.__initialize_batch_variables()
@@ -272,6 +362,8 @@ class Trainer:
         # validation
         if self.step % self.params.validate_every == 0:
             self.__validate()
+        
+        print("__update used")
 
 
     def train_single_epoch(self):
@@ -284,60 +376,74 @@ class Trainer:
 
         for batch, (input, label) in enumerate(self.training_generator):
 
-            #print(f"\r Batch {batch} of {len(self.training_generator)}...", end='', flush = True)
-            print(f"    Batch {batch} of {len(self.training_generator)}...")
+            print(f"Batch {batch} of {len(self.training_generator)}...")
 
-            print("     Initial variables:")
-            print(f"    self.train_accuracy: {self.train_accuracy}")
-            print(f"    self.train_loss: {self.train_loss}")
+            print("Initial variables:")
+            print(f"self.train_accuracy: {self.train_accuracy}")
+            print(f"self.train_loss: {self.train_loss}")
 
-            # Step 1
             input, label = input.float().to(self.device), label.long().to(self.device)
 
             # TODO understand this
             input = self.__randomSlice(input) if self.params.randomSlicing else input 
 
+            # Make predcitions on this batch
             prediction, AMPrediction  = self.net(input, label = label, step = self.step)
 
+            # Calculate the loss
             loss = self.criterion(AMPrediction, label)
+            print(f"Loss calculated: loss {loss}")
 
+            # Compute backpropagation
             # is optimiser.zero_grad() missing here?
+            print("Using loss.backward")
             loss.backward()
+            # is optimiser.step() missing here?
 
-            # Step 2
-            self.train_accuracy += Accuracy(prediction, label)
-            self.train_loss += loss.item()
+            # why is accuracy sum on every batch? 
+            accuracy = Accuracy(prediction, label)
+            print(f"Accuracy calculated: accuracy {accuracy}")
+            self.train_accuracy = self.train_accuracy + accuracy
+            
+            # why is loss sum on every batch?
+            loss = loss.item()
+            self.train_loss = self.train_loss + loss
 
-            print("     Updated variables:")
-            print(f"    self.train_accuracy: {self.train_accuracy} (accuracy: {Accuracy(prediction, label)})")
-            print(f"    self.train_loss: {self.train_loss} (loss: {loss.item()})")
+            print("Sum updated variables:")
+            print(f"self.train_accuracy: {self.train_accuracy} (accuracy: {Accuracy(prediction, label)})")
+            print(f"self.train_loss: {self.train_loss} )")
 
-            self.train_batch += 1
-            if self.train_batch % self.params.gradientAccumulation == 0:
-                print("Using __update()!")
+            self.train_batch_number = self.train_batch_number + 1
+            if self.train_batch_number % self.params.gradientAccumulation == 0:
+                
                 self.__update()
 
+                print("Updated variables:")
+                print(f"self.train_accuracy: {self.train_accuracy}")
+                print(f"self.train_loss: {self.train_loss}")
+
+            # Early stopping check
             if self.stopping > self.params.early_stopping:
+                print("Early stopping.")
                 print('--Best Model EER%%: %.2f' %(self.best_EER))
                 break
             
-            # Step 3
             self.__updateTrainningVariables()
 
-            print("     Final variables:")
-            print(f"    self.train_accuracy: {self.train_accuracy}")
-            print(f"    self.train_loss: {self.train_loss}")
+            print("Final variables:")
+            print(f"self.train_accuracy: {self.train_accuracy}")
+            print(f"self.train_loss: {self.train_loss}")
 
             if self.epoch >= self.break_epoch and batch >= self.break_batch: 
-                print("    Exit because of break point")
+                print("Exit because of break point")
                 break
+        
+        print("-"*50)
 
 
     def train(self):
 
         print(f'Starting training for {self.params.max_epochs} epochs.')
-
-        self.debug_info = []
 
         for self.epoch in range(self.starting_epoch, self.params.max_epochs):  
             
@@ -356,12 +462,7 @@ class Trainer:
 
 
 
-    def __update_optimizer(self):
 
-        if self.params.optimizer == 'SGD' or self.params.optimizer == 'Adam':
-            for paramGroup in self.optimizer.param_groups:
-                paramGroup['lr'] *= 0.5
-            print('New Learning Rate: {}'.format(paramGroup['lr']))
     
     
     
@@ -370,20 +471,13 @@ class Trainer:
 
 
 
-    def __getAnnealedFactor(self):
-        if torch.cuda.device_count() > 1:
-            return self.net.module.predictionLayer.getAnnealedFactor(self.step)
-        else:
-            return self.net.predictionLayer.getAnnealedFactor(self.step)
 
 
 
 
 
-    def __updateTrainningVariables(self):
 
-        if (self.stopping+1)% 15 ==0:
-            self.__update_optimizer()
+
 
 
 
