@@ -190,7 +190,7 @@ class Trainer:
 
     def __extractInputFromFeature(self, sline):
 
-        print("Using __extractInputFromFeature")
+        #print("Using __extractInputFromFeature")
 
         features1 = normalizeFeatures(
             featureReader(
@@ -206,7 +206,7 @@ class Trainer:
         input1 = torch.FloatTensor(features1).to(self.device)
         input2 = torch.FloatTensor(features2).to(self.device)
         
-        print("__extractInputFromFeature used")
+        #print("__extractInputFromFeature used")
         
         return input1.unsqueeze(0), input2.unsqueeze(0)
 
@@ -270,6 +270,7 @@ class Trainer:
 
         return annealed_factor
 
+
     def __validate(self):
 
         print("Using __validate")
@@ -284,6 +285,7 @@ class Trainer:
                 IM = self.__extract_scores(impostors_in)
             # Compute EER
             EER = self.__calculate_EER(CL, IM)
+            print(f"EER is {EER}")
             
             annealedFactor = self.__getAnnealedFactor()
             print('Annealed Factor is {}.'.format(annealedFactor))
@@ -311,6 +313,7 @@ class Trainer:
             print("__validate used")
     
 
+    # Updates the learning rate
     def __update_optimizer(self):
 
         print("Using __update_optimizer")
@@ -323,6 +326,7 @@ class Trainer:
         print("__update_optimizer used")
 
 
+    # Updates the learning rate if some conditions are true
     def __updateTrainningVariables(self):
 
         print("Using __updateTrainningVariables")
@@ -392,7 +396,8 @@ class Trainer:
 
             # Calculate the loss
             loss = self.criterion(AMPrediction, label)
-            print(f"Loss calculated: loss {loss}")
+            print(f"Loss calculated: loss {loss.item()}")
+            self.losses.append(loss.item())
 
             # Compute backpropagation
             # is optimiser.zero_grad() missing here?
@@ -406,12 +411,11 @@ class Trainer:
             self.train_accuracy = self.train_accuracy + accuracy
             
             # why is loss sum on every batch?
-            loss = loss.item()
-            self.train_loss = self.train_loss + loss
+            self.train_loss = self.train_loss + loss.item()
 
             print("Sum updated variables:")
-            print(f"self.train_accuracy: {self.train_accuracy} (accuracy: {Accuracy(prediction, label)})")
-            print(f"self.train_loss: {self.train_loss} )")
+            print(f"self.train_accuracy: {self.train_accuracy}")
+            print(f"self.train_loss: {self.train_loss}")
 
             self.train_batch_number = self.train_batch_number + 1
             if self.train_batch_number % self.params.gradientAccumulation == 0:
@@ -445,6 +449,8 @@ class Trainer:
 
         print(f'Starting training for {self.params.max_epochs} epochs.')
 
+        self.losses = []
+
         for self.epoch in range(self.starting_epoch, self.params.max_epochs):  
             
             self.train_single_epoch()
@@ -453,25 +459,10 @@ class Trainer:
             
         print('Training finished!')
 
-    
+        print("Final model evaluation.")
+        self.__validate()
 
-
-
-
-
-
-
-
-
-    
-    
-    
-
-    
-
-
-
-
+        print(f"Losses: {self.losses}")
 
 
 
@@ -513,7 +504,7 @@ if __name__=="__main__":
     parser.add_argument('--train_labels_path', type = str, default = 'scripts/labels/train/train_labels.ndx')
     parser.add_argument('--valid_data_dir', type=str, default='', help='data directory.')
     parser.add_argument('--valid_clients', type = str, default='scripts/labels/valid/valid_clients_labels.ndx')
-    parser.add_argument('--valid_impostors', type = str, default='scripts/labels/valid/valid_imopstors_labels.ndx')
+    parser.add_argument('--valid_impostors', type = str, default='scripts/labels/valid/valid_impostors_labels.ndx')
 
     parser.add_argument('--data_mode', type = str, default = 'normal', choices=['normal','window'])
     parser.add_argument('--out_dir', type=str, default='./models/model1', help='directory where data is saved')
