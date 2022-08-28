@@ -30,17 +30,25 @@ LABELS_GENERATOR_DEFAULT_SETTINGS = {
 }
 
 TRAIN_DEFAULT_SETTINGS = {
+    'train_data_dir' : '',
+    'valid_data_dir' : '',
+    'valid_clients' : 'scripts/labels/valid/valid_clients_labels.ndx',
+    'valid_impostors' : 'scripts/labels/valid/valid_impostors_labels.ndx',
     'max_epochs' : 3,
     'train_labels_path' : 'scripts/labels/train/train_labels.ndx',
     'batch_size' : 64,
     'num_workers' : 2,
     'front_end' : 'VGG4L',
     'kernel_size' : 1024,
-    'pooling_method' : 'dmha',
+    'pooling_method' : 'DoubleMHA',
     'embedding_size' : 400,
     'scaling_factor' : 30.0,
     'margin_factor' : 0.4,
     'optimizer' : 'adam',
     'learning_rate' : 0.0001,
     'weight_decay' : 0.001,
+    'normalization' : 'cmn',
+    'window_size' : 3.5,
+    'heads_number' : 32,
+    'mask_prob' : 0.3,
 }

@@ -5,13 +5,34 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch import optim
 
-from data import Dataset
+from data import Dataset, normalizeFeatures, featureReader
 from model import SpeakerClassifier
-from utils import getNumberOfSpeakers
+from utils import getNumberOfSpeakers, Accuracy, scoreCosineDistance, Score
 from settings import TRAIN_DEFAULT_SETTINGS
 
-from log_config import logger_dict
-logger = logger_dict['train']
+# Set logging config
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+logger_formatter = logging.Formatter(
+    fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt = '%H:%M:%S',
+    )
+
+# Set a logging file handler
+logger_file_handler = logging.FileHandler('scripts/logs/train_3.log', mode = 'w')
+logger_file_handler.setLevel(logging.DEBUG)
+logger_file_handler.setFormatter(logger_formatter)
+
+# Set a logging stram handler
+logger_stream_handler = logging.StreamHandler()
+logger_stream_handler.setLevel(logging.DEBUG)
+logger_stream_handler.setFormatter(logger_formatter)
+
+# Add handlers
+logger.addHandler(logger_file_handler)
+logger.addHandler(logger_stream_handler)
 
 
 class Trainer:
@@ -86,6 +107,7 @@ class Trainer:
         self.net.to(self.device)
 
         if torch.cuda.device_count() > 1:
+            logger.info(f"Let's use {torch.cuda.device_count()} GPUs!")
             self.net = nn.DataParallel(self.net)
         
         logger.info("Network loaded.")
@@ -136,9 +158,121 @@ class Trainer:
         self.train_accuracy = 0
         self.train_loss = 0
 
+        self.losses = []
+
         logger.info("Training variables initialized.")
 
     
+    def evaluate_training(self, prediction, label):
+
+        logger.info(f"Evaluating training...")
+
+        # Switch to evaluation
+        self.net.eval()
+
+        accuracy = Accuracy(prediction, label)
+        logger.info(f"Accuracy on training set: {accuracy:.2f}")
+
+        # Return to training
+        self.net.train()
+
+        return accuracy
+
+
+    def __extractInputFromFeature(self, sline):
+
+        # logger.debug("Using __extractInputFromFeature")
+
+        features1 = normalizeFeatures(
+            featureReader(
+                self.params.valid_data_dir + '/' + sline[0] + '.pickle'), 
+                normalization=self.params.normalization,
+                )
+        features2 = normalizeFeatures(
+            featureReader(
+                self.params.valid_data_dir + '/' + sline[1] + '.pickle'), 
+                normalization=self.params.normalization,
+                )
+
+        input1 = torch.FloatTensor(features1).to(self.device)
+        input2 = torch.FloatTensor(features2).to(self.device)
+        
+        # logger.debug("__extractInputFromFeature used")
+        
+        return input1.unsqueeze(0), input2.unsqueeze(0)
+
+
+    def __extract_scores(self, trials):
+
+        logger.debug("Using __extract_scores")
+
+        scores = []
+        for line in trials:
+            sline = line[:-1].split()
+
+            input1, input2 = self.__extractInputFromFeature(sline)
+
+            if torch.cuda.device_count() > 1:
+                emb1, emb2 = self.net.module.getEmbedding(input1), self.net.module.getEmbedding(input2)
+            else:
+                emb1, emb2 = self.net.getEmbedding(input1), self.net.getEmbedding(input2)
+
+            dist = scoreCosineDistance(emb1, emb2)
+            scores.append(dist.item())
+
+        logger.debug("__extract_scores used")
+        
+        return scores
+
+
+    def __calculate_EER(self, CL, IM):
+
+        logger.debug("Using __calculate_EER")
+
+        thresholds = np.arange(-1,1,0.01)
+        FRR, FAR = np.zeros(len(thresholds)), np.zeros(len(thresholds))
+        for idx,th in enumerate(thresholds):
+            FRR[idx] = Score(CL, th,'FRR')
+            FAR[idx] = Score(IM, th,'FAR')
+
+        EER_Idx = np.argwhere(np.diff(np.sign(FAR - FRR)) != 0).reshape(-1)
+        if len(EER_Idx)>0:
+            if len(EER_Idx)>1:
+                EER_Idx = EER_Idx[0]
+            EER = round((FAR[int(EER_Idx)] + FRR[int(EER_Idx)])/2,4)
+        else:
+            EER = 50.00
+
+        logger.debug("__calculate_EER used")
+
+        return EER
+
+
+    def evaluate_validation(self):
+
+        logger.info(f"Evaluating validation...")
+
+        with torch.no_grad():
+
+            # Switch to evaluation
+            self.net.eval()
+
+            # EER Validation
+            with open(self.params.valid_clients,'r') as clients_in, open(self.params.valid_impostors,'r') as impostors_in:
+                # score clients
+                CL = self.__extract_scores(clients_in)
+                IM = self.__extract_scores(impostors_in)
+            
+            # Compute EER
+            EER = self.__calculate_EER(CL, IM)
+            logger.info(f"EER on validation set: {EER:.2f}")
+
+        # Return to training
+        self.net.train()
+        
+        return EER
+
+
     def train_single_epoch(self, epoch):
 
         logger.info(f"Epoch {epoch}...")
@@ -149,24 +283,26 @@ class Trainer:
 
             logger.info(f"Batch {self.batch_number} of {len(self.training_generator)}...")
 
+            # TODO understand what is step
+            self.step = self.batch_number
+
             input, label = input.float().to(self.device), label.long().to(self.device)
 
             # Calculate loss
-            prediction, AMPrediction  = self.net(input = input, label = label, step = self.step)
+            prediction, AMPrediction  = self.net(x = input, label = label, step = self.step)
+            self.loss = self.loss_function(AMPrediction, label)
 
+            logger.debug(f"Loss: {self.loss.item()}")
+            self.losses.append(self.loss.item())
 
+            # Compute backpropagation and update weights
+            self.optimizer.zero_grad()
+            self.loss.backward()
+            self.optimizer.step()
 
-
-            
-            loss = loss_fn(prediction, target)
-
-            # backpropagate error and update weights
-            optimiser.zero_grad()
-            loss.backward()
-            optimiser.step()
-
-        print(f"loss: {loss.item()}")
-
+        self.evaluate_training(prediction, label)
+        self.evaluate_validation()
+        
         logger.info(f"-"*50)
 
     
@@ -205,10 +341,35 @@ class ArgsParser:
 
         # TODO complete all helps
         
+        # Directory parameters
+        
+        self.parser.add_argument(
+            '--train_data_dir', 
+            type = str, default = TRAIN_DEFAULT_SETTINGS['train_data_dir'],
+            )
+        
         self.parser.add_argument(
             '--train_labels_path', 
             type = str, 
-            default = TRAIN_DEFAULT_SETTINGS['train_labels_path']
+            default = TRAIN_DEFAULT_SETTINGS['train_labels_path'],
+            )
+
+        self.parser.add_argument(
+            '--valid_data_dir', 
+            type = str, 
+            default = TRAIN_DEFAULT_SETTINGS['valid_data_dir'], 
+            
+            )
+        self.parser.add_argument(
+            '--valid_clients', 
+            type = str, 
+            default = TRAIN_DEFAULT_SETTINGS['valid_clients'],
+            )
+
+        self.parser.add_argument(
+            '--valid_impostors', 
+            type = str, 
+            default = TRAIN_DEFAULT_SETTINGS['valid_impostors'],
             )
 
         # Network Parameteres
@@ -221,6 +382,19 @@ class ArgsParser:
             )
 
         self.parser.add_argument(
+            '--window_size', 
+            type = float, 
+            default = TRAIN_DEFAULT_SETTINGS['window_size'], 
+            )
+        
+        self.parser.add_argument(
+            '--normalization', 
+            type = str, 
+            default = TRAIN_DEFAULT_SETTINGS['normalization'], 
+            choices = ['cmn', 'cmvn'],
+            )
+
+        self.parser.add_argument(
             '--kernel_size', 
             type = int, 
             default = TRAIN_DEFAULT_SETTINGS['kernel_size'],
@@ -230,8 +404,21 @@ class ArgsParser:
             '--pooling_method', 
             type = str, 
             default = TRAIN_DEFAULT_SETTINGS['pooling_method'], 
-            choices = ['attention', 'mha', 'dmha'], 
+            choices = ['Attention', 'MHA', 'DoubleMHA'], 
             help='Type of pooling methods',
+            )
+
+        self.parser.add_argument(
+            '--heads_number', 
+            type = int, 
+            default = TRAIN_DEFAULT_SETTINGS['heads_number'],
+            )
+
+        self.parser.add_argument(
+            '--mask_prob', 
+            type = float, 
+            default = TRAIN_DEFAULT_SETTINGS['mask_prob'], 
+            help = 'Masking Drop Probability. Only Used for Only Double MHA',
             )
 
         self.parser.add_argument(

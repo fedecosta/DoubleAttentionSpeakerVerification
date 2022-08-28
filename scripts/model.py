@@ -34,7 +34,7 @@ class SpeakerClassifier(nn.Module):
             self.vector_size = getVGG4LOutputDimension(parameters.feature_size, outputChannel=parameters.kernel_size)
             self.front_end = VGG4L(parameters.kernel_size)
 
-    def __initPoolingLayers(self,parameters):    
+    def __initPoolingLayers(self, parameters):    
 
         self.pooling_method = parameters.pooling_method
 

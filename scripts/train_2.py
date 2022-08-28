@@ -382,9 +382,9 @@ class Trainer:
 
             print(f"Batch {batch} of {len(self.training_generator)}...")
 
-            print("Initial variables:")
-            print(f"self.train_accuracy: {self.train_accuracy}")
-            print(f"self.train_loss: {self.train_loss}")
+            #print("Initial variables:")
+            #print(f"self.train_accuracy: {self.train_accuracy}")
+            #print(f"self.train_loss: {self.train_loss}")
 
             input, label = input.float().to(self.device), label.long().to(self.device)
 
@@ -401,30 +401,30 @@ class Trainer:
 
             # Compute backpropagation
             # is optimiser.zero_grad() missing here?
-            print("Using loss.backward")
+            #print("Using loss.backward")
             loss.backward()
             # is optimiser.step() missing here?
 
             # why is accuracy sum on every batch? 
             accuracy = Accuracy(prediction, label)
-            print(f"Accuracy calculated: accuracy {accuracy}")
+            #print(f"Accuracy calculated: accuracy {accuracy}")
             self.train_accuracy = self.train_accuracy + accuracy
             
             # why is loss sum on every batch?
             self.train_loss = self.train_loss + loss.item()
 
-            print("Sum updated variables:")
-            print(f"self.train_accuracy: {self.train_accuracy}")
-            print(f"self.train_loss: {self.train_loss}")
+            #print("Sum updated variables:")
+            #print(f"self.train_accuracy: {self.train_accuracy}")
+            #print(f"self.train_loss: {self.train_loss}")
 
             self.train_batch_number = self.train_batch_number + 1
             if self.train_batch_number % self.params.gradientAccumulation == 0:
                 
                 self.__update()
 
-                print("Updated variables:")
-                print(f"self.train_accuracy: {self.train_accuracy}")
-                print(f"self.train_loss: {self.train_loss}")
+                #print("Updated variables:")
+                #print(f"self.train_accuracy: {self.train_accuracy}")
+                #print(f"self.train_loss: {self.train_loss}")
 
             # Early stopping check
             if self.stopping > self.params.early_stopping:
@@ -434,13 +434,17 @@ class Trainer:
             
             self.__updateTrainningVariables()
 
-            print("Final variables:")
-            print(f"self.train_accuracy: {self.train_accuracy}")
-            print(f"self.train_loss: {self.train_loss}")
+            #print("Final variables:")
+            #print(f"self.train_accuracy: {self.train_accuracy}")
+            #print(f"self.train_loss: {self.train_loss}")
 
             if self.epoch >= self.break_epoch and batch >= self.break_batch: 
                 print("Exit because of break point")
                 break
+        
+        print(f"Accuracy calculated: self.train_accuracy {self.train_accuracy}")
+        print(f"Accuracy calculated: accuracy {accuracy}")
+        self.__validate()
         
         print("-"*50)
 
@@ -462,7 +466,7 @@ class Trainer:
         print("Final model evaluation.")
         self.__validate()
 
-        print(f"Losses: {self.losses}")
+        #print(f"Losses: {self.losses}")
 
 
 
@@ -522,8 +526,8 @@ if __name__=="__main__":
     parser.add_argument('--mask_prob', type=float, default=0.3, help='Masking Drop Probability. Only Used for Only Double MHA')
  
     # AMSoftmax Config
-    parser.add_argument('--scalingFactor', type=float, default=30.0, help='')
-    parser.add_argument('--marginFactor', type=float, default=0.4, help='')
+    parser.add_argument('--scaling_factor', type=float, default=30.0, help='')
+    parser.add_argument('--margin_factor', type=float, default=0.4, help='')
     parser.add_argument('--annealing', action='store_true')
 
     # Optimization 
