@@ -1,4 +1,5 @@
 import argparse
+import os
 import numpy as np
 import torch
 import torch.nn as nn
@@ -21,6 +22,8 @@ logger_formatter = logging.Formatter(
     )
 
 # Set a logging file handler
+if not os.path.exists('scripts/logs'):
+    os.makedirs('scripts/logs')
 logger_file_handler = logging.FileHandler('scripts/logs/train_3.log', mode = 'w')
 logger_file_handler.setLevel(logging.DEBUG)
 logger_file_handler.setFormatter(logger_formatter)
@@ -155,13 +158,17 @@ class Trainer:
         logger.info("Initializing training variables...")
         
         self.starting_epoch = 0
-        self.train_accuracy = 0
-        self.train_loss = 0
+        self.step = 0
+        self.train_eval_metric = 0.0
+        self.train_loss = None
+        self.valid_eval_metric = 50.0
 
-        self.losses = []
 
         logger.info("Training variables initialized.")
 
+
+    # Training methods
+    
     
     def evaluate_training(self, prediction, label):
 
@@ -172,11 +179,10 @@ class Trainer:
 
         accuracy = Accuracy(prediction, label)
         logger.info(f"Accuracy on training set: {accuracy:.2f}")
+        self.train_eval_metric = accuracy
 
         # Return to training
         self.net.train()
-
-        return accuracy
 
 
     def __extractInputFromFeature(self, sline):
@@ -266,11 +272,10 @@ class Trainer:
             # Compute EER
             EER = self.__calculate_EER(CL, IM)
             logger.info(f"EER on validation set: {EER:.2f}")
+            self.valid_eval_metric = EER
 
         # Return to training
         self.net.train()
-        
-        return EER
 
 
     def train_single_epoch(self, epoch):
@@ -283,22 +288,30 @@ class Trainer:
 
             logger.info(f"Batch {self.batch_number} of {len(self.training_generator)}...")
 
-            # TODO understand what is step
-            self.step = self.batch_number
-
             input, label = input.float().to(self.device), label.long().to(self.device)
 
             # Calculate loss
             prediction, AMPrediction  = self.net(x = input, label = label, step = self.step)
             self.loss = self.loss_function(AMPrediction, label)
-
-            logger.debug(f"Loss: {self.loss.item()}")
-            self.losses.append(self.loss.item())
+            self.train_loss = self.loss.item()
+            logger.debug(f"Loss: {self.train_loss:.2f}")
 
             # Compute backpropagation and update weights
             self.optimizer.zero_grad()
             self.loss.backward()
             self.optimizer.step()
+
+            # DEBUG
+            self.debug_step_info = {}
+            self.debug_step_info['epoch'] = epoch
+            self.debug_step_info['batch_number'] = self.batch_number
+            self.debug_step_info['step'] = self.step
+            self.debug_step_info['train_loss'] = self.train_loss
+            self.debug_step_info['train_eval_metric'] = self.train_eval_metric
+            self.debug_step_info['valid_eval_metric'] = self.valid_eval_metric
+            self.debug_info.append(self.debug_step_info)
+
+            self.step = self.step + 1
 
         self.evaluate_training(prediction, label)
         self.evaluate_validation()
@@ -310,14 +323,15 @@ class Trainer:
 
         logger.info(f'Starting training for {max_epochs} epochs.')
 
+        # DEBUG
+        self.debug_info = []
+
         for self.epoch in range(starting_epoch, max_epochs):  
             
             self.train_single_epoch(self.epoch)
             
         logger.info('Training finished!')
 
-
-    
 
     def main(self):
 
@@ -336,6 +350,7 @@ class ArgsParser:
         self.parser = argparse.ArgumentParser(
             description = 'Train a VGG based Speaker Embedding Extractor.',
             )
+
 
     def add_parser_args(self):
 
@@ -443,6 +458,7 @@ class ArgsParser:
         self.parser.add_argument(
             '--annealing', 
             action = 'store_true',
+            default = TRAIN_DEFAULT_SETTINGS['annealing'],
             )
 
         # Optimization arguments

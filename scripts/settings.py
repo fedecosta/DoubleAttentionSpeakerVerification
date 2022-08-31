@@ -51,4 +51,5 @@ TRAIN_DEFAULT_SETTINGS = {
     'window_size' : 3.5,
     'heads_number' : 32,
     'mask_prob' : 0.3,
+    'annealing' : False,
 }
