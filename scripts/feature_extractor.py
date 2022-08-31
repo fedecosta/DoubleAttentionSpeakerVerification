@@ -1,4 +1,4 @@
-# TODO fix this hack
+# HACK fix this hack
 # import sys
 # sys.path.append('./scripts/')
 
