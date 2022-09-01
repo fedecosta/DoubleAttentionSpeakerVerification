@@ -63,6 +63,7 @@ class FeatureExtractor:
             norm = None,
             )
 
+        # TODO this array has to be trasposed in later methods. why not traspose now?
         log_mel_spectrogram = np.log(np.maximum(1, mel_spectrogram))
         
         return mel_spectrogram
@@ -96,6 +97,7 @@ class FeatureExtractor:
     def normalize_features(self, features):
 
         # Used when getting embeddings
+        # TODO move to the corresponding .py
         
         norm_features = np.transpose(features)
         norm_features = norm_features - np.mean(norm_features, axis = 0)

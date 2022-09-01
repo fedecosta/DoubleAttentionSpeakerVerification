@@ -69,6 +69,7 @@ class Trainer:
         
         logger.info('Setting device...')
 
+        # Set device to GPU or CPU depending on what is available
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         
         logger.info(f"Running on {self.device} device.")
@@ -79,14 +80,18 @@ class Trainer:
         logger.info("Device setted.")
 
 
-    # Load the Dataset
     def __load_data(self):
             
-        logger.info(f'Loading Data and Labels from {self.params.train_labels_path}')
+        logger.info(f'Loading data and labels from {self.params.train_labels_path}')
         
+        # Read the paths of the train audios and their labels
         with open(self.params.train_labels_path, 'r') as data_labels_file:
             train_labels = data_labels_file.readlines()
 
+        # Instanciate a Dataset class
+        dataset = Dataset(train_labels, self.params)
+        
+        # Instanciate a DataLoader class
         data_loader_parameters = {
             'batch_size': self.params.batch_size, 
             'shuffle': True, # TODO hardcoded True
@@ -94,7 +99,7 @@ class Trainer:
             }
         
         self.training_generator = DataLoader(
-            Dataset(train_labels, self.params), 
+            dataset, 
             **data_loader_parameters,
             )
 
@@ -288,6 +293,7 @@ class Trainer:
 
             logger.info(f"Batch {self.batch_number} of {len(self.training_generator)}...")
 
+            # Assign input and label to device
             input, label = input.float().to(self.device), label.long().to(self.device)
 
             # Calculate loss
@@ -400,6 +406,7 @@ class ArgsParser:
             '--window_size', 
             type = float, 
             default = TRAIN_DEFAULT_SETTINGS['window_size'], 
+            help = '',
             )
         
         self.parser.add_argument(
