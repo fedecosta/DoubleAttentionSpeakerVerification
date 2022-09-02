@@ -399,14 +399,14 @@ class ArgsParser:
             type = str, 
             default = TRAIN_DEFAULT_SETTINGS['front_end'],
             choices = ['VGG3L','VGG4L'], 
-            help = 'Kind of Front-end Used'
+            help = 'Type of Front-end used.'
             )
 
         self.parser.add_argument(
             '--window_size', 
             type = float, 
             default = TRAIN_DEFAULT_SETTINGS['window_size'], 
-            help = '',
+            help = '', # TODO this must me fixed, used in data
             )
         
         self.parser.add_argument(
@@ -414,6 +414,8 @@ class ArgsParser:
             type = str, 
             default = TRAIN_DEFAULT_SETTINGS['normalization'], 
             choices = ['cmn', 'cmvn'],
+            help = 'Type of normalization applied to the features. \
+                It can be Cepstral Mean Normalization or Cepstral Mean and Variance Normalization'
             )
 
         self.parser.add_argument(
@@ -492,12 +494,14 @@ class ArgsParser:
             '--max_epochs',
             type = int,
             default = TRAIN_DEFAULT_SETTINGS['max_epochs'],
+            help = 'Max number of epochs to train.',
             )
 
         self.parser.add_argument(
             '--batch_size', 
             type = int, 
             default = TRAIN_DEFAULT_SETTINGS['batch_size'],
+            help = "Size of training batches.",
             )
 
         self.parser.add_argument(
@@ -508,7 +512,7 @@ class ArgsParser:
 
         self.parser.add_argument(
             "--verbose", 
-            action = "store_true",
+            action = "store_true", # TODO understand store_true vs store_false
             help = "Increase output verbosity.",
             )
 
