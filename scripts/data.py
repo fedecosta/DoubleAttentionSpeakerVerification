@@ -4,6 +4,7 @@ from random import randint, randrange
 from torch.utils import data
 import soundfile as sf
 
+# TODO understand where is this function used, move to the correct module
 def featureReader(featurePath, VAD = None):
 
     with open(featurePath,'rb') as pickleFile:
@@ -18,6 +19,8 @@ def featureReader(featurePath, VAD = None):
     else:
         return np.transpose(features)
 
+# TODO understand where is this function used, move to the correct module
+# This is exactly the same as Dataset.__normalize
 def normalizeFeatures(features, normalization = 'cmn'):
 
     mean = np.mean(features, axis=0)
@@ -39,25 +42,46 @@ class Dataset(data.Dataset):
 
     def __normalize(self, features):
 
+        # Compute the mean for each column
         mean = np.mean(features, axis=0)
-        features -= mean 
-        if self.parameters.normalization=='cmn':
+
+        features = features - mean 
+
+        
+        if self.parameters.normalization == 'cmn':
+            # Cepstral mean normalization
             return features
-        if self.parameters.normalization=='cmvn':
+        if self.parameters.normalization == 'cmvn':
+            # Cepstral mean and variance normalization
+            
+            # Compute the standard deviation for each column
             std = np.std(features, axis=0)
-            std = np.where(std>0.01,std,1.0)
-            return features/std
+            
+            # HACK guess this is to avoid zero division overflow
+            std = np.where(std > 0.01, std, 1.0)
+            return features / std
 
     def __sampleSpectogramWindow(self, features):
 
         # Cut the spectrogram with a fixed length at a random start
 
         file_size = features.shape[0]
+        
         # TODO why this hardcoded 100?
+        # It would be nice to do the cutting at the feature extractor module
+        # It seems that some kind of padding is made with librosa, but it should be done at the feature extractor module also
         windowSizeInFrames = self.parameters.window_size * 100
+
+        # Get a random start point
         index = randint(0, max(0, file_size - windowSizeInFrames - 1))
+
+        # Generate the index slicing
         a = np.array(range(min(file_size, int(windowSizeInFrames)))) + index
-        return features[a,:]
+        
+        # Slice the spectrogram
+        sliced_spectrogram = features[a,:]
+
+        return sliced_spectrogram
 
     def __getFeatureVector(self, utterance_path):
 
@@ -65,7 +89,11 @@ class Dataset(data.Dataset):
         with open(utterance_path + '.pickle', 'rb') as pickle_file:
             features = pickle.load(pickle_file)
 
-        windowedFeatures = self.__sampleSpectogramWindow(self.__normalize(np.transpose(features))) # TODO fix this transpose
+        # TODO fix this transpose
+        # It seems that the feature extractor's output spectrogram has mel bands as rows
+        # Is it possible to do the transpose in that module?
+        windowedFeatures = self.__sampleSpectogramWindow(self.__normalize(np.transpose(features))) 
+
         return windowedFeatures            
      
     def __len__(self):
