@@ -148,7 +148,7 @@ class VGGNL(torch.nn.Module):
 
     def generate_conv_block(self, block_channels):
 
-        self.conv_block = nn.Sequential(
+        conv_block = nn.Sequential(
             nn.Conv2d(in_channels = 1, out_channels = block_channels, kernel_size = 3, stride = 1, padding = 1,),
             nn.ReLU(),
             nn.Conv2d(in_channels = block_channels, out_channels = block_channels, kernel_size = 3, stride = 1, padding = 1,),
@@ -156,13 +156,15 @@ class VGGNL(torch.nn.Module):
             nn.MaxPool2d(kernel_size = 2, stride=2, padding=0, ceil_mode=True)
             )
 
+        return conv_block
+
     def generate_conv_blocks(self, n_blocks, vgg_last_channels):
         
         self.conv_blocks = []
 
         for num_block in range(n_blocks):
 
-            conv_block_channels = vgg_last_channels / (2 ** (n_blocks - num_block ))
+            conv_block_channels = int(vgg_last_channels / (2 ** (n_blocks - num_block )))
             conv_block = self.generate_conv_block(block_channels = conv_block_channels)
             self.conv_blocks.append(conv_block)
 
