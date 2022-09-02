@@ -68,7 +68,7 @@ class Dataset(data.Dataset):
         file_size = features.shape[0]
         
         # FIX why this hardcoded 100? 
-        # The cutting here is in FRAMES not secs
+        # The cutting here is in FRAMES, not secs
         # It would be nice to do the cutting at the feature extractor module
         # It seems that some kind of padding is made with librosa, but it should be done at the feature extractor module also
         windowSizeInFrames = self.parameters.window_size * 100
