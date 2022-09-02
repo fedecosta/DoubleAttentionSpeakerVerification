@@ -10,7 +10,7 @@ class SpeakerClassifier(nn.Module):
     def __init__(self, parameters, device):
         super().__init__()
        
-        parameters.feature_size = 80 
+        parameters.feature_size = 80 # FIX hardcoded 80 for mel bands. Set mel bands as a parameter? 
         self.device = device
         self.__initFrontEnd(parameters)        
         self.__initPoolingLayers(parameters)
@@ -26,15 +26,27 @@ class SpeakerClassifier(nn.Module):
 
     def __initFrontEnd(self, parameters):
 
-        if parameters.front_end=='VGG3L':
-            self.vector_size = getVGG3LOutputDimension(parameters.feature_size, outputChannel=parameters.kernel_size)
+        # Set the so call front-end component that will take the spectrogram and generate complex features
+        
+        if parameters.front_end == 'VGG3L':
+            
+            self.vector_size = getVGG3LOutputDimension(
+                parameters.feature_size, 
+                outputChannel = parameters.kernel_size,
+                )
             self.front_end = VGG3L(parameters.kernel_size)
         
-        if parameters.front_end=='VGG4L':
-            self.vector_size = getVGG4LOutputDimension(parameters.feature_size, outputChannel=parameters.kernel_size)
+        if parameters.front_end == 'VGG4L':
+            
+            self.vector_size = getVGG4LOutputDimension(
+                parameters.feature_size, 
+                outputChannel = parameters.kernel_size,
+                )
             self.front_end = VGG4L(parameters.kernel_size)
 
     def __initPoolingLayers(self, parameters):    
+
+        # Set the pooling component that will take the front-end features and summarize them in a context vector
 
         self.pooling_method = parameters.pooling_method
 
@@ -44,9 +56,11 @@ class SpeakerClassifier(nn.Module):
             self.poolingLayer = MultiHeadAttention(self.vector_size, parameters.heads_number)
         elif self.pooling_method == 'DoubleMHA':
             self.poolingLayer = DoubleMHA(self.vector_size, parameters.heads_number, mask_prob = parameters.mask_prob)
-            self.vector_size = self.vector_size//parameters.heads_number
+            self.vector_size = self.vector_size // parameters.heads_number
 
     def __initFullyConnectedBlock(self, parameters):
+
+        # Set the set of fully connected layers that will take the pooling context vector
 
         self.fc1 = nn.Linear(self.vector_size, parameters.embedding_size)
         self.b1 = nn.BatchNorm1d(parameters.embedding_size)
@@ -55,7 +69,8 @@ class SpeakerClassifier(nn.Module):
         self.preLayer = nn.Linear(parameters.embedding_size, parameters.embedding_size)
         self.b3 = nn.BatchNorm1d(parameters.embedding_size)
         
-    def getEmbedding(self,x):
+    # TODO not used in this class. where?
+    def getEmbedding(self, x):
 
         encoder_output = self.front_end(x)
         embedding0, alignment = self.poolingLayer(encoder_output)
@@ -64,7 +79,10 @@ class SpeakerClassifier(nn.Module):
     
         return embedding2 
 
-    def forward(self, x, label=None, step=0):
+    def forward(self, x, label = None, step = 0):
+
+        # Mandatory torch method
+        # Set the net's forward pass
 
         encoder_output = self.front_end(x)
 

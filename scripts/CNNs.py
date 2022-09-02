@@ -4,20 +4,33 @@ from torch import nn
 from torch.nn import functional as F
 import numpy as np
 
-def getVGG3LOutputDimension(inputDimension, outputChannel=128):
+def getVGG3LOutputDimension(inputDimension, outputChannel = 128):
 
-    outputDimension = np.ceil(np.array(inputDimension, dtype=np.float32)/2)
-    outputDimension = np.ceil(np.array(outputDimension, dtype=np.float32)/2)
-    outputDimension = np.ceil(np.array(outputDimension, dtype=np.float32)/2)
-    return int(outputDimension) * outputChannel
+    # Compute the component output's dimension
+
+    # Each convolutional block reduces x and y dimension by /2
+    outputDimension = np.ceil(np.array(inputDimension, dtype=np.float32) / 2)
+    outputDimension = np.ceil(np.array(outputDimension, dtype=np.float32) / 2)
+    outputDimension = np.ceil(np.array(outputDimension, dtype=np.float32) / 2)
+
+    # TODO check: only x dimension matters? why not x * y * outputChannel?
+    outputDimension = int(outputDimension) * outputChannel
+
+    return outputDimension
 
 def getVGG4LOutputDimension(inputDimension, outputChannel=128):
 
+    # Compute the component output's dimension
+
+    # Each convolutional block reduces x and y dimension by /2
     outputDimension = np.ceil(np.array(inputDimension, dtype=np.float32)/2)
     outputDimension = np.ceil(np.array(outputDimension, dtype=np.float32)/2)
     outputDimension = np.ceil(np.array(outputDimension, dtype=np.float32)/2)
     outputDimension = np.ceil(np.array(outputDimension, dtype=np.float32)/2)
-    return int(outputDimension) * outputChannel
+    
+    outputDimension = int(outputDimension) * outputChannel
+
+    return outputDimension
 
 class VGG3L(torch.nn.Module):
 

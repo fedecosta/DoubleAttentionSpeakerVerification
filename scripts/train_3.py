@@ -91,13 +91,14 @@ class Trainer:
         # Instanciate a Dataset class
         dataset = Dataset(train_labels, self.params)
         
-        # Instanciate a DataLoader class
+        # Load DataLoader params
         data_loader_parameters = {
             'batch_size': self.params.batch_size, 
-            'shuffle': True, # TODO hardcoded True
+            'shuffle': True, # FIX hardcoded True
             'num_workers': self.params.num_workers
             }
         
+        # Instanciate a DataLoader class
         self.training_generator = DataLoader(
             dataset, 
             **data_loader_parameters,
@@ -106,12 +107,16 @@ class Trainer:
         logger.info("Data and labels loaded.")
 
 
-    # Load the model (Neural Network)
     def __load_network(self):
+
+        # Load the model (Neural Network)
 
         logger.info("Loading the network...")
 
+        # Load model class
         self.net = SpeakerClassifier(self.params, self.device)
+        
+        # Assign model to device
         self.net.to(self.device)
 
         if torch.cuda.device_count() > 1:
