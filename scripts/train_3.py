@@ -403,7 +403,7 @@ class ArgsParser:
             '--front_end', 
             type = str, 
             default = TRAIN_DEFAULT_SETTINGS['front_end'],
-            choices = ['VGG3L','VGG4L'], 
+            choices = ['VGG3L','VGG4L', 'VGGNL'], 
             help = 'Type of Front-end used.'
             )
 
@@ -424,9 +424,18 @@ class ArgsParser:
             )
 
         self.parser.add_argument(
-            '--kernel_size', 
+            '--vgg_n_blocks', 
             type = int, 
-            default = TRAIN_DEFAULT_SETTINGS['kernel_size'],
+            default = TRAIN_DEFAULT_SETTINGS['vgg_n_blocks'],
+            help = 'Number of blocks the VGG front-end block will have.',
+            )
+
+        self.parser.add_argument(
+            '--vgg_last_channels', 
+            type = int, 
+            default = TRAIN_DEFAULT_SETTINGS['vgg_last_channels'],
+            help = 'Number of channels the last VGG convolutional block will have. \
+                If the VGG has N conv blocks, the i conv block will have (vgg_last_channels / (2 ^ (N-i))) channels.',
             )
 
         self.parser.add_argument(

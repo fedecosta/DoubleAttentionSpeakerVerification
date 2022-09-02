@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 from poolings import Attention, MultiHeadAttention, DoubleMHA
-from CNNs import getVGG3LOutputDimension, getVGG4LOutputDimension, VGG3L, VGG4L
+from CNNs import getVGG3LOutputDimension, getVGG4LOutputDimension, VGG3L, VGG4L, VGGNL
 from loss import AMSoftmax
 
 class SpeakerClassifier(nn.Module):
@@ -32,17 +32,26 @@ class SpeakerClassifier(nn.Module):
             
             self.vector_size = getVGG3LOutputDimension(
                 parameters.feature_size, 
-                outputChannel = parameters.kernel_size,
+                outputChannel = parameters.vgg_last_channels,
                 )
-            self.front_end = VGG3L(parameters.kernel_size)
+            self.front_end = VGG3L(parameters.vgg_last_channels)
         
         if parameters.front_end == 'VGG4L':
             
             self.vector_size = getVGG4LOutputDimension(
                 parameters.feature_size, 
-                outputChannel = parameters.kernel_size,
+                outputChannel = parameters.vgg_last_channels,
                 )
-            self.front_end = VGG4L(parameters.kernel_size)
+            self.front_end = VGG4L(parameters.vgg_last_channels)
+
+        if parameters.front_end == 'VGGNL':
+            
+            self.vector_size = getVGG4LOutputDimension(
+                parameters.feature_size, 
+                outputChannel = parameters.vgg_last_channels,
+                )
+
+            self.front_end = VGGNL(parameters.vgg_n_blocks, parameters.vgg_last_channels)
 
     def __initPoolingLayers(self, parameters):    
 
