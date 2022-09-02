@@ -35,8 +35,7 @@ def getVGG4LOutputDimension(inputDimension, outputChannel=128):
 class VGG3L(torch.nn.Module):
 
     def __init__(self, kernel_size):
-        super(VGG3L, self).__init__()
-
+        super().__init__()
         self.conv11 = torch.nn.Conv2d(1, int(kernel_size/4), 3, stride=1, padding=1)
         self.conv12 = torch.nn.Conv2d(int(kernel_size/4), int(kernel_size/4), 3, stride=1, padding=1)
         self.conv21 = torch.nn.Conv2d(int(kernel_size/4), int(kernel_size/2), 3, stride=1, padding=1)
