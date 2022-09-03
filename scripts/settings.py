@@ -40,7 +40,7 @@ TRAIN_DEFAULT_SETTINGS = {
     'num_workers' : 2,
     'front_end' : 'VGG4L',
     'vgg_n_blocks' : 4,
-    'vgg_last_channels' : 1024,
+    'vgg_start_channels' : 128,
     'pooling_method' : 'DoubleMHA',
     'embedding_size' : 400,
     'scaling_factor' : 30.0,

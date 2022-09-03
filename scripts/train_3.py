@@ -332,6 +332,8 @@ class Trainer:
     
     def train(self, starting_epoch, max_epochs):
 
+        # TODO add a model.summary?
+
         logger.info(f'Starting training for {max_epochs} epochs.')
 
         # DEBUG
@@ -431,11 +433,11 @@ class ArgsParser:
             )
 
         self.parser.add_argument(
-            '--vgg_last_channels', 
+            '--vgg_start_channels', 
             type = int, 
-            default = TRAIN_DEFAULT_SETTINGS['vgg_last_channels'],
-            help = 'Number of channels the last VGG convolutional block will have. \
-                If the VGG has N conv blocks, the i conv block will have (vgg_last_channels / (2 ^ (N-i))) channels.',
+            default = TRAIN_DEFAULT_SETTINGS['vgg_start_channels'],
+            help = 'Number of channels the first VGG convolutional block will have. \
+                Each convolutional block will have the double of channels than the previous convolutional block.',
             )
 
         self.parser.add_argument(
