@@ -28,8 +28,9 @@ class SpeakerClassifier(nn.Module):
 
         # Set the so call front-end component that will take the spectrogram and generate complex features
         
-        self.front_end = VGGNL(parameters.vgg_n_blocks, parameters.vgg_start_channels)
+        self.front_end = VGGNL(parameters.vgg_n_blocks, parameters.vgg_channels)
             
+        # TODO understand where is vector_size used
         self.vector_size = self.front_end.get_vgg_output_dimension(
             parameters.feature_size, 
             )

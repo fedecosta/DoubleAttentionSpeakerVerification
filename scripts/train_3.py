@@ -433,11 +433,12 @@ class ArgsParser:
             )
 
         self.parser.add_argument(
-            '--vgg_start_channels', 
-            type = int, 
-            default = TRAIN_DEFAULT_SETTINGS['vgg_start_channels'],
-            help = 'Number of channels the first VGG convolutional block will have. \
-                Each convolutional block will have the double of channels than the previous convolutional block.',
+            '--vgg_channels', 
+            nargs = '+',
+            type = int,
+            default = TRAIN_DEFAULT_SETTINGS['vgg_channels'],
+            help = 'Number of channels each VGG convolutional block will have. \
+                The number of channels must be passed in order and consisently with vgg_n_blocks.',
             )
 
         self.parser.add_argument(

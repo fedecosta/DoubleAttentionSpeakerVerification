@@ -7,21 +7,21 @@ import numpy as np
 
 class VGGNL(torch.nn.Module):
 
-    def __init__(self, vgg_n_blocks, vgg_start_channels):
+    def __init__(self, vgg_n_blocks, vgg_channels):
         super().__init__()
 
         self.vgg_n_blocks = vgg_n_blocks
-        self.vgg_start_channels = vgg_start_channels
+        self.vgg_channels = vgg_channels
         self.generate_conv_blocks(
             vgg_n_blocks = self.vgg_n_blocks, 
-            vgg_start_channels = self.vgg_start_channels,
+            vgg_channels = self.vgg_channels,
             )
 
 
     # Method used only at model.py
     def get_vgg_output_dimension(self, input_dimension):
 
-        # Compute the front-end component output's dimension ?
+        # TODO check: Compute the front-end component output's dimension ?
 
         # Each convolutional block reduces x and y dimension by /2
         output_dimension = input_dimension
@@ -66,20 +66,16 @@ class VGGNL(torch.nn.Module):
         return conv_block
 
 
-    def generate_conv_blocks(self, vgg_n_blocks, vgg_start_channels):
+    def generate_conv_blocks(self, vgg_n_blocks, vgg_channels):
 
         # Generate a nn list of vgg_n_blocks convolutional blocks
         
         self.conv_blocks = nn.ModuleList() # A Python list will fail with torch
         
         start_block_channels = 1 # The first block starts with the input spectrogram, which has 1 channel
-        end_block_channels = vgg_start_channels # The first block ends with vgg_start_channels channels
+        end_block_channels = vgg_channels[0] # The first block ends with vgg_channels[0] channels
 
         for num_block in range(1, vgg_n_blocks + 1):
-
-            print(f"Block {num_block}")
-            print(f"start_block_channels: {start_block_channels}")
-            print(f"end_block_channels: {end_block_channels}")
             
             conv_block = self.generate_conv_block(
                 start_block_channels = start_block_channels, 
@@ -91,15 +87,15 @@ class VGGNL(torch.nn.Module):
             # Update start_block_channels and end_block_channels for the next block
             if num_block < vgg_n_blocks: # If num_block = vgg_n_blocks, start_block_channels and end_block_channels must not get updated
                 start_block_channels = end_block_channels # The next block will start with end_block_channels channels
-                end_block_channels = int(end_block_channels * 2) # The next block will end with (end_block_channels * 2) channels
+                end_block_channels = vgg_channels[num_block] 
         
         # VGG ends with the end_block_channels of the last block
         self.vgg_end_channels = end_block_channels
-        print(f"self.vgg_end_channels: {self.vgg_end_channels}")
 
 
     def forward(self, padded_input_tensor):
 
+        # TODO why is this?
         padded_input_tensor =  padded_input_tensor.view( 
             padded_input_tensor.size(0),  
             padded_input_tensor.size(1), 
@@ -109,12 +105,14 @@ class VGGNL(torch.nn.Module):
 
         encoded_tensor = padded_input_tensor
 
+        # Loop over the convolutional blocks
         for num_block in range(self.vgg_n_blocks):
-
             encoded_tensor = self.conv_blocks[num_block](encoded_tensor)
 
+        # TODO why is this?
         output_tensor = encoded_tensor.transpose(1, 2)
 
+        # TODO why is this?
         output_tensor = output_tensor.contiguous().view(
             output_tensor.size(0), 
             output_tensor.size(1), 
