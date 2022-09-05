@@ -10,7 +10,7 @@ class SpeakerClassifier(nn.Module):
     def __init__(self, parameters, device):
         super().__init__()
        
-        parameters.feature_size = 80 # FIX hardcoded 80 for mel bands. Read the number of mel bands from the input spectrogram 
+        parameters.feature_size = 80 # HACK hardcoded 80 for mel bands. Read the number of mel bands from the input spectrogram 
         self.device = device
         self.__initFrontEnd(parameters)        
         self.__initPoolingLayers(parameters)
