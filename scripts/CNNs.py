@@ -93,26 +93,35 @@ class VGGNL(torch.nn.Module):
         self.vgg_end_channels = end_block_channels
 
 
-    def forward(self, padded_input_tensor):
+    def forward(self, input_tensor):
 
-        # TODO why is this?
-        padded_input_tensor =  padded_input_tensor.view( 
-            padded_input_tensor.size(0),  
-            padded_input_tensor.size(1), 
+        # input_tensor dimensions are:
+        # input_tensor.size(0) = number of batches
+        # input_tensor.size(1) = number of frames of the spectrogram
+        # input_tensor.size(2) = number of frequency bins of the spectrogram
+
+        # We need to add a new dimension corresponding to the channels
+        # This channel dimension will be 1 because the spectrogram has only 1 channel
+        input_tensor =  input_tensor.view( 
+            input_tensor.size(0),  
+            input_tensor.size(1), 
             1, 
-            padded_input_tensor.size(2)
-            ).transpose(1, 2)
-
-        encoded_tensor = padded_input_tensor
+            input_tensor.size(2),
+            )
+            
+        # We need to put the channel dimension first because nn.Conv2d need it that way
+        input_tensor = input_tensor.transpose(1, 2)
 
         # Loop over the convolutional blocks
+        encoded_tensor = input_tensor
         for num_block in range(self.vgg_n_blocks):
             encoded_tensor = self.conv_blocks[num_block](encoded_tensor)
-
-        # TODO why is this?
+        
+        # We want to flatten the output
+        # For each batch, we will have encoded_tensor.size(1) hidden state vectors \
+        # of size encoded_tensor.size(2) * encoded_tensor.size(3)
         output_tensor = encoded_tensor.transpose(1, 2)
 
-        # TODO why is this?
         output_tensor = output_tensor.contiguous().view(
             output_tensor.size(0), 
             output_tensor.size(1), 
