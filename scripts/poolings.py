@@ -11,20 +11,22 @@ def new_parameter(*size):
     torch.nn.init.xavier_normal_(out)
     return out
 
+
 class Attention(nn.Module):
 
     def __init__(self, embedding_size):
 
-        super(Attention, self).__init__()
+        super().__init__()
         self.embedding_size = embedding_size
-        self.att=new_parameter(self.embedding_size,1)
+        self.att = new_parameter(self.embedding_size, 1)
 
-    def forward(self,ht):
+    def forward(self, ht):
         attention_score = torch.matmul(ht, self.att).squeeze()
-        attention_score = F.softmax(attention_score, dim=-1).view(ht.size(0), ht.size(1),1)
-        ct = torch.sum(ht * attention_score,dim=1)
+        attention_score = F.softmax(attention_score, dim = -1).view(ht.size(0), ht.size(1), 1)
+        ct = torch.sum(ht * attention_score, dim = 1)
 
         return ct, attention_score
+
 
 class HeadAttention(nn.Module):
 
@@ -70,6 +72,7 @@ class HeadAttention(nn.Module):
         ct = torch.sum(weighted_ht,dim=1)
 
         return ct, attention_score
+
 
 def innerKeyValueAttention(query, key, value):
 

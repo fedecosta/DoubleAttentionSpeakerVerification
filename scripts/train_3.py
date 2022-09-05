@@ -301,6 +301,8 @@ class Trainer:
             # Assign input and label to device
             input, label = input.float().to(self.device), label.long().to(self.device)
 
+            logger.debug(f"input size: {input.size()}")
+
             # Calculate loss
             prediction, AMPrediction  = self.net(x = input, label = label, step = self.step)
             self.loss = self.loss_function(AMPrediction, label)
@@ -446,7 +448,7 @@ class ArgsParser:
             type = str, 
             default = TRAIN_DEFAULT_SETTINGS['pooling_method'], 
             choices = ['Attention', 'MHA', 'DoubleMHA'], 
-            help='Type of pooling methods',
+            help = 'Type of pooling method',
             )
 
         self.parser.add_argument(

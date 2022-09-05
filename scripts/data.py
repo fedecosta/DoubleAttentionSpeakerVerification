@@ -90,7 +90,7 @@ class Dataset(data.Dataset):
         with open(utterance_path + '.pickle', 'rb') as pickle_file:
             features = pickle.load(pickle_file)
 
-        # TODO fix this transpose
+        # HACK fix this transpose
         # It seems that the feature extractor's output spectrogram has mel bands as rows
         # Is it possible to do the transpose in that module?
         windowedFeatures = self.__sampleSpectogramWindow(self.__normalize(np.transpose(features))) 
