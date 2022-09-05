@@ -19,19 +19,20 @@ class VGGNL(torch.nn.Module):
 
 
     # Method used only at model.py
-    def get_vgg_output_dimension(self, input_dimension):
+    def get_hidden_states_dimension(self, input_dimension):
 
-        # TODO check: Compute the front-end component output's dimension ?
+        # Compute the front-end hidden state output's dimension
+        # The front-end inputs a (frames, freq_bins) spectrogram \
+        # and outputs (frames / (2 ^ vgg_n_blocks)) hidden states of size (freq_bins / (2 ^ vgg_n_blocks)) * vgg_end_channels
 
-        # Each convolutional block reduces x and y dimension by /2
-        output_dimension = input_dimension
+        # Each convolutional block reduces dimension by /2
+        hidden_states_dimension = input_dimension
         for num_block in range(self.vgg_n_blocks):
-            output_dimension = np.ceil(np.array(output_dimension, dtype = np.float32) / 2)
+            hidden_states_dimension = np.ceil(np.array(hidden_states_dimension, dtype = np.float32) / 2)
 
-        # TODO check: only x dimension matters? why not x * y * outputChannel?
-        output_dimension = int(output_dimension) * self.vgg_end_channels
+        hidden_states_dimension = int(hidden_states_dimension) * self.vgg_end_channels
 
-        return output_dimension
+        return hidden_states_dimension
     
 
     def generate_conv_block(self, start_block_channels, end_block_channels):

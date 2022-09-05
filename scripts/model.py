@@ -27,11 +27,10 @@ class SpeakerClassifier(nn.Module):
     def __initFrontEnd(self, parameters):
 
         # Set the front-end component that will take the spectrogram and generate complex features
-        
         self.front_end = VGGNL(parameters.vgg_n_blocks, parameters.vgg_channels)
             
-        # TODO understand where is front_end_output_size used
-        self.front_end_output_size = self.front_end.get_vgg_output_dimension(
+        # Calculate the size of the hidden state vectors (output of the front-end)
+        self.hidden_states_dimension = self.front_end.get_hidden_states_dimension(
             parameters.feature_size, 
             )
             
@@ -43,18 +42,18 @@ class SpeakerClassifier(nn.Module):
         self.pooling_method = parameters.pooling_method
 
         if self.pooling_method == 'Attention':
-            self.poolingLayer = Attention(self.front_end_output_size)
+            self.poolingLayer = Attention(self.hidden_states_dimension)
         elif self.pooling_method == 'MHA':
-            self.poolingLayer = MultiHeadAttention(self.front_end_output_size, parameters.heads_number)
+            self.poolingLayer = MultiHeadAttention(self.hidden_states_dimension, parameters.heads_number)
         elif self.pooling_method == 'DoubleMHA':
-            self.poolingLayer = DoubleMHA(self.front_end_output_size, parameters.heads_number, mask_prob = parameters.mask_prob)
-            self.front_end_output_size = self.front_end_output_size // parameters.heads_number
+            self.poolingLayer = DoubleMHA(self.hidden_states_dimension, parameters.heads_number, mask_prob = parameters.mask_prob)
+            self.hidden_states_dimension = self.hidden_states_dimension // parameters.heads_number
 
     def __initFullyConnectedBlock(self, parameters):
 
         # Set the set of fully connected layers that will take the pooling context vector
 
-        self.fc1 = nn.Linear(self.front_end_output_size, parameters.embedding_size)
+        self.fc1 = nn.Linear(self.hidden_states_dimension, parameters.embedding_size)
         self.b1 = nn.BatchNorm1d(parameters.embedding_size)
         self.fc2 = nn.Linear(parameters.embedding_size, parameters.embedding_size)
         self.b2 = nn.BatchNorm1d(parameters.embedding_size)
