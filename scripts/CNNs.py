@@ -71,18 +71,20 @@ class VGGNL(torch.nn.Module):
 
         # Generate a nn list of vgg_n_blocks convolutional blocks
         
-        self.conv_blocks = nn.ModuleList() # A Python list will fail with torch
+        self.conv_blocks = nn.Sequential() # A Python list will fail with torch
         
         start_block_channels = 1 # The first block starts with the input spectrogram, which has 1 channel
         end_block_channels = vgg_channels[0] # The first block ends with vgg_channels[0] channels
 
         for num_block in range(1, vgg_n_blocks + 1):
             
+            conv_block_name = f"convolutional_block_{num_block}"
             conv_block = self.generate_conv_block(
                 start_block_channels = start_block_channels, 
                 end_block_channels = end_block_channels,
                 )
-            self.conv_blocks.append(conv_block)
+            
+            self.conv_blocks.add_module(conv_block_name, conv_block)
 
             
             # Update start_block_channels and end_block_channels for the next block
@@ -113,10 +115,8 @@ class VGGNL(torch.nn.Module):
         # We need to put the channel dimension first because nn.Conv2d need it that way
         input_tensor = input_tensor.transpose(1, 2)
 
-        # Loop over the convolutional blocks
-        encoded_tensor = input_tensor
-        for num_block in range(self.vgg_n_blocks):
-            encoded_tensor = self.conv_blocks[num_block](encoded_tensor)
+        # Pass the tensor through the convolutional blocks 
+        encoded_tensor = self.conv_blocks(input_tensor)
         
         # We want to flatten the output
         # For each batch, we will have encoded_tensor.size(1) hidden state vectors \
