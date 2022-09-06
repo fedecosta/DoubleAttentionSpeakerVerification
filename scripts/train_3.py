@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch import optim
+from torchsummary import summary
 
 from data import Dataset, normalizeFeatures, featureReader
 from model import SpeakerClassifier
@@ -124,6 +125,9 @@ class Trainer:
             self.net = nn.DataParallel(self.net)
         
         logger.info("Network loaded.")
+
+        # TODO set the correct size in this call to see the summary
+        # summary(self.net, torch.Size([80, 350]))
 
 
     # Load the loss function
@@ -310,8 +314,16 @@ class Trainer:
             logger.debug(f"Loss: {self.train_loss:.2f}")
 
             # Compute backpropagation and update weights
+            
+            # Clears x.grad for every parameter x in the optimizer. 
+            # It’s important to call this before loss.backward(), otherwise you’ll accumulate the gradients from multiple passes.
             self.optimizer.zero_grad()
+            
+            # loss.backward() computes dloss/dx for every parameter x which has requires_grad=True. 
+            # These are accumulated into x.grad for every parameter x.
             self.loss.backward()
+            
+            # optimizer.step updates the value of x using the gradient x.grad
             self.optimizer.step()
 
             # DEBUG
