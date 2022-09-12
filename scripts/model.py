@@ -28,15 +28,17 @@ class SpeakerClassifier(nn.Module):
 
     def __initFrontEnd(self, parameters):
 
-        # Set the front-end component that will take the spectrogram and generate complex features
-        self.front_end = VGGNL(parameters.vgg_n_blocks, parameters.vgg_channels)
+        if parameters.front_end == 'VGGNL':
+
+            # Set the front-end component that will take the spectrogram and generate complex features
+            self.front_end = VGGNL(parameters.vgg_n_blocks, parameters.vgg_channels)
+                
+            # Calculate the size of the hidden state vectors (output of the front-end)
+            self.hidden_states_dimension = self.front_end.get_hidden_states_dimension(
+                parameters.feature_size, 
+                )
             
-        # Calculate the size of the hidden state vectors (output of the front-end)
-        self.hidden_states_dimension = self.front_end.get_hidden_states_dimension(
-            parameters.feature_size, 
-            )
-        
-        #print(f"[model] hidden_states_dimension: {self.hidden_states_dimension}")
+            #print(f"[model] hidden_states_dimension: {self.hidden_states_dimension}")
             
 
     def __initPoolingLayers(self, parameters):    

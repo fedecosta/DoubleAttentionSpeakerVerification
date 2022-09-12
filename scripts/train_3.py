@@ -29,7 +29,7 @@ logger_file_handler = logging.FileHandler('scripts/logs/train_3.log', mode = 'w'
 logger_file_handler.setLevel(logging.DEBUG)
 logger_file_handler.setFormatter(logger_formatter)
 
-# Set a logging stram handler
+# Set a logging stream handler
 logger_stream_handler = logging.StreamHandler()
 logger_stream_handler.setLevel(logging.DEBUG)
 logger_stream_handler.setFormatter(logger_formatter)
@@ -126,7 +126,7 @@ class Trainer:
         
         logger.info("Network loaded.")
 
-        # TODO set the correct size in this call to see the summary
+        # TODO set the correct size in this call to see the network summary
         # summary(self.net, torch.Size([80, 350]))
 
 
@@ -173,8 +173,8 @@ class Trainer:
         
         self.starting_epoch = 0
         self.step = 0
-        self.train_eval_metric = 0.0
         self.train_loss = None
+        self.train_eval_metric = 0.0
         self.valid_eval_metric = 50.0
 
 
@@ -188,14 +188,14 @@ class Trainer:
 
         logger.info(f"Evaluating training...")
 
-        # Switch to evaluation
+        # Switch torch to evaluation mode
         self.net.eval()
 
         accuracy = Accuracy(prediction, label)
         logger.info(f"Accuracy on training set: {accuracy:.2f}")
         self.train_eval_metric = accuracy
 
-        # Return to training
+        # Return to torch training mode
         self.net.train()
 
 
@@ -274,7 +274,7 @@ class Trainer:
 
         with torch.no_grad():
 
-            # Switch to evaluation
+            # Switch torch to evaluation mode
             self.net.eval()
 
             # EER Validation
@@ -288,7 +288,7 @@ class Trainer:
             logger.info(f"EER on validation set: {EER:.2f}")
             self.valid_eval_metric = EER
 
-        # Return to training
+        # Return to training mode
         self.net.train()
 
 
@@ -296,6 +296,7 @@ class Trainer:
 
         logger.info(f"Epoch {epoch}...")
 
+        # Switch torch to training mode
         self.net.train()
 
         for self.batch_number, (input, label) in enumerate(self.training_generator):
@@ -306,10 +307,10 @@ class Trainer:
             # Assign input and label to device
             input, label = input.float().to(self.device), label.long().to(self.device)
 
-            logger.debug(f"input size: {input.size()}")
+            # logger.debug(f"input size: {input.size()}")
 
             # Calculate loss
-            prediction, AMPrediction  = self.net(x = input, label = label, step = self.step)
+            prediction, AMPrediction  = self.net(x = input, label = label, step = self.step) # TODO understand diff between prediction and AMPrediction
             self.loss = self.loss_function(AMPrediction, label)
             self.train_loss = self.loss.item()
             logger.debug(f"Loss: {self.train_loss:.1f}")
@@ -385,61 +386,79 @@ class ArgsParser:
         # TODO complete all helps
         
         # Directory parameters
-        
-        self.parser.add_argument(
-            '--train_data_dir', 
-            type = str, default = TRAIN_DEFAULT_SETTINGS['train_data_dir'],
-            )
-        
+
         self.parser.add_argument(
             '--train_labels_path', 
             type = str, 
             default = TRAIN_DEFAULT_SETTINGS['train_labels_path'],
+            help = 'Path of the file containing the training examples paths and labels.',
             )
-
+        
         self.parser.add_argument(
-            '--valid_data_dir', 
-            type = str, 
-            default = TRAIN_DEFAULT_SETTINGS['valid_data_dir'], 
-            
+            '--train_data_dir', 
+            type = str, default = TRAIN_DEFAULT_SETTINGS['train_data_dir'],
+            help = 'Optional additional directory to prepend to the train_labels_path paths.',
             )
+        
         self.parser.add_argument(
             '--valid_clients', 
             type = str, 
             default = TRAIN_DEFAULT_SETTINGS['valid_clients'],
+            help = 'Path of the file containing the validation clients pairs paths.',
             )
 
         self.parser.add_argument(
             '--valid_impostors', 
             type = str, 
             default = TRAIN_DEFAULT_SETTINGS['valid_impostors'],
+            help = 'Path of the file containing the validation impostors pairs paths.',
             )
 
-        # Network Parameteres
         self.parser.add_argument(
-            '--front_end', 
+            '--valid_data_dir', 
             type = str, 
-            default = TRAIN_DEFAULT_SETTINGS['front_end'],
-            choices = ['VGG3L','VGG4L', 'VGGNL'], 
-            help = 'Type of Front-end used.'
+            default = TRAIN_DEFAULT_SETTINGS['valid_data_dir'], 
+            help = 'Optional additional directory to prepend to valid_clients and valid_impostors paths.',
             )
+
+        # Training Parameters
+
+        self.parser.add_argument(
+            '--max_epochs',
+            type = int,
+            default = TRAIN_DEFAULT_SETTINGS['max_epochs'],
+            help = 'Max number of epochs to train.',
+            )
+
+        self.parser.add_argument(
+            '--batch_size', 
+            type = int, 
+            default = TRAIN_DEFAULT_SETTINGS['batch_size'],
+            help = "Size of training batches.",
+            )
+
+        # Data Parameters
 
         self.parser.add_argument(
             '--window_size', 
             type = float, 
             default = TRAIN_DEFAULT_SETTINGS['window_size'], 
-            help = '', # TODO this must me fixed, used in data
-            )
-        
-        self.parser.add_argument(
-            '--normalization', 
-            type = str, 
-            default = TRAIN_DEFAULT_SETTINGS['normalization'], 
-            choices = ['cmn', 'cmvn'],
-            help = 'Type of normalization applied to the features. \
-                It can be Cepstral Mean Normalization or Cepstral Mean and Variance Normalization'
+            help = 'Cut the input spectrogram with window_size length at a random starting point. \
+                window_size is measured in #frames / 100.', # TODO this must me fixed, used in data
             )
 
+
+
+        # Network Parameters
+
+        self.parser.add_argument(
+            '--front_end', 
+            type = str, 
+            default = TRAIN_DEFAULT_SETTINGS['front_end'],
+            choices = ['VGGNL'], 
+            help = 'Type of Front-end used. VGGNL for a N-block VGG architecture.'
+            )
+            
         self.parser.add_argument(
             '--vgg_n_blocks', 
             type = int, 
@@ -461,13 +480,14 @@ class ArgsParser:
             type = str, 
             default = TRAIN_DEFAULT_SETTINGS['pooling_method'], 
             choices = ['Attention', 'MHA', 'DoubleMHA'], 
-            help = 'Type of pooling method',
+            help = 'Type of pooling method.',
             )
 
         self.parser.add_argument(
             '--heads_number', 
             type = int, 
             default = TRAIN_DEFAULT_SETTINGS['heads_number'],
+            help = 'Number of heads for the pooling method (only for MHA and DoubleMHA options).',
             )
 
         self.parser.add_argument(
@@ -480,8 +500,36 @@ class ArgsParser:
         self.parser.add_argument(
             '--embedding_size', 
             type = int, 
-            default = TRAIN_DEFAULT_SETTINGS['embedding_size']
+            default = TRAIN_DEFAULT_SETTINGS['embedding_size'],
+            help = 'Size of the embedding that the system will generate.',
             )
+
+
+
+
+
+
+
+        
+        
+        self.parser.add_argument(
+            '--normalization', 
+            type = str, 
+            default = TRAIN_DEFAULT_SETTINGS['normalization'], 
+            choices = ['cmn', 'cmvn'],
+            help = 'Type of normalization applied to the features. \
+                It can be Cepstral Mean Normalization or Cepstral Mean and Variance Normalization'
+            )
+
+        
+
+        
+
+        
+
+        
+
+        
 
         # AMSoftmax Config
         self.parser.add_argument(
@@ -522,19 +570,7 @@ class ArgsParser:
             default = TRAIN_DEFAULT_SETTINGS['weight_decay'],
             )
 
-        self.parser.add_argument(
-            '--max_epochs',
-            type = int,
-            default = TRAIN_DEFAULT_SETTINGS['max_epochs'],
-            help = 'Max number of epochs to train.',
-            )
-
-        self.parser.add_argument(
-            '--batch_size', 
-            type = int, 
-            default = TRAIN_DEFAULT_SETTINGS['batch_size'],
-            help = "Size of training batches.",
-            )
+        
 
         self.parser.add_argument(
             '--num_workers', 
