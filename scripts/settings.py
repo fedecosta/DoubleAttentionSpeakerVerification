@@ -39,7 +39,10 @@ TRAIN_DEFAULT_SETTINGS = {
     'max_epochs' : 3,
     'batch_size' : 64,
     
+
     'window_size' : 3.5,
+    'normalization' : 'cmn',
+    'num_workers' : 2,
 
     'front_end' : 'VGGNL',
     'vgg_n_blocks' : 4,
@@ -48,22 +51,10 @@ TRAIN_DEFAULT_SETTINGS = {
     'heads_number' : 32,
     'mask_prob' : 0.3,
     'embedding_size' : 400,
-    
-    
-    
-    'num_workers' : 2,
-    
-    
-    
-    
     'scaling_factor' : 30.0,
     'margin_factor' : 0.4,
     'optimizer' : 'adam',
     'learning_rate' : 0.0001,
     'weight_decay' : 0.001,
-    'normalization' : 'cmn',
-    
-    
-    
     'annealing' : False,
 }

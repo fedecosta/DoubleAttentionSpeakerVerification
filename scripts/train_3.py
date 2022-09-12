@@ -444,10 +444,24 @@ class ArgsParser:
             type = float, 
             default = TRAIN_DEFAULT_SETTINGS['window_size'], 
             help = 'Cut the input spectrogram with window_size length at a random starting point. \
-                window_size is measured in #frames / 100.', # TODO this must me fixed, used in data
+                window_size is measured in #frames / 100.', # TODO this should be improved, it is used at data.py
             )
 
+        self.parser.add_argument(
+            '--normalization', 
+            type = str, 
+            default = TRAIN_DEFAULT_SETTINGS['normalization'], 
+            choices = ['cmn', 'cmvn'],
+            help = 'Type of normalization applied to the features. \
+                It can be Cepstral Mean Normalization or Cepstral Mean and Variance Normalization',
+            )
 
+        self.parser.add_argument(
+            '--num_workers', 
+            type = int, 
+            default = TRAIN_DEFAULT_SETTINGS['num_workers'],
+            help = 'num_workers to be used by the data loader'
+            )
 
         # Network Parameters
 
@@ -504,33 +518,6 @@ class ArgsParser:
             help = 'Size of the embedding that the system will generate.',
             )
 
-
-
-
-
-
-
-        
-        
-        self.parser.add_argument(
-            '--normalization', 
-            type = str, 
-            default = TRAIN_DEFAULT_SETTINGS['normalization'], 
-            choices = ['cmn', 'cmvn'],
-            help = 'Type of normalization applied to the features. \
-                It can be Cepstral Mean Normalization or Cepstral Mean and Variance Normalization'
-            )
-
-        
-
-        
-
-        
-
-        
-
-        
-
         # AMSoftmax Config
         self.parser.add_argument(
             '--scaling_factor', 
@@ -570,14 +557,8 @@ class ArgsParser:
             default = TRAIN_DEFAULT_SETTINGS['weight_decay'],
             )
 
+        # Verbosity and debug Parameters
         
-
-        self.parser.add_argument(
-            '--num_workers', 
-            type = int, 
-            default = TRAIN_DEFAULT_SETTINGS['num_workers'],
-            )
-
         self.parser.add_argument(
             "--verbose", 
             action = "store_true", # TODO understand store_true vs store_false
