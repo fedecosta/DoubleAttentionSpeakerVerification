@@ -7,8 +7,11 @@ import math
 import copy
 
 def new_parameter(*size):
+    #print("[poolings] Using new_parameter...")
     out = torch.nn.Parameter(torch.FloatTensor(*size))
+    #print(f"[poolings] out size : {out.size()}")
     torch.nn.init.xavier_normal_(out)
+    #print(f"[poolings] out size after xn init: {out.size()}")
     return out
 
 
@@ -21,10 +24,20 @@ class Attention(nn.Module):
         self.att = new_parameter(self.embedding_size, 1)
 
     def forward(self, ht):
-        attention_score = torch.matmul(ht, self.att).squeeze()
-        attention_score = F.softmax(attention_score, dim = -1).view(ht.size(0), ht.size(1), 1)
+        #print(f"[poolings] ht size : {ht.size()}")
+        attention_score = torch.matmul(ht, self.att)
+        #print(f"[poolings] attention_score size : {attention_score.size()}")
+        attention_score = attention_score.squeeze()
+        #print(f"[poolings] attention_score size : {attention_score.size()}")
+        attention_score = F.softmax(attention_score, dim = -1)
+        #print(f"[poolings] attention_score size : {attention_score.size()}")
+        attention_score = attention_score.view(ht.size(0), ht.size(1), 1)
+        #print(f"[poolings] attention_score size : {attention_score.size()}")
         ct = torch.sum(ht * attention_score, dim = 1)
+        #print(f"[poolings] ct size : {ct.size()}")
 
+        #print(f"[poolings] Attention output size : {ct.size()}")
+        
         return ct, attention_score
 
 
@@ -71,6 +84,8 @@ class HeadAttention(nn.Module):
         weighted_ht = ht * attention_score
         ct = torch.sum(weighted_ht,dim=1)
 
+        print(f"[poolings] HeadAttention output size : {ct.size()}")
+
         return ct, attention_score
 
 
@@ -110,6 +125,9 @@ class MultiHeadAttention(nn.Module):
 
     def forward(self, ht):
         headsContextVectors = self.getHeadsContextVectors(ht)
+
+        print(f"[poolings] MultiHeadAttention output size : {headsContextVectors.view(headsContextVectors.size(0),-1).size()}")
+
         return headsContextVectors.view(headsContextVectors.size(0),-1), copy.copy(self.alignment)
 
 
@@ -130,5 +148,8 @@ class DoubleMHA(nn.Module):
     def forward(self, x):
         utteranceRepresentation, alignment = self.utteranceAttention(x)
         compressedRepresentation = self.headsAttention(utteranceRepresentation.view(utteranceRepresentation.size(0), self.heads_number, self.heads_size))[0]    
+        
+        print(f"[poolings] DoubleMHA output size : {compressedRepresentation.size()}")
+        
         return compressedRepresentation, alignment
 

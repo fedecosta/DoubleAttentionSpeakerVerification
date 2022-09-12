@@ -41,7 +41,7 @@ TRAIN_DEFAULT_SETTINGS = {
     'front_end' : 'VGG4L',
     'vgg_n_blocks' : 4,
     'vgg_channels' : [128, 256, 512, 1024],
-    'pooling_method' : 'DoubleMHA',
+    'pooling_method' : 'Attention', # HACK changed default option for testing. Original -> 'DoubleMHA',
     'embedding_size' : 400,
     'scaling_factor' : 30.0,
     'margin_factor' : 0.4,

@@ -12,9 +12,11 @@ class SpeakerClassifier(nn.Module):
        
         parameters.feature_size = 80 # HACK hardcoded 80 for mel bands. Read the number of mel bands from the input spectrogram 
         self.device = device
+        
         self.__initFrontEnd(parameters)        
         self.__initPoolingLayers(parameters)
         self.__initFullyConnectedBlock(parameters)
+        
         self.predictionLayer = AMSoftmax(
             parameters.embedding_size, 
             parameters.num_spkrs, 
@@ -33,6 +35,8 @@ class SpeakerClassifier(nn.Module):
         self.hidden_states_dimension = self.front_end.get_hidden_states_dimension(
             parameters.feature_size, 
             )
+        
+        #print(f"[model] hidden_states_dimension: {self.hidden_states_dimension}")
             
 
     def __initPoolingLayers(self, parameters):    
@@ -49,6 +53,7 @@ class SpeakerClassifier(nn.Module):
             self.poolingLayer = DoubleMHA(self.hidden_states_dimension, parameters.heads_number, mask_prob = parameters.mask_prob)
             self.hidden_states_dimension = self.hidden_states_dimension // parameters.heads_number
 
+
     def __initFullyConnectedBlock(self, parameters):
 
         # Set the set of fully connected layers that will take the pooling context vector
@@ -60,6 +65,7 @@ class SpeakerClassifier(nn.Module):
         self.preLayer = nn.Linear(parameters.embedding_size, parameters.embedding_size)
         self.b3 = nn.BatchNorm1d(parameters.embedding_size)
         
+
     # TODO not used in this class. where?
     def getEmbedding(self, x):
 
@@ -73,16 +79,22 @@ class SpeakerClassifier(nn.Module):
 
     def forward(self, x, label = None, step = 0):
 
+        # print("[model] Using forward...")
+
         # Mandatory torch method
         # Set the net's forward pass
 
         encoder_output = self.front_end(x)
+
+        # print(f"[model] encoder_output size: {encoder_output.size()}")
 
         embedding0, alignment = self.poolingLayer(encoder_output)
         embedding1 = F.relu(self.fc1(embedding0))
         embedding2 = self.b2(F.relu(self.fc2(embedding1)))
         embedding3 = self.preLayer(embedding2)
         prediction, ouputTensor = self.predictionLayer(embedding3, label, step)
+
+        # print("[model] forward used.")
     
         return prediction, ouputTensor
 

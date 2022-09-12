@@ -301,6 +301,7 @@ class Trainer:
         for self.batch_number, (input, label) in enumerate(self.training_generator):
 
             logger.info(f"Batch {self.batch_number} of {len(self.training_generator)}...")
+            logger.debug(f"step: {self.step}")
 
             # Assign input and label to device
             input, label = input.float().to(self.device), label.long().to(self.device)
@@ -311,7 +312,7 @@ class Trainer:
             prediction, AMPrediction  = self.net(x = input, label = label, step = self.step)
             self.loss = self.loss_function(AMPrediction, label)
             self.train_loss = self.loss.item()
-            logger.debug(f"Loss: {self.train_loss:.2f}")
+            logger.debug(f"Loss: {self.train_loss:.1f}")
 
             # Compute backpropagation and update weights
             
