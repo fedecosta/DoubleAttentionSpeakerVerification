@@ -58,12 +58,27 @@ def getNumberOfSpeakers(labelsFilePath):
             speakersDict[line.split()[1]] = 0
     return len(speakersDict)
 
-def getModelName(params):
+def generate_model_name(params):
 
-    model_name = params.model_name
+    # TODO add all neccesary components
 
-    model_name = model_name + '_{}'.format(params.front_end) + '_{}'.format(params.window_size) + '_{}batchSize'.format(params.batch_size*params.gradientAccumulation) + '_{}lr'.format(params.learning_rate) + '_{}weightDecay'.format(params.weight_decay) + '_{}kernel'.format(params.kernel_size) +'_{}embSize'.format(params.embedding_size) + '_{}s'.format(params.scaling_factor) + '_{}m'.format(params.margin_factor)
+    name_components = []
 
-    model_name += '_{}'.format(params.pooling_method) + '_{}'.format(params.heads_number)
+    name_components.append(params.model_name_prefix)
+    name_components.append(params.front_end)
+    name_components.append(str(params.window_size))
+    name_components.append('batch_size' + str(params.batch_size))
+    #name_components.append('lr' + params.learning_rate)
+    #name_components.append('weight_decay' + params.weight_decay)
+    #name_components.append('kernel' + params.kernel_size)
+    #name_components.append('emb_size' + params.embedding_size)
+    #name_components.append('s' + params.scaling_factor)
+    #name_components.append('m' + params.margin_factor)
+    name_components.append(params.pooling_method)
+    name_components.append(params.heads_number)
+
+    name_components = [str (component) for component in name_components]
+
+    model_name = "_".join(name_components)
 
     return model_name

@@ -19,7 +19,7 @@ class SpeakerClassifier(nn.Module):
         
         self.predictionLayer = AMSoftmax(
             parameters.embedding_size, 
-            parameters.num_spkrs, 
+            parameters.number_speakers, 
             s = parameters.scaling_factor, 
             m = parameters.margin_factor, 
             annealing = parameters.annealing

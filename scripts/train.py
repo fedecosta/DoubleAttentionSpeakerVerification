@@ -299,6 +299,7 @@ if __name__=="__main__":
     if not os.path.exists(params.out_dir):
         os.makedirs(params.out_dir)
 
+    # Save argparse input params
     with open(params.out_dir + '/' + params.model_name + '_config.pkl', 'wb') as handle:
         pickle.dump(params, handle, protocol=pickle.HIGHEST_PROTOCOL)
 

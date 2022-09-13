@@ -31,10 +31,11 @@ LABELS_GENERATOR_DEFAULT_SETTINGS = {
 
 TRAIN_DEFAULT_SETTINGS = {
     'train_labels_path' : 'scripts/labels/train/train_labels.ndx',
-    'train_data_dir' : '/home/usuaris/scratch/speaker_databases/',
+    'train_data_dir' : '', #'/home/usuaris/scratch/speaker_databases/',
     'valid_clients' : 'scripts/labels/valid/valid_clients_labels.ndx',
     'valid_impostors' : 'scripts/labels/valid/valid_impostors_labels.ndx',
-    'valid_data_dir' : '/home/usuaris/scratch/speaker_databases/',
+    'valid_data_dir' : '', #'/home/usuaris/scratch/speaker_databases/',
+    'model_output_folder' : 'scripts/models/',
 
     'max_epochs' : 3,
     'batch_size' : 64,
@@ -43,7 +44,9 @@ TRAIN_DEFAULT_SETTINGS = {
     'window_size' : 3.5,
     'normalization' : 'cmn',
     'num_workers' : 2,
+    'random_slicing' : False,
 
+    'model_name_prefix' : 'cnn_pooling_fc',
     'front_end' : 'VGGNL',
     'vgg_n_blocks' : 4,
     'vgg_channels' : [128, 256, 512, 1024],
@@ -57,4 +60,6 @@ TRAIN_DEFAULT_SETTINGS = {
     'learning_rate' : 0.0001,
     'weight_decay' : 0.001,
     'annealing' : False,
+
+    'verbose' : False,
 }

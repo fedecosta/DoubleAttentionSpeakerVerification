@@ -1,6 +1,8 @@
 import argparse
 import os
 import numpy as np
+import random
+import pickle
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -9,7 +11,7 @@ from torchsummary import summary
 
 from data import Dataset, normalizeFeatures, featureReader
 from model import SpeakerClassifier
-from utils import getNumberOfSpeakers, Accuracy, scoreCosineDistance, Score
+from utils import getNumberOfSpeakers, generate_model_name, Accuracy, scoreCosineDistance, Score
 from settings import TRAIN_DEFAULT_SETTINGS
 
 # Set logging config
@@ -42,8 +44,8 @@ logger.addHandler(logger_stream_handler)
 class Trainer:
 
     def __init__(self, params):
-        self.params = params
-        self.params.num_spkrs = getNumberOfSpeakers(self.params.train_labels_path) 
+
+        self.set_params(params)
         self.set_random_seed()
         self.set_device()
         self.__load_data()
@@ -55,6 +57,13 @@ class Trainer:
 
     # Init methods
 
+    def set_params(self, params):
+
+        self.params = params
+        self.params.number_speakers = getNumberOfSpeakers(self.params.train_labels_path) # TODO used at least at model, also could be printed as informative
+        self.params.model_name = generate_model_name(self.params)
+
+
     def set_random_seed(self):
 
         logger.info("Setting random seed...")
@@ -62,6 +71,7 @@ class Trainer:
         # Set the seed for experimental reproduction
         torch.manual_seed(1234)
         np.random.seed(1234)
+        random.seed(1234)
 
         logger.info("Random seed setted.")
 
@@ -124,10 +134,9 @@ class Trainer:
             logger.info(f"Let's use {torch.cuda.device_count()} GPUs!")
             self.net = nn.DataParallel(self.net)
         
-        logger.info("Network loaded.")
-
         # TODO set the correct size in this call to see the network summary
         # summary(self.net, torch.Size([80, 350]))
+        logger.info("Network loaded.")
 
 
     # Load the loss function
@@ -292,6 +301,12 @@ class Trainer:
         self.net.train()
 
 
+    def evaluate(self, prediction, label):
+
+        self.evaluate_training(prediction, label)
+        self.evaluate_validation()
+
+
     def train_single_epoch(self, epoch):
 
         logger.info(f"Epoch {epoch}...")
@@ -306,6 +321,9 @@ class Trainer:
 
             # Assign input and label to device
             input, label = input.float().to(self.device), label.long().to(self.device)
+
+            # Slice at random using the frames axis, if desired.
+            input = self.random_slice(input) if self.params.random_slicing else input
 
             # logger.debug(f"input size: {input.size()}")
 
@@ -340,9 +358,18 @@ class Trainer:
 
             self.step = self.step + 1
 
-        self.evaluate_training(prediction, label)
-        self.evaluate_validation()
+        self.evaluate(prediction, label)
+        self.save_model()
         
+        # DEBUG
+        self.debug_step_info['train_eval_metric'] = self.train_eval_metric
+        self.debug_step_info['valid_eval_metric'] = self.valid_eval_metric
+        self.debug_info[-1] = self.debug_step_info
+
+        logger.info(f"Epoch {epoch} finished with:")
+        logger.info(f"Loss {self.train_loss:.1f}")
+        logger.info(f"Training evaluation metric: {self.train_eval_metric:.1f}")
+        logger.info(f"Validation evaluation metric: {self.valid_eval_metric:.1f}")
         logger.info(f"-"*50)
 
     
@@ -364,7 +391,69 @@ class Trainer:
 
     def main(self):
 
+        self.save_input_params()
         self.train(self.starting_epoch, self.params.max_epochs)
+
+
+    # Other utility methods
+
+    # TODO is this method usefull? maybe is a feature extractor task
+    def random_slice(self, inputTensor):
+        '''Takes a random slice of the tensor cutting the frames axis, from 0 to a random end point.'''
+
+        index = random.randrange(200, self.params.window_size * 100) # HACK fix this harcoded 200
+        
+        return inputTensor[:,:index,:]
+
+    
+    def save_input_params(self):
+        '''Save the input argparse params into a pickle file.'''
+
+        # Create directory if doesn't exists
+        if not os.path.exists(self.params.model_output_folder):
+            os.makedirs(self.params.model_output_folder)
+
+        # Save argparse input params
+        config_file_name = f"{self.params.model_name}_config.pkl" 
+        config_file_dir = os.path.join(self.params.model_output_folder, config_file_name)
+        with open(config_file_dir, 'wb') as handle:
+            pickle.dump(self.params, handle, protocol = pickle.HIGHEST_PROTOCOL)
+    
+
+    def load_input_params(self, load_folder, load_file_name):
+
+        load_path = os.path.join(load_folder, load_file_name)
+        file = open(load_path,'rb')
+        namespace = pickle.load(file)
+
+        return namespace
+
+
+    def save_model(self):
+
+        '''Function to save the model and optimizer parameters.'''
+        
+        if torch.cuda.device_count() > 1:
+            checkpoint = {
+                'model': self.net.module.state_dict(),
+                'optimizer': self.optimizer.state_dict(),
+                'settings': self.params,
+                'epoch': self.epoch,
+                'step': self.step,
+                }
+        else:
+            checkpoint = {
+                'model': self.net.state_dict(),
+                'optimizer': self.optimizer.state_dict(),
+                'settings': self.params,
+                'epoch': self.epoch,
+                'step': self.step,
+                }
+
+        checkpoint_folder = self.params.model_output_folder
+        checkpoint_file_name = f"{self.params.model_name}_epoch_{self.epoch}_step_{self.step}.chkpt"
+        checkpoint_path = os.path.join(checkpoint_folder, checkpoint_file_name)
+        torch.save(checkpoint, checkpoint_path)
 
 
 class ArgsParser:
@@ -421,6 +510,13 @@ class ArgsParser:
             help = 'Optional additional directory to prepend to valid_clients and valid_impostors paths.',
             )
 
+        self.parser.add_argument(
+            '--model_output_folder', 
+            type = str, 
+            default = TRAIN_DEFAULT_SETTINGS['model_output_folder'], 
+            help = 'Directory where model outputs and configs are saved.',
+            )
+
         # Training Parameters
 
         self.parser.add_argument(
@@ -463,7 +559,21 @@ class ArgsParser:
             help = 'num_workers to be used by the data loader'
             )
 
+        self.parser.add_argument(
+            '--random_slicing', 
+            action = 'store_true',
+            default = TRAIN_DEFAULT_SETTINGS['random_slicing'],
+            help = 'Whether  to do random slicing or not. This slice the inputs randomly at frames axis.',
+            )
+
         # Network Parameters
+
+        self.parser.add_argument(
+            '--model_name_prefix', 
+            type = str, 
+            default = TRAIN_DEFAULT_SETTINGS['model_name_prefix'], 
+            help = 'Give the model a name prefix for saving it.'
+            )
 
         self.parser.add_argument(
             '--front_end', 
@@ -562,6 +672,7 @@ class ArgsParser:
         self.parser.add_argument(
             "--verbose", 
             action = "store_true", # TODO understand store_true vs store_false
+            default = TRAIN_DEFAULT_SETTINGS['verbose'],
             help = "Increase output verbosity.",
             )
 
