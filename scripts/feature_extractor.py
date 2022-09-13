@@ -22,7 +22,7 @@ class FeatureExtractor:
 
     def __init__(self, params):
         self.params = params
-        self.params.audio_paths_file_path = self.params.audio_paths_file_folder + '/' + self.params.audio_paths_file_name
+        self.params.audio_paths_file_path = os.path.join(self.params.audio_paths_file_folder, self.params.audio_paths_file_name)
 
 
     def count_input_lines(self):

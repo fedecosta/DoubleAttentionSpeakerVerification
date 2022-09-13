@@ -30,7 +30,7 @@ class PathsGenerator:
         
                     if file_name.split(".")[-1] in self.params.valid_audio_formats:
                         
-                        path_to_write = f"{dir_path}/{file_name}"
+                        path_to_write = os.path.join(dir_path, file_name)
                         self.lines_to_write.append(path_to_write)
 
         print(f"{len(self.lines_to_write)} files founded in {self.params.load_data_folder}")
@@ -41,7 +41,7 @@ class PathsGenerator:
         if not os.path.exists(self.params.dump_file_folder):
             os.makedirs(self.params.dump_file_folder)
         
-        dump_path = self.params.dump_file_folder + self.params.dump_file_name
+        dump_path = os.path.join(self.params.dump_file_folder, self.params.dump_file_name)
         with open(dump_path, 'w') as file:
 
             for line_to_write in self.lines_to_write:

@@ -46,7 +46,7 @@ class LabelsGenerator:
                 # If it is a .pickle file, add the path to speakers_dict
                 for file_name in file_names:
                     if file_name.split(".")[-1] == "pickle":                
-                        file_path = dir_path + "/" + file_name.replace(".pickle", "")
+                        file_path = os.path.join(dir_path, file_name.replace(".pickle", ""))
                         speakers_dict[speaker_id]["files_paths"].add(file_path)
                 
                 # Add speaker_id to set and continue with the loop
@@ -131,7 +131,7 @@ class LabelsGenerator:
         if not os.path.exists(dump_file_folder):
             os.makedirs(dump_file_folder)
         
-        dump_path = dump_file_folder + '/' + dump_file_name
+        dump_path = os.path.join(dump_file_folder, dump_file_name)
         with open(dump_path, 'w') as f:
             for key, value in speakers_dict.items():
                 speaker_num = value["speaker_num"]
@@ -188,7 +188,7 @@ class LabelsGenerator:
         
         if not os.path.exists(clients_dump_file_folder):
             os.makedirs(clients_dump_file_folder)
-        clients_dump_path = clients_dump_file_folder + '/' + clients_dump_file_name
+        clients_dump_path = os.path.join(clients_dump_file_folder, clients_dump_file_name)
         with open(clients_dump_path, 'w') as f:
             for line_to_write in clients_lines_to_write: 
                 f.write(line_to_write)
@@ -197,7 +197,7 @@ class LabelsGenerator:
 
         if not os.path.exists(impostors_dump_file_folder):
             os.makedirs(impostors_dump_file_folder)
-        impostors_dump_path = impostors_dump_file_folder + '/' + impostors_dump_file_name
+        impostors_dump_path = os.path.join(impostors_dump_file_folder, impostors_dump_file_name)
         with open(impostors_dump_path, 'w') as f:
             for line_to_write in impostors_lines_to_write: 
                 f.write(line_to_write)
