@@ -1,4 +1,6 @@
 import argparse
+
+from train_3 import Trainer
 from settings import EVALUATE_MODEL_DEFAULT_SETTINGS
 
 class ModelEvaluator:
@@ -6,6 +8,9 @@ class ModelEvaluator:
     def __init__(self, params):
 
         self.params = params
+
+    
+    def load_model(self):
 
 
 class ArgsParser:

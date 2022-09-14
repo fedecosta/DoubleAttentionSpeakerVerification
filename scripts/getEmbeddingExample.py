@@ -1,4 +1,4 @@
-# TODO fix this hack
+# HACK fix this hack
 # import sys
 # sys.path.append('./scripts/')
 
@@ -45,7 +45,7 @@ def main(opt,params):
     net.eval()
     
     embedding = getAudioEmbedding(params.audioPath, net, device)
-    print(embedding)
+
 
 if __name__ == "__main__":
     
