@@ -199,7 +199,7 @@ class Trainer:
 
     def __updateTrainningVariables(self):
 
-        if (self.stopping+1)% 15 ==0:
+        if (self.stopping + 1) % 15 == 0:
             self.__update_optimizer()
 
     def __randomSlice(self, inputTensor):

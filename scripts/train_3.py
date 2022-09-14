@@ -182,7 +182,7 @@ class Trainer:
         
         self.starting_epoch = 0
         self.step = 0 
-        self.stopping = 0 
+        self.validations_without_improvement = 0 
         self.early_stopping_flag = False
         self.train_loss = None
         self.train_eval_metric = 0.0
@@ -335,7 +335,7 @@ class Trainer:
             prediction, AMPrediction  = self.net(x = input, label = label, step = self.step) # TODO understand diff between prediction and AMPrediction
             self.loss = self.loss_function(AMPrediction, label)
             self.train_loss = self.loss.item()
-            logger.info(f"Actual loss: {self.train_loss:.1f}")
+            logger.info(f"Actual loss: {self.train_loss:.2f}")
 
             # Compute backpropagation and update weights
             
@@ -357,6 +357,8 @@ class Trainer:
             if self.train_loss < self.best_train_loss:
                 self.best_train_loss = self.train_loss
 
+            self.update_optimizer()
+            self.early_stopping()
             self.print_training_info()
 
             # DEBUG
@@ -370,11 +372,9 @@ class Trainer:
             self.debug_step_info['best_train_loss'] = self.best_train_loss
             self.debug_step_info['best_model_train_eval_metric'] = self.best_model_train_eval_metric
             self.debug_step_info['best_model_valid_eval_metric'] = self.best_model_valid_eval_metric
-            self.debug_step_info['stopping'] = self.stopping
+            self.debug_step_info['validations_without_improvement'] = self.validations_without_improvement
             self.debug_info.append(self.debug_step_info)
 
-            self.early_stopping()
-            
             if self.early_stopping_flag == True: 
                 break
 
@@ -390,9 +390,9 @@ class Trainer:
 
         logger.info(f"-"*50)
         logger.info(f"Epoch {epoch} finished with:")
-        logger.info(f"Loss {self.train_loss:.1f}")
-        logger.info(f"Best model training evaluation metric: {self.best_model_train_eval_metric:.1f}")
-        logger.info(f"Best model validation evaluation metric: {self.best_model_valid_eval_metric:.1f}")
+        logger.info(f"Loss {self.train_loss:.2f}")
+        logger.info(f"Best model training evaluation metric: {self.best_model_train_eval_metric:.2f}")
+        logger.info(f"Best model validation evaluation metric: {self.best_model_valid_eval_metric:.2f}")
         logger.info(f"-"*50)
 
     
@@ -507,18 +507,20 @@ class Trainer:
                 self.best_model_train_eval_metric = self.train_eval_metric
                 self.best_model_valid_eval_metric = self.valid_eval_metric
 
-                logger.info(f"Best model train loss: {self.best_model_train_loss:.1f}")
-                logger.info(f"Best model train evaluation metric: {self.best_model_train_eval_metric:.1f}")
-                logger.info(f"Best model validation evaluation metric: {self.best_model_valid_eval_metric:.1f}")
+                logger.info(f"Best model train loss: {self.best_model_train_loss:.2f}")
+                logger.info(f"Best model train evaluation metric: {self.best_model_train_eval_metric:.2f}")
+                logger.info(f"Best model validation evaluation metric: {self.best_model_valid_eval_metric:.2f}")
                 self.save_model() 
 
-                # Since we found and improvement, stopping is reseted.
-                self.stopping = 0
+                # Since we found and improvement, validations_without_improvement is reseted.
+                self.validations_without_improvement = 0
             
             else:
                 # In this case the search didn't improved the model
-                # We are one step closer to do early stopping
-                self.stopping = self.stopping + 1
+                # We are one validation closer to do early stopping
+                self.validations_without_improvement = self.validations_without_improvement + 1
+
+            logger.info(f"Consecutive validations without improvement: {self.validations_without_improvement}")
 
             
     def print_training_info(self):
@@ -527,9 +529,9 @@ class Trainer:
             and self.step % self.params.print_training_info_every == 0:
 
             logger.info(f"Step: {self.step}")
-            logger.info(f"Best loss achieved: {self.best_train_loss:.1f}")
-            logger.info(f"Best model training evaluation metric: {self.best_model_train_eval_metric:.1f}")
-            logger.info(f"Best model validation evaluation metric: {self.best_model_valid_eval_metric:.1f}")
+            logger.info(f"Best loss achieved: {self.best_train_loss:.2f}")
+            logger.info(f"Best model training evaluation metric: {self.best_model_train_eval_metric:.2f}")
+            logger.info(f"Best model validation evaluation metric: {self.best_model_valid_eval_metric:.2f}")
 
 
     def load_model(self):
@@ -543,13 +545,23 @@ class Trainer:
 
     def early_stopping(self):
 
-        if self.step > 0 and self.params.early_stopping > 0 \
-            and self.stopping >= self.params.early_stopping:
+        if self.params.early_stopping > 0 \
+            and self.validations_without_improvement >= self.params.early_stopping:
 
             self.early_stopping_flag = True
-            logger.info(f"Doing early stopping after {self.stopping} validations without improvement.")
+            logger.info(f"Doing early stopping after {self.validations_without_improvement} validations without improvement.")
 
 
+    def update_optimizer(self):
+
+        if self.validations_without_improvement > 0 and self.params.update_optimizer_every > 0 \
+            and self.validations_without_improvement % self.params.update_optimizer_every == 0:
+
+            if self.params.optimizer == 'sgd' or self.params.optimizer == 'adam':
+                for param_group in self.optimizer.param_groups:
+                    param_group['lr'] = param_group['lr'] * 0.5
+                
+                logger.info(f"New learning rate: {param_group['lr']}")
 
 
 class ArgsParser:
@@ -652,6 +664,16 @@ class ArgsParser:
             help = "Training is stopped if there are early_stopping consectuive validations without improvement. \
                 Set to 0 if you don't want to execute this utility.",
             )
+
+        self.parser.add_argument(
+            '--update_optimizer_every', 
+            type = int, 
+            default = TRAIN_DEFAULT_SETTINGS['update_optimizer_every'],
+            help = "Some optimizer parameters will be updated every update_optimizer_every consectuive validations without improvement. \
+                Set to 0 if you don't want to execute this utility.",
+            )
+
+            
 
         # Data Parameters
 
