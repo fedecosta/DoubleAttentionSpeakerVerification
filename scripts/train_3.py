@@ -33,7 +33,7 @@ logger_file_handler.setFormatter(logger_formatter)
 
 # Set a logging stream handler
 logger_stream_handler = logging.StreamHandler()
-logger_stream_handler.setLevel(logging.DEBUG)
+logger_stream_handler.setLevel(logging.INFO)
 logger_stream_handler.setFormatter(logger_formatter)
 
 # Add handlers
@@ -186,8 +186,8 @@ class Trainer:
         self.train_eval_metric = 0.0
         self.valid_eval_metric = 50.0
         self.best_train_loss = np.inf
-        self.best_train_eval_metric = 0.0
-        self.best_valid_eval_metric = 50.0
+        self.best_model_train_eval_metric = 0.0
+        self.best_model_valid_eval_metric = 50.0
 
         logger.info("Training variables initialized.")
 
@@ -319,7 +319,7 @@ class Trainer:
         for self.batch_number, (input, label) in enumerate(self.training_generator):
 
             logger.info(f"Batch {self.batch_number} of {len(self.training_generator)}...")
-            logger.debug(f"step: {self.step}")
+            logger.info(f"step: {self.step}")
 
             # Assign input and label to device
             input, label = input.float().to(self.device), label.long().to(self.device)
@@ -333,7 +333,7 @@ class Trainer:
             prediction, AMPrediction  = self.net(x = input, label = label, step = self.step) # TODO understand diff between prediction and AMPrediction
             self.loss = self.loss_function(AMPrediction, label)
             self.train_loss = self.loss.item()
-            logger.debug(f"Loss: {self.train_loss:.1f}")
+            logger.info(f"Loss: {self.train_loss:.1f}")
 
             # Compute backpropagation and update weights
             
@@ -364,8 +364,8 @@ class Trainer:
             self.debug_step_info['train_eval_metric'] = self.train_eval_metric
             self.debug_step_info['valid_eval_metric'] = self.valid_eval_metric
             self.debug_step_info['best_train_loss'] = self.best_train_loss
-            self.debug_step_info['best_train_eval_metric'] = self.best_train_eval_metric
-            self.debug_step_info['best_valid_eval_metric'] = self.best_valid_eval_metric
+            self.debug_step_info['best_model_train_eval_metric'] = self.best_model_train_eval_metric
+            self.debug_step_info['best_model_valid_eval_metric'] = self.best_model_valid_eval_metric
             self.debug_info.append(self.debug_step_info)
 
             self.step = self.step + 1
@@ -378,10 +378,11 @@ class Trainer:
         #self.debug_step_info['valid_eval_metric'] = self.valid_eval_metric
         #self.debug_info[-1] = self.debug_step_info
 
+        logger.info(f"-"*50)
         logger.info(f"Epoch {epoch} finished with:")
         logger.info(f"Loss {self.train_loss:.1f}")
-        logger.info(f"Training evaluation metric: {self.train_eval_metric:.1f}")
-        logger.info(f"Validation evaluation metric: {self.valid_eval_metric:.1f}")
+        logger.info(f"Best model training evaluation metric: {self.best_model_train_eval_metric:.1f}")
+        logger.info(f"Best model validation evaluation metric: {self.best_model_valid_eval_metric:.1f}")
         logger.info(f"-"*50)
 
     
@@ -424,7 +425,7 @@ class Trainer:
             os.makedirs(self.params.model_output_folder)
 
         # Save argparse input params
-        config_file_name = f"{self.params.model_name}_config.pkl" 
+        config_file_name = f"{self.params.model_name}_config.pickle" 
         config_file_dir = os.path.join(self.params.model_output_folder, config_file_name)
         with open(config_file_dir, 'wb') as handle:
             pickle.dump(self.params, handle, protocol = pickle.HIGHEST_PROTOCOL)
@@ -468,20 +469,25 @@ class Trainer:
 
     def eval_and_save_best_model(self, prediction, label):
 
-        self.evaluate(prediction, label)
+        
 
-        if self.step % self.params.save_best_model_every == 0:
-            if self.valid_eval_metric < self.best_valid_eval_metric:
+        if self.step % self.params.eval_and_save_best_model_every == 0 and self.step > 0:
+
+            self.evaluate(prediction, label)
+
+            if self.valid_eval_metric < self.best_model_valid_eval_metric:
+
                 logger.info('We found a better model!')
-                logger.info(f"New best validation evaluation metric: {self.valid_eval_metric:.1f}")
+
+                # Update best model evaluation metrics
+                self.best_model_train_eval_metric = self.train_eval_metric
+                self.best_model_valid_eval_metric = self.valid_eval_metric
+
+                logger.info(f"Best model train evaluation metric: {self.best_model_train_eval_metric:.1f}")
+                logger.info(f"Best model validation evaluation metric: {self.best_model_valid_eval_metric:.1f}")
                 self.save_model() 
 
-        # Update best evaluation metrics
-        if self.train_eval_metric < self.best_train_eval_metric:
-            self.best_train_eval_metric = self.train_eval_metric
-
-        if self.valid_eval_metric < self.best_valid_eval_metric:
-            self.best_valid_eval_metric = self.valid_eval_metric
+            
 
 
 
@@ -560,6 +566,13 @@ class ArgsParser:
             type = int, 
             default = TRAIN_DEFAULT_SETTINGS['batch_size'],
             help = "Size of training batches.",
+            )
+
+        self.parser.add_argument(
+            '--eval_and_save_best_model_every', 
+            type = int, 
+            default = TRAIN_DEFAULT_SETTINGS['eval_and_save_best_model_every'],
+            help = "The model es evaluated on train and validation sets every eval_and_save_best_model_every steps.",
             )
 
         # Data Parameters

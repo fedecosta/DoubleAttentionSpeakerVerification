@@ -39,6 +39,7 @@ TRAIN_DEFAULT_SETTINGS = {
 
     'max_epochs' : 3,
     'batch_size' : 64,
+    'eval_and_save_best_model_every': 10,
     
 
     'window_size' : 3.5,
