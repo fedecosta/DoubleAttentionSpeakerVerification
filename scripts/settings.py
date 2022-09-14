@@ -67,3 +67,7 @@ TRAIN_DEFAULT_SETTINGS = {
 
     'verbose' : False,
 }
+
+EVALUATE_MODEL_DEFAULT_SETTINGS = {
+    'verbose' : False,
+}

@@ -332,7 +332,7 @@ class Trainer:
             # logger.debug(f"input size: {input.size()}")
 
             # Calculate loss
-            prediction, AMPrediction  = self.net(x = input, label = label, step = self.step) # TODO understand diff between prediction and AMPrediction
+            prediction, AMPrediction  = self.net(input_tensor = input, label = label, step = self.step) # TODO understand diff between prediction and AMPrediction
             self.loss = self.loss_function(AMPrediction, label)
             self.train_loss = self.loss.item()
             logger.info(f"Actual loss: {self.train_loss:.2f}")
