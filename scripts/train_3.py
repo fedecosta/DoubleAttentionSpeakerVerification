@@ -185,7 +185,9 @@ class Trainer:
         self.train_loss = None
         self.train_eval_metric = 0.0
         self.valid_eval_metric = 50.0
-
+        self.best_train_loss = np.inf
+        self.best_train_eval_metric = 0.0
+        self.best_valid_eval_metric = 50.0
 
         logger.info("Training variables initialized.")
 
@@ -346,6 +348,13 @@ class Trainer:
             # optimizer.step updates the value of x using the gradient x.grad
             self.optimizer.step()
 
+            # Calculate evaluation metrics and save the best model
+            self.eval_and_save_best_model(prediction, label)
+
+            # Update best loss
+            if self.train_loss < self.best_train_loss:
+                self.best_train_loss = self.train_loss
+
             # DEBUG
             self.debug_step_info = {}
             self.debug_step_info['epoch'] = epoch
@@ -354,17 +363,20 @@ class Trainer:
             self.debug_step_info['train_loss'] = self.train_loss
             self.debug_step_info['train_eval_metric'] = self.train_eval_metric
             self.debug_step_info['valid_eval_metric'] = self.valid_eval_metric
+            self.debug_step_info['best_train_loss'] = self.best_train_loss
+            self.debug_step_info['best_train_eval_metric'] = self.best_train_eval_metric
+            self.debug_step_info['best_valid_eval_metric'] = self.best_valid_eval_metric
             self.debug_info.append(self.debug_step_info)
 
             self.step = self.step + 1
 
-        self.evaluate(prediction, label)
-        self.save_model()
+        #self.evaluate(prediction, label)
+        #self.save_model()
         
         # DEBUG
-        self.debug_step_info['train_eval_metric'] = self.train_eval_metric
-        self.debug_step_info['valid_eval_metric'] = self.valid_eval_metric
-        self.debug_info[-1] = self.debug_step_info
+        #self.debug_step_info['train_eval_metric'] = self.train_eval_metric
+        #self.debug_step_info['valid_eval_metric'] = self.valid_eval_metric
+        #self.debug_info[-1] = self.debug_step_info
 
         logger.info(f"Epoch {epoch} finished with:")
         logger.info(f"Loss {self.train_loss:.1f}")
@@ -374,8 +386,6 @@ class Trainer:
 
     
     def train(self, starting_epoch, max_epochs):
-
-        # TODO add a model.summary?
 
         logger.info(f'Starting training for {max_epochs} epochs.')
 
@@ -451,9 +461,28 @@ class Trainer:
                 }
 
         checkpoint_folder = self.params.model_output_folder
-        checkpoint_file_name = f"{self.params.model_name}_epoch_{self.epoch}_step_{self.step}.chkpt"
+        checkpoint_file_name = f"{self.params.model_name}.chkpt"
         checkpoint_path = os.path.join(checkpoint_folder, checkpoint_file_name)
         torch.save(checkpoint, checkpoint_path)
+
+
+    def eval_and_save_best_model(self, prediction, label):
+
+        self.evaluate(prediction, label)
+
+        if self.step % self.params.save_best_model_every == 0:
+            if self.valid_eval_metric < self.best_valid_eval_metric:
+                logger.info('We found a better model!')
+                logger.info(f"New best validation evaluation metric: {self.valid_eval_metric:.1f}")
+                self.save_model() 
+
+        # Update best evaluation metrics
+        if self.train_eval_metric < self.best_train_eval_metric:
+            self.best_train_eval_metric = self.train_eval_metric
+
+        if self.valid_eval_metric < self.best_valid_eval_metric:
+            self.best_valid_eval_metric = self.valid_eval_metric
+
 
 
 class ArgsParser:
