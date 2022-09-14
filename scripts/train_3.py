@@ -181,11 +181,14 @@ class Trainer:
         logger.info("Initializing training variables...")
         
         self.starting_epoch = 0
-        self.step = 0
+        self.step = 0 
+        self.stopping = 0 
+        self.early_stopping_flag = False
         self.train_loss = None
         self.train_eval_metric = 0.0
         self.valid_eval_metric = 50.0
         self.best_train_loss = np.inf
+        self.best_model_train_loss = np.inf
         self.best_model_train_eval_metric = 0.0
         self.best_model_valid_eval_metric = 50.0
 
@@ -319,7 +322,6 @@ class Trainer:
         for self.batch_number, (input, label) in enumerate(self.training_generator):
 
             logger.info(f"Batch {self.batch_number} of {len(self.training_generator)}...")
-            logger.info(f"step: {self.step}")
 
             # Assign input and label to device
             input, label = input.float().to(self.device), label.long().to(self.device)
@@ -333,7 +335,7 @@ class Trainer:
             prediction, AMPrediction  = self.net(x = input, label = label, step = self.step) # TODO understand diff between prediction and AMPrediction
             self.loss = self.loss_function(AMPrediction, label)
             self.train_loss = self.loss.item()
-            logger.info(f"Loss: {self.train_loss:.1f}")
+            logger.info(f"Actual loss: {self.train_loss:.1f}")
 
             # Compute backpropagation and update weights
             
@@ -355,6 +357,8 @@ class Trainer:
             if self.train_loss < self.best_train_loss:
                 self.best_train_loss = self.train_loss
 
+            self.print_training_info()
+
             # DEBUG
             self.debug_step_info = {}
             self.debug_step_info['epoch'] = epoch
@@ -366,7 +370,13 @@ class Trainer:
             self.debug_step_info['best_train_loss'] = self.best_train_loss
             self.debug_step_info['best_model_train_eval_metric'] = self.best_model_train_eval_metric
             self.debug_step_info['best_model_valid_eval_metric'] = self.best_model_valid_eval_metric
+            self.debug_step_info['stopping'] = self.stopping
             self.debug_info.append(self.debug_step_info)
+
+            self.early_stopping()
+            
+            if self.early_stopping_flag == True: 
+                break
 
             self.step = self.step + 1
 
@@ -396,6 +406,9 @@ class Trainer:
         for self.epoch in range(starting_epoch, max_epochs):  
             
             self.train_single_epoch(self.epoch)
+
+            if self.early_stopping_flag == True: 
+                break
             
         logger.info('Training finished!')
 
@@ -442,7 +455,14 @@ class Trainer:
 
     def save_model(self):
 
-        '''Function to save the model and optimizer parameters.'''
+        '''Function to save the model info and optimizer parameters.'''
+
+        model_results = {
+            'train_loss' : self.best_model_train_loss,
+            'train_eval_metric' : self.best_model_train_eval_metric,
+            'valid_eval_metric' : self.best_model_valid_eval_metric,
+
+        }
         
         if torch.cuda.device_count() > 1:
             checkpoint = {
@@ -451,6 +471,7 @@ class Trainer:
                 'settings': self.params,
                 'epoch': self.epoch,
                 'step': self.step,
+                'model_results' : model_results,
                 }
         else:
             checkpoint = {
@@ -459,6 +480,7 @@ class Trainer:
                 'settings': self.params,
                 'epoch': self.epoch,
                 'step': self.step,
+                'model_results' : model_results,
                 }
 
         checkpoint_folder = self.params.model_output_folder
@@ -469,25 +491,64 @@ class Trainer:
 
     def eval_and_save_best_model(self, prediction, label):
 
-        
+        if self.step > 0 and self.params.eval_and_save_best_model_every > 0 \
+            and self.step % self.params.eval_and_save_best_model_every == 0:
 
-        if self.step % self.params.eval_and_save_best_model_every == 0 and self.step > 0:
-
+            # Calculate the evaluation metrics
             self.evaluate(prediction, label)
 
+            # Have we found a better model? (Better in validation metric).
             if self.valid_eval_metric < self.best_model_valid_eval_metric:
 
                 logger.info('We found a better model!')
 
                 # Update best model evaluation metrics
+                self.best_model_train_loss = self.train_loss
                 self.best_model_train_eval_metric = self.train_eval_metric
                 self.best_model_valid_eval_metric = self.valid_eval_metric
 
+                logger.info(f"Best model train loss: {self.best_model_train_loss:.1f}")
                 logger.info(f"Best model train evaluation metric: {self.best_model_train_eval_metric:.1f}")
                 logger.info(f"Best model validation evaluation metric: {self.best_model_valid_eval_metric:.1f}")
                 self.save_model() 
 
+                # Since we found and improvement, stopping is reseted.
+                self.stopping = 0
             
+            else:
+                # In this case the search didn't improved the model
+                # We are one step closer to do early stopping
+                self.stopping = self.stopping + 1
+
+            
+    def print_training_info(self):
+
+        if self.step > 0 and self.params.print_training_info_every > 0 \
+            and self.step % self.params.print_training_info_every == 0:
+
+            logger.info(f"Step: {self.step}")
+            logger.info(f"Best loss achieved: {self.best_train_loss:.1f}")
+            logger.info(f"Best model training evaluation metric: {self.best_model_train_eval_metric:.1f}")
+            logger.info(f"Best model validation evaluation metric: {self.best_model_valid_eval_metric:.1f}")
+
+
+    def load_model(self):
+        
+        checkpoint_folder = self.params.model_output_folder
+        checkpoint_file_name = f"{self.params.model_name}.chkpt"
+        checkpoint_path = os.path.join(checkpoint_folder, checkpoint_file_name)
+        
+        self.checkpoint = torch.load(checkpoint_path, map_location = self.device)
+
+
+    def early_stopping(self):
+
+        if self.step > 0 and self.params.early_stopping > 0 \
+            and self.stopping >= self.params.early_stopping:
+
+            self.early_stopping_flag = True
+            logger.info(f"Doing early stopping after {self.stopping} validations without improvement.")
+
 
 
 
@@ -572,7 +633,24 @@ class ArgsParser:
             '--eval_and_save_best_model_every', 
             type = int, 
             default = TRAIN_DEFAULT_SETTINGS['eval_and_save_best_model_every'],
-            help = "The model es evaluated on train and validation sets every eval_and_save_best_model_every steps.",
+            help = "The model is evaluated on train and validation sets every eval_and_save_best_model_every steps. \
+                Set to 0 if you don't want to execute this utility.",
+            )
+        
+        self.parser.add_argument(
+            '--print_training_info_every', 
+            type = int, 
+            default = TRAIN_DEFAULT_SETTINGS['print_training_info_every'],
+            help = "Training info is printed every print_training_info_every steps. \
+                Set to 0 if you don't want to execute this utility.",
+            )
+
+        self.parser.add_argument(
+            '--early_stopping', 
+            type = int, 
+            default = TRAIN_DEFAULT_SETTINGS['print_training_info_every'],
+            help = "Training is stopped if there are early_stopping consectuive validations without improvement. \
+                Set to 0 if you don't want to execute this utility.",
             )
 
         # Data Parameters

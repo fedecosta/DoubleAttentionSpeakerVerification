@@ -39,7 +39,9 @@ TRAIN_DEFAULT_SETTINGS = {
 
     'max_epochs' : 3,
     'batch_size' : 64,
-    'eval_and_save_best_model_every': 10,
+    'eval_and_save_best_model_every' : 10,
+    'print_training_info_every' : 0,
+    'early_stopping' : 25,
     
 
     'window_size' : 3.5,
