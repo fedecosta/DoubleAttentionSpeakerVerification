@@ -48,16 +48,19 @@ class Trainer:
         self.set_params(input_params)
         self.set_random_seed()
         self.set_device()
-        self.__load_data()
-        self.__load_network()
-        self.__load_loss_function()
-        self.__load_optimizer()
-        self.__initialize_training_variables()
+        self.load_data()
+        self.load_network()
+        self.load_loss_function()
+        self.load_optimizer()
+        self.initialize_training_variables()
 
 
     # Init methods
 
+
     def set_params(self, input_params):
+
+        logger.debug("Setting params...")
 
         self.params = input_params
         self.params.number_speakers = getNumberOfSpeakers(self.params.train_labels_path) # TODO used at least at model, also could be printed as informative
@@ -67,17 +70,42 @@ class Trainer:
             self.load_checkpoint()
             self.load_checkpoint_params()
 
+        logger.debug("params setted.")
+
+
+    def load_checkpoint(self):
+
+        # Load checkpoint
+        checkpoint_folder = self.params.model_output_folder
+        checkpoint_file_name = f"{self.params.model_name}.chkpt"
+        checkpoint_path = os.path.join(checkpoint_folder, checkpoint_file_name)
+
+        logger.debug(f"Loading checkpoint from {checkpoint_path}")
+
+        self.checkpoint = torch.load(checkpoint_path, map_location = self.device)
+
+        logger.debug(f"Checkpoint loaded.")
+
+
+    def load_checkpoint_params(self):
+
+        logger.debug(f"Loading checkpoint params...")
+
+        self.params = self.checkpoint['settings']
+
+        logger.debug(f"Checkpoint params loaded.")
+
 
     def set_random_seed(self):
 
-        logger.info("Setting random seed...")
+        logger.debug("Setting random seed...")
 
         # Set the seed for experimental reproduction
         torch.manual_seed(1234)
         np.random.seed(1234)
         random.seed(1234)
 
-        logger.info("Random seed setted.")
+        logger.debug("Random seed setted.")
 
 
     def set_device(self):
@@ -95,7 +123,7 @@ class Trainer:
         logger.info("Device setted.")
 
 
-    def __load_data(self):
+    def load_data(self):
             
         logger.info(f'Loading data and labels from {self.params.train_labels_path}')
         
@@ -122,7 +150,19 @@ class Trainer:
         logger.info("Data and labels loaded.")
 
 
-    def __load_network(self):
+    def load_checkpoint_network(self):
+
+        logger.debug(f"Loading checkpoint network...")
+
+        try:
+            self.net.load_state_dict(self.checkpoint['model'])
+        except RuntimeError:    
+            self.net.module.load_state_dict(self.checkpoint['model'])
+
+        logger.debug(f"Checkpoint network loaded.")
+
+
+    def load_network(self):
 
         # Load the model (Neural Network)
 
@@ -146,8 +186,7 @@ class Trainer:
         logger.info("Network loaded.")
 
 
-    # Load the loss function
-    def __load_loss_function(self):
+    def load_loss_function(self):
 
         logger.info("Loading the loss function...")
 
@@ -156,8 +195,16 @@ class Trainer:
         logger.info("Loss function loaded.")
 
 
-    # Load the optimizer
-    def __load_optimizer(self):
+    def load_checkpoint_optimizer(self):
+
+        logger.debug(f"Loading checkpoint optimizer...")
+
+        self.optimizer.load_state_dict(self.checkpoint['optimizer'])
+
+        logger.debug(f"Checkpoint optimizer loaded.")
+
+
+    def load_optimizer(self):
 
         logger.info("Loading the optimizer...")
 
@@ -190,24 +237,53 @@ class Trainer:
 
         logger.info("Initializing training variables...")
         
-        self.starting_epoch = 0
-        self.step = 0 
-        self.validations_without_improvement = 0 
-        self.early_stopping_flag = False
-        self.train_loss = None
-        self.train_eval_metric = 0.0
-        self.valid_eval_metric = 50.0
-        self.best_train_loss = np.inf
-        self.best_model_train_loss = np.inf
-        self.best_model_train_eval_metric = 0.0
-        self.best_model_valid_eval_metric = 50.0
+        if self.params.load_checkpoint == True:
+
+            loaded_training_variables = self.checkpoint['training_variables']
+
+            # HACK this can be refined, but we are going to continue training \
+            # from the last epoch trained and from the first batch
+            # (even if we may already trained with some batches in that epoch in the last training from the checkpoint).
+            self.starting_epoch = loaded_training_variables['epoch']
+            self.step = loaded_training_variables['epoch'] + 1 
+            self.validations_without_improvement = loaded_training_variables['validations_without_improvement'] 
+            self.early_stopping_flag = False
+            self.train_loss = loaded_training_variables['validations_without_improvement'] 
+            self.train_eval_metric = loaded_training_variables['validations_without_improvement'] 
+            self.valid_eval_metric = loaded_training_variables['validations_without_improvement'] 
+            self.best_train_loss = loaded_training_variables['validations_without_improvement'] 
+            self.best_model_train_loss = loaded_training_variables['validations_without_improvement'] 
+            self.best_model_train_eval_metric = loaded_training_variables['validations_without_improvement'] 
+            self.best_model_valid_eval_metric = loaded_training_variables['validations_without_improvement'] 
+        else:
+            self.starting_epoch = 0
+            self.step = 0 
+            self.validations_without_improvement = 0 
+            self.early_stopping_flag = False
+            self.train_loss = None
+            self.train_eval_metric = 0.0
+            self.valid_eval_metric = 50.0
+            self.best_train_loss = np.inf
+            self.best_model_train_loss = np.inf
+            self.best_model_train_eval_metric = 0.0
+            self.best_model_valid_eval_metric = 50.0
 
         logger.info("Training variables initialized.")
 
 
     # Training methods
-    
-    
+
+
+    def random_slice(self, inputTensor):
+        '''Takes a random slice of the tensor cutting the frames axis, from 0 to a random end point.'''
+
+        # TODO is this method usefull? maybe is a feature extractor task
+
+        index = random.randrange(200, self.params.window_size * 100) # HACK fix this harcoded 200
+        
+        return inputTensor[:,:index,:]
+
+
     def evaluate_training(self, prediction, label):
 
         logger.info(f"Evaluating training...")
@@ -322,6 +398,118 @@ class Trainer:
         self.evaluate_validation()
 
 
+    def save_model(self):
+
+        '''Function to save the model info and optimizer parameters.'''
+
+        model_results = {
+            'train_loss' : self.best_model_train_loss,
+            'train_eval_metric' : self.best_model_train_eval_metric,
+            'valid_eval_metric' : self.best_model_valid_eval_metric,
+        }
+
+        training_variables = {
+            'epoch': self.epoch,
+            'step' : self.step,
+            'validations_without_improvement' : self.validations_without_improvement,
+            'train_loss' : self.train_loss,
+            'train_eval_metric' : self.train_eval_metric,
+            'valid_eval_metric' : self.valid_eval_metric,
+            'best_train_loss' : self.best_train_loss,
+            'best_model_train_loss' : self.best_model_train_loss,
+            'best_model_train_eval_metric' : self.best_model_train_eval_metric,
+            'best_model_valid_eval_metric' : self.best_model_valid_eval_metric,
+        }
+        
+        if torch.cuda.device_count() > 1:
+            checkpoint = {
+                'model': self.net.module.state_dict(),
+                'optimizer': self.optimizer.state_dict(),
+                'settings': self.params,
+                'model_results' : model_results,
+                'training_variables' : training_variables,
+                }
+        else:
+            checkpoint = {
+                'model': self.net.state_dict(),
+                'optimizer': self.optimizer.state_dict(),
+                'settings': self.params,
+                'model_results' : model_results,
+                'training_variables' : training_variables,
+                }
+
+        checkpoint_folder = self.params.model_output_folder
+        checkpoint_file_name = f"{self.params.model_name}.chkpt"
+        checkpoint_path = os.path.join(checkpoint_folder, checkpoint_file_name)
+        torch.save(checkpoint, checkpoint_path)
+
+
+    def eval_and_save_best_model(self, prediction, label):
+
+        if self.step > 0 and self.params.eval_and_save_best_model_every > 0 \
+            and self.step % self.params.eval_and_save_best_model_every == 0:
+
+            # Calculate the evaluation metrics
+            self.evaluate(prediction, label)
+
+            # Have we found a better model? (Better in validation metric).
+            if self.valid_eval_metric < self.best_model_valid_eval_metric:
+
+                logger.info('We found a better model!')
+
+                # Update best model evaluation metrics
+                self.best_model_train_loss = self.train_loss
+                self.best_model_train_eval_metric = self.train_eval_metric
+                self.best_model_valid_eval_metric = self.valid_eval_metric
+
+                logger.info(f"Best model train loss: {self.best_model_train_loss:.2f}")
+                logger.info(f"Best model train evaluation metric: {self.best_model_train_eval_metric:.2f}")
+                logger.info(f"Best model validation evaluation metric: {self.best_model_valid_eval_metric:.2f}")
+                self.save_model() 
+
+                # Since we found and improvement, validations_without_improvement is reseted.
+                self.validations_without_improvement = 0
+            
+            else:
+                # In this case the search didn't improved the model
+                # We are one validation closer to do early stopping
+                self.validations_without_improvement = self.validations_without_improvement + 1
+
+            logger.info(f"Consecutive validations without improvement: {self.validations_without_improvement}")
+
+
+    def update_optimizer(self):
+
+        if self.validations_without_improvement > 0 and self.params.update_optimizer_every > 0 \
+            and self.validations_without_improvement % self.params.update_optimizer_every == 0:
+
+            if self.params.optimizer == 'sgd' or self.params.optimizer == 'adam':
+                for param_group in self.optimizer.param_groups:
+                    param_group['lr'] = param_group['lr'] * 0.5
+                
+                logger.info(f"New learning rate: {param_group['lr']}")
+
+
+    def early_stopping(self):
+
+        if self.params.early_stopping > 0 \
+            and self.validations_without_improvement >= self.params.early_stopping:
+
+            self.early_stopping_flag = True
+            logger.info(f"Doing early stopping after {self.validations_without_improvement} validations without improvement.")
+
+
+    def print_training_info(self):
+
+        if self.step > 0 and self.params.print_training_info_every > 0 \
+            and self.step % self.params.print_training_info_every == 0:
+
+            logger.info(f"Step: {self.step}")
+            logger.info(f"Best loss achieved: {self.best_train_loss:.2f}")
+            logger.info(f"Best model training evaluation metric: {self.best_model_train_eval_metric:.2f}")
+            logger.info(f"Best model validation evaluation metric: {self.best_model_valid_eval_metric:.2f}")
+
+
     def train_single_epoch(self, epoch):
 
         logger.info(f"Epoch {epoch}...")
@@ -389,9 +577,6 @@ class Trainer:
                 break
 
             self.step = self.step + 1
-
-        #self.evaluate(prediction, label)
-        #self.save_model()
         
         # DEBUG
         #self.debug_step_info['train_eval_metric'] = self.train_eval_metric
@@ -423,23 +608,7 @@ class Trainer:
         logger.info('Training finished!')
 
 
-    def main(self):
-
-        self.save_input_params()
-        self.train(self.starting_epoch, self.params.max_epochs)
-
-
-    # Other utility methods
-
-    # TODO is this method usefull? maybe is a feature extractor task
-    def random_slice(self, inputTensor):
-        '''Takes a random slice of the tensor cutting the frames axis, from 0 to a random end point.'''
-
-        index = random.randrange(200, self.params.window_size * 100) # HACK fix this harcoded 200
-        
-        return inputTensor[:,:index,:]
-
-    
+    # TODO I think that this is redundant, parameters are saved with the model in checkpoint
     def save_input_params(self):
         '''Save the input argparse params into a pickle file.'''
 
@@ -452,8 +621,9 @@ class Trainer:
         config_file_dir = os.path.join(self.params.model_output_folder, config_file_name)
         with open(config_file_dir, 'wb') as handle:
             pickle.dump(self.params, handle, protocol = pickle.HIGHEST_PROTOCOL)
-    
 
+    
+    # TODO I think that this is redundant, parameters are saved with the model in checkpoint
     def load_input_params(self, load_folder, load_file_name):
 
         load_path = os.path.join(load_folder, load_file_name)
@@ -461,159 +631,15 @@ class Trainer:
         namespace = pickle.load(file)
 
         return namespace
-
-
-    def save_model(self):
-
-        '''Function to save the model info and optimizer parameters.'''
-
-        model_results = {
-            'train_loss' : self.best_model_train_loss,
-            'train_eval_metric' : self.best_model_train_eval_metric,
-            'valid_eval_metric' : self.best_model_valid_eval_metric,
-
-        }
-        
-        if torch.cuda.device_count() > 1:
-            checkpoint = {
-                'model': self.net.module.state_dict(),
-                'optimizer': self.optimizer.state_dict(),
-                'settings': self.params,
-                'epoch': self.epoch,
-                'step': self.step,
-                'model_results' : model_results,
-                }
-        else:
-            checkpoint = {
-                'model': self.net.state_dict(),
-                'optimizer': self.optimizer.state_dict(),
-                'settings': self.params,
-                'epoch': self.epoch,
-                'step': self.step,
-                'model_results' : model_results,
-                }
-
-        checkpoint_folder = self.params.model_output_folder
-        checkpoint_file_name = f"{self.params.model_name}.chkpt"
-        checkpoint_path = os.path.join(checkpoint_folder, checkpoint_file_name)
-        torch.save(checkpoint, checkpoint_path)
-
-
-    def eval_and_save_best_model(self, prediction, label):
-
-        if self.step > 0 and self.params.eval_and_save_best_model_every > 0 \
-            and self.step % self.params.eval_and_save_best_model_every == 0:
-
-            # Calculate the evaluation metrics
-            self.evaluate(prediction, label)
-
-            # Have we found a better model? (Better in validation metric).
-            if self.valid_eval_metric < self.best_model_valid_eval_metric:
-
-                logger.info('We found a better model!')
-
-                # Update best model evaluation metrics
-                self.best_model_train_loss = self.train_loss
-                self.best_model_train_eval_metric = self.train_eval_metric
-                self.best_model_valid_eval_metric = self.valid_eval_metric
-
-                logger.info(f"Best model train loss: {self.best_model_train_loss:.2f}")
-                logger.info(f"Best model train evaluation metric: {self.best_model_train_eval_metric:.2f}")
-                logger.info(f"Best model validation evaluation metric: {self.best_model_valid_eval_metric:.2f}")
-                self.save_model() 
-
-                # Since we found and improvement, validations_without_improvement is reseted.
-                self.validations_without_improvement = 0
-            
-            else:
-                # In this case the search didn't improved the model
-                # We are one validation closer to do early stopping
-                self.validations_without_improvement = self.validations_without_improvement + 1
-
-            logger.info(f"Consecutive validations without improvement: {self.validations_without_improvement}")
-
-            
-    def print_training_info(self):
-
-        if self.step > 0 and self.params.print_training_info_every > 0 \
-            and self.step % self.params.print_training_info_every == 0:
-
-            logger.info(f"Step: {self.step}")
-            logger.info(f"Best loss achieved: {self.best_train_loss:.2f}")
-            logger.info(f"Best model training evaluation metric: {self.best_model_train_eval_metric:.2f}")
-            logger.info(f"Best model validation evaluation metric: {self.best_model_valid_eval_metric:.2f}")
-
-
-    def load_model(self):
-        
-        
-
-        
-
-        
-            
-        
-
-        # Load starting epoch and step
-        self.starting_epoch = self.checkpoint['epoch']
-        self.step = self.checkpoint['step']
-
-        # TODO load the debug info
-        
-        logger.info('Model is Loaded for requeue process')
-
-
-    def early_stopping(self):
-
-        if self.params.early_stopping > 0 \
-            and self.validations_without_improvement >= self.params.early_stopping:
-
-            self.early_stopping_flag = True
-            logger.info(f"Doing early stopping after {self.validations_without_improvement} validations without improvement.")
-
-
-    def update_optimizer(self):
-
-        if self.validations_without_improvement > 0 and self.params.update_optimizer_every > 0 \
-            and self.validations_without_improvement % self.params.update_optimizer_every == 0:
-
-            if self.params.optimizer == 'sgd' or self.params.optimizer == 'adam':
-                for param_group in self.optimizer.param_groups:
-                    param_group['lr'] = param_group['lr'] * 0.5
-                
-                logger.info(f"New learning rate: {param_group['lr']}")
-
-
-    def load_checkpoint(self):
-
-        # Load checkpoint
-        checkpoint_folder = self.params.model_output_folder
-        checkpoint_file_name = f"{self.params.model_name}.chkpt"
-        checkpoint_path = os.path.join(checkpoint_folder, checkpoint_file_name)
-        self.checkpoint = torch.load(checkpoint_path, map_location = self.device)
-
-
-    def load_checkpoint_params(self):
-
-        # Load params
-        self.params = self.checkpoint['settings']
-
-
-    def load_checkpoint_network(self):
-
-        # Load network
-        try:
-            self.net.load_state_dict(self.checkpoint['model'])
-        except RuntimeError:    
-            self.net.module.load_state_dict(self.checkpoint['model'])
-
     
-    def load_checkpoint_optimizer(self):
 
-        # Load optimizer
-        self.optimizer.load_state_dict(self.checkpoint['optimizer'])
+    def main(self):
+
+        self.save_input_params()
+        self.train(self.starting_epoch, self.params.max_epochs)
 
 
+    # Other utility methods
 
 
 class ArgsParser:
