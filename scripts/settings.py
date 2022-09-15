@@ -43,6 +43,7 @@ TRAIN_DEFAULT_SETTINGS = {
     'print_training_info_every' : 0,
     'early_stopping' : 25,
     'update_optimizer_every' : 20,
+    'load_checkpoint' : False,
     
 
     'window_size' : 3.5,

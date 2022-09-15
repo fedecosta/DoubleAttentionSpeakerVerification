@@ -43,9 +43,9 @@ logger.addHandler(logger_stream_handler)
 
 class Trainer:
 
-    def __init__(self, params):
+    def __init__(self, input_params):
 
-        self.set_params(params)
+        self.set_params(input_params)
         self.set_random_seed()
         self.set_device()
         self.__load_data()
@@ -57,11 +57,15 @@ class Trainer:
 
     # Init methods
 
-    def set_params(self, params):
+    def set_params(self, input_params):
 
-        self.params = params
+        self.params = input_params
         self.params.number_speakers = getNumberOfSpeakers(self.params.train_labels_path) # TODO used at least at model, also could be printed as informative
         self.params.model_name = generate_model_name(self.params)
+
+        if self.params.load_checkpoint == True:
+            self.load_checkpoint()
+            self.load_checkpoint_params()
 
 
     def set_random_seed(self):
@@ -127,6 +131,9 @@ class Trainer:
         # Load model class
         self.net = SpeakerClassifier(self.params, self.device)
         
+        if self.params.load_checkpoint == True:
+            self.load_checkpoint_network()
+        
         # Assign model to device
         self.net.to(self.device)
 
@@ -172,6 +179,9 @@ class Trainer:
                 lr=self.params.learning_rate, 
                 weight_decay=self.params.weight_decay
                 )
+
+        if self.params.load_checkpoint == True:
+            self.load_checkpoint_optimizer()
 
         logger.info(f"Optimizer {self.params.optimizer} loaded.")
 
@@ -536,11 +546,21 @@ class Trainer:
 
     def load_model(self):
         
-        checkpoint_folder = self.params.model_output_folder
-        checkpoint_file_name = f"{self.params.model_name}.chkpt"
-        checkpoint_path = os.path.join(checkpoint_folder, checkpoint_file_name)
         
-        self.checkpoint = torch.load(checkpoint_path, map_location = self.device)
+
+        
+
+        
+            
+        
+
+        # Load starting epoch and step
+        self.starting_epoch = self.checkpoint['epoch']
+        self.step = self.checkpoint['step']
+
+        # TODO load the debug info
+        
+        logger.info('Model is Loaded for requeue process')
 
 
     def early_stopping(self):
@@ -562,6 +582,38 @@ class Trainer:
                     param_group['lr'] = param_group['lr'] * 0.5
                 
                 logger.info(f"New learning rate: {param_group['lr']}")
+
+
+    def load_checkpoint(self):
+
+        # Load checkpoint
+        checkpoint_folder = self.params.model_output_folder
+        checkpoint_file_name = f"{self.params.model_name}.chkpt"
+        checkpoint_path = os.path.join(checkpoint_folder, checkpoint_file_name)
+        self.checkpoint = torch.load(checkpoint_path, map_location = self.device)
+
+
+    def load_checkpoint_params(self):
+
+        # Load params
+        self.params = self.checkpoint['settings']
+
+
+    def load_checkpoint_network(self):
+
+        # Load network
+        try:
+            self.net.load_state_dict(self.checkpoint['model'])
+        except RuntimeError:    
+            self.net.module.load_state_dict(self.checkpoint['model'])
+
+    
+    def load_checkpoint_optimizer(self):
+
+        # Load optimizer
+        self.optimizer.load_state_dict(self.checkpoint['optimizer'])
+
+
 
 
 class ArgsParser:
@@ -673,7 +725,13 @@ class ArgsParser:
                 Set to 0 if you don't want to execute this utility.",
             )
 
-            
+        self.parser.add_argument(
+            '--load_checkpoint',
+            action = 'store_true',
+            default = TRAIN_DEFAULT_SETTINGS['load_checkpoint'],
+            help = 'Set to True if you want to load a previous checkpoint and continue training from that point. \
+                Loaded parameters will overwrite all inputted parameters.',
+            )
 
         # Data Parameters
 
@@ -705,7 +763,7 @@ class ArgsParser:
             '--random_slicing', 
             action = 'store_true',
             default = TRAIN_DEFAULT_SETTINGS['random_slicing'],
-            help = 'Whether  to do random slicing or not. This slice the inputs randomly at frames axis.',
+            help = 'Whether to do random slicing or not. This slice the inputs randomly at frames axis.',
             )
 
         # Network Parameters
