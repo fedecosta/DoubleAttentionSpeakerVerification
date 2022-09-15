@@ -233,11 +233,13 @@ class Trainer:
         logger.info(f"Optimizer {self.params.optimizer} loaded.")
 
 
-    def __initialize_training_variables(self):
+    def initialize_training_variables(self):
 
         logger.info("Initializing training variables...")
         
         if self.params.load_checkpoint == True:
+
+            logger.debug(f"Loading checkpoint training variables...")
 
             loaded_training_variables = self.checkpoint['training_variables']
 
@@ -254,7 +256,10 @@ class Trainer:
             self.best_train_loss = loaded_training_variables['validations_without_improvement'] 
             self.best_model_train_loss = loaded_training_variables['validations_without_improvement'] 
             self.best_model_train_eval_metric = loaded_training_variables['validations_without_improvement'] 
-            self.best_model_valid_eval_metric = loaded_training_variables['validations_without_improvement'] 
+            self.best_model_valid_eval_metric = loaded_training_variables['validations_without_improvement']
+
+            logger.debug(f"Checkpoint training variables loaded.") 
+            logger.debug(f"Training will start from epoch {self.starting_epoch}.") 
         else:
             self.starting_epoch = 0
             self.step = 0 
@@ -290,13 +295,15 @@ class Trainer:
 
         # Switch torch to evaluation mode
         self.net.eval()
-
         accuracy = Accuracy(prediction, label)
-        logger.info(f"Accuracy on training set: {accuracy:.2f}")
+        
         self.train_eval_metric = accuracy
 
         # Return to torch training mode
         self.net.train()
+
+        logger.info(f"Training evaluated.")
+        logger.info(f"Accuracy on training set: {accuracy:.2f}")
 
 
     def __extractInputFromFeature(self, sline):
@@ -385,11 +392,13 @@ class Trainer:
             
             # Compute EER
             EER = self.__calculate_EER(CL, IM)
-            logger.info(f"EER on validation set: {EER:.2f}")
             self.valid_eval_metric = EER
 
         # Return to training mode
         self.net.train()
+
+        logger.info(f"EER on validation set: {EER:.2f}")
+        logger.info(f"Validation evaluated.")
 
 
     def evaluate(self, prediction, label):
@@ -441,10 +450,15 @@ class Trainer:
         checkpoint_folder = self.params.model_output_folder
         checkpoint_file_name = f"{self.params.model_name}.chkpt"
         checkpoint_path = os.path.join(checkpoint_folder, checkpoint_file_name)
+
+        logger.info(f"Saving training and model information in {checkpoint_path}")
         torch.save(checkpoint, checkpoint_path)
+        logger.info(f"Training and model information saved.")
 
 
     def eval_and_save_best_model(self, prediction, label):
+
+        logger.info('Evaluating and saving the new best model (if founded)...')
 
         if self.step > 0 and self.params.eval_and_save_best_model_every > 0 \
             and self.step % self.params.eval_and_save_best_model_every == 0:
@@ -476,21 +490,27 @@ class Trainer:
                 self.validations_without_improvement = self.validations_without_improvement + 1
 
             logger.info(f"Consecutive validations without improvement: {self.validations_without_improvement}")
+            logger.info('Evaluating and saving done.')
 
 
-    def update_optimizer(self):
+    def check_update_optimizer(self):
 
         if self.validations_without_improvement > 0 and self.params.update_optimizer_every > 0 \
             and self.validations_without_improvement % self.params.update_optimizer_every == 0:
 
             if self.params.optimizer == 'sgd' or self.params.optimizer == 'adam':
+
+                logger.debug(f"Updating optimizer...")
+
                 for param_group in self.optimizer.param_groups:
                     param_group['lr'] = param_group['lr'] * 0.5
                 
+                
+                logger.debug(f"Optimizer updated.")
                 logger.info(f"New learning rate: {param_group['lr']}")
 
 
-    def early_stopping(self):
+    def check_early_stopping(self):
 
         if self.params.early_stopping > 0 \
             and self.validations_without_improvement >= self.params.early_stopping:
@@ -555,9 +575,9 @@ class Trainer:
             if self.train_loss < self.best_train_loss:
                 self.best_train_loss = self.train_loss
 
-            self.update_optimizer()
-            self.early_stopping()
-            self.print_training_info()
+            self.check_update_optimizer()
+            self.check_early_stopping()
+            self.check_print_training_info()
 
             # DEBUG
             self.debug_step_info = {}
