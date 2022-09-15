@@ -33,7 +33,7 @@ logger_file_handler.setFormatter(logger_formatter)
 
 # Set a logging stream handler
 logger_stream_handler = logging.StreamHandler()
-logger_stream_handler.setLevel(logging.INFO)
+logger_stream_handler.setLevel(logging.DEBUG)
 logger_stream_handler.setFormatter(logger_formatter)
 
 # Add handlers
@@ -45,9 +45,9 @@ class Trainer:
 
     def __init__(self, input_params):
 
-        self.set_params(input_params)
-        self.set_random_seed()
         self.set_device()
+        self.set_random_seed()
+        self.set_params(input_params)
         self.load_data()
         self.load_network()
         self.load_loss_function()
@@ -56,6 +56,33 @@ class Trainer:
 
 
     # Init methods
+
+
+    def set_device(self):
+        
+        logger.info('Setting device...')
+
+        # Set device to GPU or CPU depending on what is available
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        
+        logger.info(f"Running on {self.device} device.")
+        
+        if torch.cuda.device_count() > 1:
+            logger.info(f"{torch.cuda.device_count()} GPUs available.")
+        
+        logger.info("Device setted.")
+
+    
+    def set_random_seed(self):
+
+        logger.debug("Setting random seed...")
+
+        # Set the seed for experimental reproduction
+        torch.manual_seed(1234)
+        np.random.seed(1234)
+        random.seed(1234)
+
+        logger.debug("Random seed setted.")
 
 
     def set_params(self, input_params):
@@ -94,33 +121,6 @@ class Trainer:
         self.params = self.checkpoint['settings']
 
         logger.debug(f"Checkpoint params loaded.")
-
-
-    def set_random_seed(self):
-
-        logger.debug("Setting random seed...")
-
-        # Set the seed for experimental reproduction
-        torch.manual_seed(1234)
-        np.random.seed(1234)
-        random.seed(1234)
-
-        logger.debug("Random seed setted.")
-
-
-    def set_device(self):
-        
-        logger.info('Setting device...')
-
-        # Set device to GPU or CPU depending on what is available
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        
-        logger.info(f"Running on {self.device} device.")
-        
-        if torch.cuda.device_count() > 1:
-            logger.info(f"{torch.cuda.device_count()} GPUs available.")
-        
-        logger.info("Device setted.")
 
 
     def load_data(self):
@@ -340,9 +340,9 @@ class Trainer:
             input1, input2 = self.__extractInputFromFeature(sline)
 
             if torch.cuda.device_count() > 1:
-                emb1, emb2 = self.net.module.getEmbedding(input1), self.net.module.getEmbedding(input2)
+                emb1, emb2 = self.net.module.get_embedding(input1), self.net.module.get_embedding(input2)
             else:
-                emb1, emb2 = self.net.getEmbedding(input1), self.net.getEmbedding(input2)
+                emb1, emb2 = self.net.get_embedding(input1), self.net.get_embedding(input2)
 
             dist = scoreCosineDistance(emb1, emb2)
             scores.append(dist.item())
@@ -451,6 +451,10 @@ class Trainer:
         checkpoint_file_name = f"{self.params.model_name}.chkpt"
         checkpoint_path = os.path.join(checkpoint_folder, checkpoint_file_name)
 
+        # Create directory if doesn't exists
+        if not os.path.exists(self.params.model_output_folder):
+            os.makedirs(self.params.model_output_folder)
+
         logger.info(f"Saving training and model information in {checkpoint_path}")
         torch.save(checkpoint, checkpoint_path)
         logger.info(f"Training and model information saved.")
@@ -519,7 +523,7 @@ class Trainer:
             logger.info(f"Doing early stopping after {self.validations_without_improvement} validations without improvement.")
 
 
-    def print_training_info(self):
+    def check_print_training_info(self):
 
         if self.step > 0 and self.params.print_training_info_every > 0 \
             and self.step % self.params.print_training_info_every == 0:
@@ -532,7 +536,7 @@ class Trainer:
 
     def train_single_epoch(self, epoch):
 
-        logger.info(f"Epoch {epoch}...")
+        logger.info(f"Epoch {epoch} of {self.params.max_epochs}...")
 
         # Switch torch to training mode
         self.net.train()
@@ -655,7 +659,7 @@ class Trainer:
 
     def main(self):
 
-        self.save_input_params()
+        # self.save_input_params() TODO I think this is useless
         self.train(self.starting_epoch, self.params.max_epochs)
 
 

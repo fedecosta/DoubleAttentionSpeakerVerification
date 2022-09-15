@@ -37,12 +37,12 @@ TRAIN_DEFAULT_SETTINGS = {
     'valid_data_dir' : '', #'/home/usuaris/scratch/speaker_databases/',
     'model_output_folder' : 'scripts/models/',
 
-    'max_epochs' : 3,
+    'max_epochs' : 300,
     'batch_size' : 64,
     'eval_and_save_best_model_every' : 10,
     'print_training_info_every' : 0,
-    'early_stopping' : 25,
-    'update_optimizer_every' : 20,
+    'early_stopping' : 50,
+    'update_optimizer_every' : 0,
     'load_checkpoint' : False,
     
 
@@ -55,7 +55,7 @@ TRAIN_DEFAULT_SETTINGS = {
     'front_end' : 'VGGNL',
     'vgg_n_blocks' : 4,
     'vgg_channels' : [128, 256, 512, 1024],
-    'pooling_method' : 'Attention', # HACK changed default option for testing. Original -> 'DoubleMHA',
+    'pooling_method' : 'DoubleMHA', # HACK changed default option for testing. Original -> 'DoubleMHA',
     'heads_number' : 32,
     'mask_prob' : 0.3,
     'embedding_size' : 400,

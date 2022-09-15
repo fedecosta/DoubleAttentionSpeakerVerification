@@ -84,7 +84,7 @@ class HeadAttention(nn.Module):
         weighted_ht = ht * attention_score
         ct = torch.sum(weighted_ht,dim=1)
 
-        print(f"[poolings] HeadAttention output size : {ct.size()}")
+        # print(f"[poolings] HeadAttention output size : {ct.size()}")
 
         return ct, attention_score
 
@@ -126,7 +126,7 @@ class MultiHeadAttention(nn.Module):
     def forward(self, ht):
         headsContextVectors = self.getHeadsContextVectors(ht)
 
-        print(f"[poolings] MultiHeadAttention output size : {headsContextVectors.view(headsContextVectors.size(0),-1).size()}")
+        #print(f"[poolings] MultiHeadAttention output size : {headsContextVectors.view(headsContextVectors.size(0),-1).size()}")
 
         return headsContextVectors.view(headsContextVectors.size(0),-1), copy.copy(self.alignment)
 
@@ -149,7 +149,7 @@ class DoubleMHA(nn.Module):
         utteranceRepresentation, alignment = self.utteranceAttention(x)
         compressedRepresentation = self.headsAttention(utteranceRepresentation.view(utteranceRepresentation.size(0), self.heads_number, self.heads_size))[0]    
         
-        print(f"[poolings] DoubleMHA output size : {compressedRepresentation.size()}")
+        # print(f"[poolings] DoubleMHA output size : {compressedRepresentation.size()}")
         
         return compressedRepresentation, alignment
 
