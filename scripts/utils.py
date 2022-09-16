@@ -66,16 +66,19 @@ def generate_model_name(params):
 
     name_components.append(params.model_name_prefix)
     name_components.append(params.front_end)
-    name_components.append(str(params.window_size))
-    name_components.append('batch_size' + str(params.batch_size))
+    name_components.append(params.pooling_method)
+    
+    
+    #name_components.append('batch_size' + str(params.batch_size))
+    #name_components.append(params.heads_number)
+    #name_components.append(str(params.window_size))
     #name_components.append('lr' + params.learning_rate)
     #name_components.append('weight_decay' + params.weight_decay)
     #name_components.append('kernel' + params.kernel_size)
     #name_components.append('emb_size' + params.embedding_size)
     #name_components.append('s' + params.scaling_factor)
     #name_components.append('m' + params.margin_factor)
-    name_components.append(params.pooling_method)
-    name_components.append(params.heads_number)
+    
 
     name_components = [str (component) for component in name_components]
 

@@ -94,9 +94,13 @@ class Trainer:
         self.params.model_name = generate_model_name(self.params)
 
         if self.params.load_checkpoint == True:
+
             self.load_checkpoint()
             self.load_checkpoint_params()
-
+            # When we load checkpoint params, all input params are overwriten. 
+            # So we need to set load_checkpoint flag 
+            self.params.load_checkpoint = True
+        
         logger.debug("params setted.")
 
 
@@ -247,19 +251,27 @@ class Trainer:
             # from the last epoch trained and from the first batch
             # (even if we may already trained with some batches in that epoch in the last training from the checkpoint).
             self.starting_epoch = loaded_training_variables['epoch']
-            self.step = loaded_training_variables['epoch'] + 1 
+            self.step = loaded_training_variables['step'] + 1 
             self.validations_without_improvement = loaded_training_variables['validations_without_improvement'] 
             self.early_stopping_flag = False
-            self.train_loss = loaded_training_variables['validations_without_improvement'] 
-            self.train_eval_metric = loaded_training_variables['validations_without_improvement'] 
-            self.valid_eval_metric = loaded_training_variables['validations_without_improvement'] 
-            self.best_train_loss = loaded_training_variables['validations_without_improvement'] 
-            self.best_model_train_loss = loaded_training_variables['validations_without_improvement'] 
-            self.best_model_train_eval_metric = loaded_training_variables['validations_without_improvement'] 
-            self.best_model_valid_eval_metric = loaded_training_variables['validations_without_improvement']
+            self.train_loss = loaded_training_variables['train_loss'] 
+            self.train_eval_metric = loaded_training_variables['train_eval_metric'] 
+            self.valid_eval_metric = loaded_training_variables['valid_eval_metric'] 
+            self.best_train_loss = loaded_training_variables['best_train_loss'] 
+            self.best_model_train_loss = loaded_training_variables['best_model_train_loss'] 
+            self.best_model_train_eval_metric = loaded_training_variables['best_model_train_eval_metric'] 
+            self.best_model_valid_eval_metric = loaded_training_variables['best_model_valid_eval_metric']
 
-            logger.debug(f"Checkpoint training variables loaded.") 
-            logger.debug(f"Training will start from epoch {self.starting_epoch}.") 
+            logger.info(f"Checkpoint training variables loaded.") 
+            logger.info(f"Training will start from:")
+            logger.info(f"Epoch {self.starting_epoch}")
+            logger.info(f"Step {self.step}")
+            logger.info(f"validations_without_improvement {self.validations_without_improvement}")
+            logger.info(f"Loss {self.train_loss:.2f}")
+            logger.info(f"best_model_train_loss {self.best_model_train_loss:.2f}")
+            logger.info(f"best_model_train_eval_metric {self.best_model_train_eval_metric:.2f}")
+            logger.info(f"best_model_valid_eval_metric {self.best_model_valid_eval_metric:.2f}")
+
         else:
             self.starting_epoch = 0
             self.step = 0 
@@ -447,6 +459,7 @@ class Trainer:
                 'training_variables' : training_variables,
                 }
 
+        # We will save this checkpoint and it will overwrite the last one of this model
         checkpoint_folder = self.params.model_output_folder
         checkpoint_file_name = f"{self.params.model_name}.chkpt"
         checkpoint_path = os.path.join(checkpoint_folder, checkpoint_file_name)
@@ -457,15 +470,23 @@ class Trainer:
 
         logger.info(f"Saving training and model information in {checkpoint_path}")
         torch.save(checkpoint, checkpoint_path)
+
+        # DEBUG
+        # We can also save the checkpoint with epoch and step for debug
+        # Warning! It will save a lot of checkpoints
+        # checkpoint_file_name_2 = f"{self.params.model_name}_epoch{self.epoch}_step{self.step}.chkpt"
+        # checkpoint_path_2 = os.path.join(checkpoint_folder, checkpoint_file_name_2)
+        # torch.save(checkpoint, checkpoint_path_2)
+
         logger.info(f"Training and model information saved.")
 
 
     def eval_and_save_best_model(self, prediction, label):
 
-        logger.info('Evaluating and saving the new best model (if founded)...')
-
         if self.step > 0 and self.params.eval_and_save_best_model_every > 0 \
             and self.step % self.params.eval_and_save_best_model_every == 0:
+
+            logger.info('Evaluating and saving the new best model (if founded)...')
 
             # Calculate the evaluation metrics
             self.evaluate(prediction, label)
@@ -524,7 +545,7 @@ class Trainer:
 
 
     def check_print_training_info(self):
-
+        
         if self.step > 0 and self.params.print_training_info_every > 0 \
             and self.step % self.params.print_training_info_every == 0:
 
@@ -762,7 +783,7 @@ class ArgsParser:
         self.parser.add_argument(
             '--early_stopping', 
             type = int, 
-            default = TRAIN_DEFAULT_SETTINGS['print_training_info_every'],
+            default = TRAIN_DEFAULT_SETTINGS['early_stopping'],
             help = "Training is stopped if there are early_stopping consectuive validations without improvement. \
                 Set to 0 if you don't want to execute this utility.",
             )
