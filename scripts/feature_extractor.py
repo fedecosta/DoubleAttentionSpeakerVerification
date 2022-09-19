@@ -132,9 +132,9 @@ class FeatureExtractor:
                 if self.params.verbose: print(f"[Feature Extractor] File processed. Dumped pickle in {file_dump_path}")
                 
                 progress_pctg = line_num / self.total_lines * 100
-                print(f"[Feature Extractor] {progress_pctg:.1f}% audios processed...")
+                # print(f"[Feature Extractor] {progress_pctg:.1f}% audios processed...")
                 # TODO try a flush print
-                # print(f"\r [Feature Extractor] {progress_pctg:.1f}% audios processed...", end='', flush = True)
+                print(f"\r [Feature Extractor] {progress_pctg:.1f}% audios processed...", end = '', flush = True)
                 
                 line_num = line_num + 1
 
@@ -159,14 +159,14 @@ class ArgsParser:
     def add_parser_args(self):
 
         self.parser.add_argument(
-            'audio_paths_file_folder',
+            '--audio_paths_file_folder',
             type = str, 
             default = FEATURE_EXTRACTOR_DEFAULT_SETTINGS['audio_paths_file_folder'],
             help = 'Folder containing the .lst file with the audio files paths we want to extract features from.',
             )
 
         self.parser.add_argument(
-            'audio_paths_file_name',
+            '--audio_paths_file_name',
             type = str, 
             default = FEATURE_EXTRACTOR_DEFAULT_SETTINGS['audio_paths_file_name'],
             help = '.lst file name containing the audio files paths we want to extract features from.',

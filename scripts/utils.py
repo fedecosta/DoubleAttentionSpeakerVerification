@@ -1,18 +1,33 @@
 import torch
 from torch.nn import functional as F
+import numpy as np
 
 
 def Score(SC, th, rate):
+
     score_count = 0.0
     for sc in SC:
-        if rate=='FAR':
-            if float(sc)>=float(th):
-                score_count+=1
-        elif rate=='FRR':
-            if float(sc)<float(th):
-                score_count+=1
+        if rate == 'FAR':
+            if float(sc) >= float(th):
+                score_count += 1
+        elif rate == 'FRR':
+            if float(sc) < float(th):
+                score_count += 1
 
-    return round(score_count*100/float(len(SC)),4)
+    return round(score_count * 100 / float(len(SC)), 4)
+
+
+def Score_2(SC, th, rate):
+
+    SC = np.array(SC)
+
+    cond = SC >= th
+    if rate == 'FAR':
+        score_count = sum(cond)
+    else:
+        score_count = sum(cond == False)
+
+    return round(score_count * 100 / float(len(SC)), 4)
 
 
 def scoreCosineDistance(emb1, emb2):
