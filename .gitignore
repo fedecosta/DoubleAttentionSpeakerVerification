@@ -7,3 +7,5 @@ labels/
 logs/
 *.chkpt
 *.pkl
+*.lst
+*.ndx
