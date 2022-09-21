@@ -120,21 +120,28 @@ class FeatureExtractor:
 
                 if self.params.verbose: print(f"[Feature Extractor] Processing file {audio_path}...")
 
-                log_mel_spectrogram = self.extract_features(audio_path)
-
-                # Dump the spectrogram
                 file_dump_path = '.'.join(line.split(".")[:-1]) # remove the file extension
                 file_dump_path = file_dump_path + ".pickle" # add the pickle extension
-                
-                with open(file_dump_path, 'wb') as handle:
-                    pickle.dump(log_mel_spectrogram, handle)
 
-                if self.params.verbose: print(f"[Feature Extractor] File processed. Dumped pickle in {file_dump_path}")
-                
+                if os.path.exists(file_dump_path):
+
+                    if self.params.verbose: print(f"[Feature Extractor] Extraction file already exists.")
+
+                else:
+                    
+                    log_mel_spectrogram = self.extract_features(audio_path)
+
+                    # Dump the spectrogram
+                    with open(file_dump_path, 'wb') as handle:
+                        pickle.dump(log_mel_spectrogram, handle)
+
+                    if self.params.verbose: print(f"[Feature Extractor] File processed. Dumpled pickle in {file_dump_path}")
+                    
                 progress_pctg = line_num / self.total_lines * 100
-                # print(f"[Feature Extractor] {progress_pctg:.1f}% audios processed...")
+                print(f"[Feature Extractor] {progress_pctg:.1f}% audios processed...")
                 # TODO try a flush print
-                print(f"\r [Feature Extractor] {progress_pctg:.1f}% audios processed...", end = '', flush = True)
+                # print(f"\r [Feature Extractor] {progress_pctg:.1f}% audios processed, processed {audio_path}...", end = '', flush = True)
+                # print(f"\r [Feature Extractor] {progress_pctg:.1f}% audios processed...", end = '', flush = True)
                 
                 line_num = line_num + 1
 
