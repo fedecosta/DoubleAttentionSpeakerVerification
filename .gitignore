@@ -1,11 +1,2 @@
 .ipynb_checkpoints/
 __pycache__/
-feature_extractor/
-models/
-models_results/
-labels/
-logs/
-*.chkpt
-*.pkl
-*.lst
-*.ndx

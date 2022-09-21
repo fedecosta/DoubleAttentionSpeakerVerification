@@ -1,0 +1,15 @@
+{
+    "start_datetime": "22-09-20 15:04:42",
+    "end_datetime": "22-09-20 15:35:02",
+    "elapsed_time_hours": 0.5056608283519745,
+    "model_name": "CNN_VGG4L_3.5_128batchSize_0.0001lr_0.001weightDecay_1024kernel_400embSize_30.0s_0.4m_DoubleMHA_32_VGG4L_3.5_128batchSize_0.0001lr_0.001weightDecay_1024kernel_400embSize_30.0s_0.4m_DoubleMHA_32",
+    "model_loaded_from": "/home/usuaris/veu/federico.costa/git_repositories/DoubleAttentionSpeakerVerification/models/model1/CNN_VGG4L_3.5_128batchSize_0.0001lr_0.001weightDecay_1024kernel_400embSize_30.0s_0.4m_DoubleMHA_32_30000.chkpt",
+    "saved_epoch": 3,
+    "saved_step": 30000,
+    "clients_file": "/home/usuaris/veu/federico.costa/git_repositories/DoubleAttentionSpeakerVerification/scripts/labels/test/voxceleb1_t_protocol/clients.ndx",
+    "impostors_file": "/home/usuaris/veu/federico.costa/git_repositories/DoubleAttentionSpeakerVerification/scripts/labels/test/voxceleb1_t_protocol/impostors.ndx",
+    "data_dir": "/home/usuaris/veussd/DATABASES/VoxCeleb/VoxCeleb1/test/",
+    "clients_num": 18802,
+    "impostors_num": 18809,
+    "EER": 45.5686
+}
