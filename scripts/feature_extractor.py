@@ -36,7 +36,7 @@ class FeatureExtractor:
     def generate_log_mel_spectrogram(self, samples, sampling_rate):
         
         # Pre-emphasis
-        samples *= 32768 #TODO why this number?
+        samples *= 32768 # HACK why this number?
         samples[1:] = samples[1:] - self.params.pre_emph_coef * samples[:-1]
         samples[0] *= (1 - self.params.pre_emph_coef)
 
@@ -66,17 +66,12 @@ class FeatureExtractor:
         # TODO this array has to be trasposed in later methods. why not traspose now?
         log_mel_spectrogram = np.log(np.maximum(1, mel_spectrogram))
         
-        return mel_spectrogram
+        return log_mel_spectrogram
 
 
     def extract_features(self, audio_path):
 
         # Load the audio
-                
-        # TODO give the option to load with sf
-        # y, sfreq = sf.read('{}'.format(featureFile[:-1]))
-        # y, sfreq = sf.read('{}'.format(featureFile))
-        
         samples, sampling_rate = librosa.load(
             f'{audio_path}',
             sr = self.params.sampling_rate,
@@ -92,17 +87,6 @@ class FeatureExtractor:
             )
 
         return log_mel_spectrogram
-
-
-    def normalize_features(self, features):
-
-        # Used when getting embeddings
-        # TODO move to the corresponding .py
-        
-        norm_features = np.transpose(features)
-        norm_features = norm_features - np.mean(norm_features, axis = 0)
-        
-        return norm_features
 
 
     def main(self):
@@ -123,11 +107,7 @@ class FeatureExtractor:
                 file_dump_path = '.'.join(line.split(".")[:-1]) # remove the file extension
                 file_dump_path = file_dump_path + ".pickle" # add the pickle extension
 
-                if os.path.exists(file_dump_path):
-
-                    if self.params.verbose: print(f"[Feature Extractor] Extraction file already exists.")
-
-                else:
+                if (self.params.overwrite == True) or (self.params.overwrite == False and not os.path.exists(file_dump_path)):
                     
                     log_mel_spectrogram = self.extract_features(audio_path)
 
@@ -138,11 +118,8 @@ class FeatureExtractor:
                     if self.params.verbose: print(f"[Feature Extractor] File processed. Dumpled pickle in {file_dump_path}")
                     
                 progress_pctg = line_num / self.total_lines * 100
-                print(f"[Feature Extractor] {progress_pctg:.1f}% audios processed...")
-                # TODO try a flush print
-                # print(f"\r [Feature Extractor] {progress_pctg:.1f}% audios processed, processed {audio_path}...", end = '', flush = True)
-                # print(f"\r [Feature Extractor] {progress_pctg:.1f}% audios processed...", end = '', flush = True)
-                
+                print(f"\r [Feature Extractor] {progress_pctg:.1f}% audios processed, processed {audio_path}...", end = '', flush = True)
+
                 line_num = line_num + 1
 
             print(f"[Feature Extractor] All audios processed!")
@@ -229,8 +206,16 @@ class ArgsParser:
             )
 
         self.parser.add_argument(
+            "--overwrite", 
+            action = argparse.BooleanOptionalAction,
+            default = FEATURE_EXTRACTOR_DEFAULT_SETTINGS['overwrite'],
+            help = "True if you want to overwrite already feature extracted audios.",
+            )
+
+        self.parser.add_argument(
             "--verbose", 
-            action = "store_true",
+            action = argparse.BooleanOptionalAction,
+            default = FEATURE_EXTRACTOR_DEFAULT_SETTINGS['verbose'],
             help = "Increase output verbosity.",
             )
 
