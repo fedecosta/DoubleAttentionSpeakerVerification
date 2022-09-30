@@ -65,13 +65,15 @@ def Accuracy(pred, labels):
 
     return acc/num_pred
 
-def getNumberOfSpeakers(labelsFilePath):
+def get_number_of_speakers(labels_file_path):
 
-    speakersDict = dict()
-    with open(labelsFilePath,'r') as labelsFile:
-        for line in labelsFile.readlines():
-            speakersDict[line.split()[1]] = 0
-    return len(speakersDict)
+    speakers_set = set()
+    with open(labels_file_path, 'r') as f:
+        for line in f.readlines():
+            speaker_label = line.split()[-2]
+            speakers_set.add(speaker_label)
+
+    return len(speakers_set)
 
 def generate_model_name(params):
 
