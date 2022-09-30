@@ -1,14 +1,9 @@
-# TODO fix this hack
-# import sys
-# sys.path.append('./scripts/')
-
 import argparse
 import os
 
 from settings import PATHS_GENERATOR_DEFAULT_SETTINGS
 
 # TODO add the usage instructions in README.md
-
 
 class PathsGenerator:
 
@@ -40,8 +35,10 @@ class PathsGenerator:
 
         if not os.path.exists(self.params.dump_file_folder):
             os.makedirs(self.params.dump_file_folder)
-        
         dump_path = os.path.join(self.params.dump_file_folder, self.params.dump_file_name)
+
+        print(f"Dumping files paths into {dump_path}")
+        
         with open(dump_path, 'w') as file:
 
             for line_to_write in self.lines_to_write:
