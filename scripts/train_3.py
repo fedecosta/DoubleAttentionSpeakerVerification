@@ -18,7 +18,7 @@ from settings import TRAIN_DEFAULT_SETTINGS
 import logging
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 logger_formatter = logging.Formatter(
     fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     datefmt = '%H:%M:%S',
@@ -33,7 +33,7 @@ logger_file_handler.setFormatter(logger_formatter)
 
 # Set a logging stream handler
 logger_stream_handler = logging.StreamHandler()
-logger_stream_handler.setLevel(logging.DEBUG)
+logger_stream_handler.setLevel(logging.INFO)
 logger_stream_handler.setFormatter(logger_formatter)
 
 # Add handlers
@@ -682,9 +682,6 @@ class Trainer:
 
         # self.save_input_params() TODO I think this is useless
         self.train(self.starting_epoch, self.params.max_epochs)
-
-
-    # Other utility methods
 
 
 class ArgsParser:
