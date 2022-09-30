@@ -111,9 +111,13 @@ class FeatureExtractor:
                     
                     log_mel_spectrogram = self.extract_features(audio_path)
 
-                    # Dump the spectrogram
+                    info_dict = {}
+                    info_dict["features"] = log_mel_spectrogram
+                    info_dict["settings"] = self.params
+                    
+                    # Dump the dict
                     with open(file_dump_path, 'wb') as handle:
-                        pickle.dump(log_mel_spectrogram, handle)
+                        pickle.dump(info_dict, handle)
 
                     if self.params.verbose: print(f"[Feature Extractor] File processed. Dumpled pickle in {file_dump_path}")
                     

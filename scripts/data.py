@@ -1,8 +1,8 @@
 import pickle
 import numpy as np
 from random import randint, randrange
+import os
 from torch.utils import data
-import soundfile as sf
 
 # TODO understand where is this function used, move to the correct module
 def featureReader(featurePath, VAD = None):
@@ -35,43 +35,63 @@ def normalizeFeatures(features, normalization = 'cmn'):
 class Dataset(data.Dataset):
 
     def __init__(self, utterances_paths, parameters):
+        
         'Initialization'
         self.utterances_paths = utterances_paths
         self.parameters = parameters
         self.num_samples = len(utterances_paths)
 
-    def __normalize(self, features):
-
-        # Compute the mean for each column
-        mean = np.mean(features, axis=0)
-
-        features = features - mean 
-
+    
+    def __len__(self):
         
+        # Mandatory torch method
+
+        return self.num_samples
+
+
+    def normalize(self, features):
+
+        # Cepstral mean normalization
         if self.parameters.normalization == 'cmn':
-            # Cepstral mean normalization
-            return features
-        if self.parameters.normalization == 'cmvn':
-            # Cepstral mean and variance normalization
+
+            # Compute the mean for each frequency band (columns)
+            mean = np.mean(features, axis = 0)
             
-            # Compute the standard deviation for each column
-            std = np.std(features, axis=0)
+            # Substract for each column the corresponding column mean
+            features = features - mean
+
+        # Cepstral mean and variance normalization
+        elif self.parameters.normalization == 'cmvn':
+
+            # Compute the mean for each frequency band (columns)
+            mean = np.mean(features, axis = 0)
+            
+            # Substract for each column the corresponding column mean
+            features = features - mean
+            
+            # Compute the standard deviation for each frequency band (columns)
+            std = np.std(features, axis = 0)
             
             # HACK guess this is to avoid zero division overflow
             std = np.where(std > 0.01, std, 1.0)
-            return features / std
 
-    def __sampleSpectogramWindow(self, features):
+            # Divide for each column the corresponding column std
+            features = features / std
+
+        return features
+
+
+    def sample_spectogram_window(self, features):
 
         # Cut the spectrogram with a fixed length at a random start
 
-        file_size = features.shape[0]
+        file_frames = features.shape[0]
         
         # FIX why this hardcoded 100? 
         # The cutting here is in FRAMES, not secs
         # It would be nice to do the cutting at the feature extractor module
         # It seems that some kind of padding is made with librosa, but it should be done at the feature extractor module also
-        windowSizeInFrames = self.parameters.window_size * 100
+        sample_size_in_frames = self.parameters.window_size * 100
 
         # Get a random start point
         index = randint(0, max(0, file_size - windowSizeInFrames - 1))
@@ -84,7 +104,8 @@ class Dataset(data.Dataset):
 
         return sliced_spectrogram
 
-    def __getFeatureVector(self, utterance_path):
+
+    def get_feature_vector(self, utterance_path):
 
         # Load the spectrogram saved in pickle format
         with open(utterance_path + '.pickle', 'rb') as pickle_file:
@@ -93,14 +114,14 @@ class Dataset(data.Dataset):
         # HACK fix this transpose
         # It seems that the feature extractor's output spectrogram has mel bands as rows
         # Is it possible to do the transpose in that module?
-        windowedFeatures = self.__sampleSpectogramWindow(self.__normalize(np.transpose(features))) 
+        features = np.transpose(features)
+        
+        features = self.normalize(features)
+
+        windowedFeatures = self.sampleSpectogramWindow(features) 
 
         return windowedFeatures            
      
-    def __len__(self):
-
-        # Mandatory torch method
-        return self.num_samples
 
     def __getitem__(self, index):
         'Generates one sample of data'
@@ -110,8 +131,9 @@ class Dataset(data.Dataset):
         # Each utterance_path is like: path label -1
         # TODO seems that -1 is not necessary?
         utterance_tuple = self.utterances_paths[index].strip().split(' ')
-        utterance_path = self.parameters.train_data_dir + '/' + utterance_tuple[0]
+
+        utterance_path = os.path.join(self.parameters.train_data_dir, utterance_tuple[0])
         utterance_label = int(utterance_tuple[1])
         
-        return self.__getFeatureVector(utterance_path), np.array(utterance_label)
+        return self.get_feature_vector(utterance_path), np.array(utterance_label)
 
