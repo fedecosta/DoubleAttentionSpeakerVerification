@@ -11,7 +11,7 @@ from torchsummary import summary
 
 from data import Dataset, normalizeFeatures, featureReader
 from model import SpeakerClassifier
-from utils import getNumberOfSpeakers, generate_model_name, Accuracy, scoreCosineDistance, Score
+from utils import get_number_of_speakers, generate_model_name, Accuracy, scoreCosineDistance, Score
 from settings import TRAIN_DEFAULT_SETTINGS
 
 # Set logging config
@@ -75,22 +75,22 @@ class Trainer:
     
     def set_random_seed(self):
 
-        logger.debug("Setting random seed...")
+        logger.info("Setting random seed...")
 
         # Set the seed for experimental reproduction
         torch.manual_seed(1234)
         np.random.seed(1234)
         random.seed(1234)
 
-        logger.debug("Random seed setted.")
+        logger.info("Random seed setted.")
 
 
     def set_params(self, input_params):
 
-        logger.debug("Setting params...")
+        logger.info("Setting params...")
 
         self.params = input_params
-        self.params.number_speakers = getNumberOfSpeakers(self.params.train_labels_path) # TODO used at least at model, also could be printed as informative
+        self.params.number_speakers = get_number_of_speakers(self.params.train_labels_path)
         self.params.model_name = generate_model_name(self.params)
 
         if self.params.load_checkpoint == True:
@@ -98,10 +98,10 @@ class Trainer:
             self.load_checkpoint()
             self.load_checkpoint_params()
             # When we load checkpoint params, all input params are overwriten. 
-            # So we need to set load_checkpoint flag 
+            # So we need to set load_checkpoint flag to True
             self.params.load_checkpoint = True
         
-        logger.debug("params setted.")
+        logger.info("params setted.")
 
 
     def load_checkpoint(self):
@@ -111,20 +111,20 @@ class Trainer:
         checkpoint_file_name = f"{self.params.model_name}.chkpt"
         checkpoint_path = os.path.join(checkpoint_folder, checkpoint_file_name)
 
-        logger.debug(f"Loading checkpoint from {checkpoint_path}")
+        logger.info(f"Loading checkpoint from {checkpoint_path}")
 
         self.checkpoint = torch.load(checkpoint_path, map_location = self.device)
 
-        logger.debug(f"Checkpoint loaded.")
+        logger.info(f"Checkpoint loaded.")
 
 
     def load_checkpoint_params(self):
 
-        logger.debug(f"Loading checkpoint params...")
+        logger.info(f"Loading checkpoint params...")
 
         self.params = self.checkpoint['settings']
 
-        logger.debug(f"Checkpoint params loaded.")
+        logger.info(f"Checkpoint params loaded.")
 
 
     def load_data(self):

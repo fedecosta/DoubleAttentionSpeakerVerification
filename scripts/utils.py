@@ -102,3 +102,14 @@ def generate_model_name(params):
     model_name = "_".join(name_components)
 
     return model_name
+
+
+#def normalize_features(self, features):
+#
+#    # Used when getting embeddings
+#    # TODO move to the corresponding .py
+#    
+#    norm_features = np.transpose(features)
+#    norm_features = norm_features - np.mean(norm_features, axis = 0)
+#    
+#    return norm_features
