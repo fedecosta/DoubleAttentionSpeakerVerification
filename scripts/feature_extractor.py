@@ -1,7 +1,3 @@
-# HACK fix this hack
-# import sys
-# sys.path.append('./scripts/')
-
 import argparse
 import os
 import librosa
@@ -9,6 +5,24 @@ import numpy as np
 import pickle
 
 from settings import FEATURE_EXTRACTOR_DEFAULT_SETTINGS
+
+# Set logging config
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger_formatter = logging.Formatter(
+    fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt = '%H:%M:%S',
+    )
+
+# Set a logging stream handler
+logger_stream_handler = logging.StreamHandler()
+logger_stream_handler.setLevel(logging.INFO)
+logger_stream_handler.setFormatter(logger_formatter)
+
+# Add handlers
+logger.addHandler(logger_stream_handler)
 
 # In this particular case we ignore warnings of loading a .m4a audio
 # Not a good practice
@@ -23,6 +37,20 @@ class FeatureExtractor:
     def __init__(self, params):
         self.params = params
         self.params.audio_paths_file_path = os.path.join(self.params.audio_paths_file_folder, self.params.audio_paths_file_name)
+        self.set_log_file_handler()
+
+
+    def set_log_file_handler(self):
+
+        # Set a logging file handler
+        if not os.path.exists(self.params.log_file_folder):
+            os.makedirs(self.params.log_file_folder)
+        logger_file_path = os.path.join(self.params.log_file_folder, self.params.log_file_name)
+        logger_file_handler = logging.FileHandler(logger_file_path, mode = 'w')
+        logger_file_handler.setLevel(logging.DEBUG)
+        logger_file_handler.setFormatter(logger_formatter)
+
+        logger.addHandler(logger_file_handler)
 
 
     def count_input_lines(self):
@@ -95,7 +123,7 @@ class FeatureExtractor:
 
         with open(self.params.audio_paths_file_path, 'r') as file:
         
-            print(f"[Feature Extractor] {self.total_lines} audios ready for feature extraction.")
+            logger.info(f"[Feature Extractor] {self.total_lines} audios ready for feature extraction.")
 
             line_num = 0
             progress_pctg_to_print = 0
@@ -103,7 +131,7 @@ class FeatureExtractor:
 
                 audio_path = line.replace("\n", "")
 
-                if self.params.verbose: print(f"[Feature Extractor] Processing file {audio_path}...")
+                if self.params.verbose: logger.info(f"[Feature Extractor] Processing file {audio_path}...")
 
                 file_dump_path = '.'.join(line.split(".")[:-1]) # remove the file extension
                 file_dump_path = file_dump_path + ".pickle" # add the pickle extension
@@ -120,17 +148,19 @@ class FeatureExtractor:
                     with open(file_dump_path, 'wb') as handle:
                         pickle.dump(info_dict, handle)
 
-                    if self.params.verbose: print(f"[Feature Extractor] File processed. Dumpled pickle in {file_dump_path}")
+                    if self.params.verbose: logger.info(f"[Feature Extractor] File processed. Dumpled pickle in {file_dump_path}")
                     
                 progress_pctg = line_num / self.total_lines * 100
                 if progress_pctg >=  progress_pctg_to_print:
-                    print(f"[Feature Extractor] {progress_pctg:.2f}% audios processed...")
+                    logger.info(f"[Feature Extractor] {progress_pctg:.0f}% audios processed...")
                     progress_pctg_to_print = progress_pctg_to_print + 1
+                
+                # A flush print have some issues with large datasets
                 # print(f"\r [Feature Extractor] {progress_pctg:.1f}% audios processed...", end = '', flush = True)
 
                 line_num = line_num + 1
 
-            print(f"[Feature Extractor] All audios processed!")
+            logger.info(f"[Feature Extractor] All audios processed!")
 
 
 class ArgsParser:
@@ -162,6 +192,20 @@ class ArgsParser:
             type = str, 
             default = FEATURE_EXTRACTOR_DEFAULT_SETTINGS['audio_paths_file_name'],
             help = '.lst file name containing the audio files paths we want to extract features from.',
+            )
+
+        self.parser.add_argument(
+            '--log_file_folder',
+            type = str, 
+            default = FEATURE_EXTRACTOR_DEFAULT_SETTINGS['log_file_folder'],
+            help = 'Name of folder that will contain the log file.',
+            )
+        
+        self.parser.add_argument(
+            '--log_file_name',
+            type = str, 
+            default = FEATURE_EXTRACTOR_DEFAULT_SETTINGS['log_file_name'],
+            help = 'Name of the log file.',
             )
 
         self.parser.add_argument(
