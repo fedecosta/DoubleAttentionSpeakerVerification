@@ -25,9 +25,9 @@ logger_formatter = logging.Formatter(
     )
 
 # Set a logging file handler
-if not os.path.exists('scripts/logs'):
-    os.makedirs('scripts/logs')
-logger_file_handler = logging.FileHandler('scripts/logs/train_3.log', mode = 'w')
+if not os.path.exists('./logs'):
+    os.makedirs('./logs')
+logger_file_handler = logging.FileHandler('./logs/train_3.log', mode = 'w')
 logger_file_handler.setLevel(logging.DEBUG)
 logger_file_handler.setFormatter(logger_formatter)
 
