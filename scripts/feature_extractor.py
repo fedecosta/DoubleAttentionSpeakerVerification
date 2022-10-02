@@ -98,6 +98,7 @@ class FeatureExtractor:
             print(f"[Feature Extractor] {self.total_lines} audios ready for feature extraction.")
 
             line_num = 0
+            progress_pctg_to_print = 0
             for line in file:
 
                 audio_path = line.replace("\n", "")
@@ -122,7 +123,10 @@ class FeatureExtractor:
                     if self.params.verbose: print(f"[Feature Extractor] File processed. Dumpled pickle in {file_dump_path}")
                     
                 progress_pctg = line_num / self.total_lines * 100
-                print(f"\r [Feature Extractor] {progress_pctg:.1f}% audios processed...", end = '', flush = True)
+                if progress_pctg >=  progress_pctg_to_print:
+                    print(f"[Feature Extractor] {progress_pctg:.2f}% audios processed...")
+                    progress_pctg_to_print = progress_pctg_to_print + 1
+                # print(f"\r [Feature Extractor] {progress_pctg:.1f}% audios processed...", end = '', flush = True)
 
                 line_num = line_num + 1
 
