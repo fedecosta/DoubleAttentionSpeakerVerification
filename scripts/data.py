@@ -94,10 +94,10 @@ class Dataset(data.Dataset):
         sample_size_in_frames = self.parameters.window_size * 100
 
         # Get a random start point
-        index = randint(0, max(0, file_size - windowSizeInFrames - 1))
+        index = randint(0, max(0, file_frames - sample_size_in_frames - 1))
 
         # Generate the index slicing
-        a = np.array(range(min(file_size, int(windowSizeInFrames)))) + index
+        a = np.array(range(min(file_frames, int(sample_size_in_frames)))) + index
         
         # Slice the spectrogram
         sliced_spectrogram = features[a,:]
