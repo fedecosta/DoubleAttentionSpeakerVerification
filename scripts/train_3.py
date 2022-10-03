@@ -314,9 +314,9 @@ class Trainer:
         logger.info(f"Accuracy on training set: {accuracy:.2f}")
 
 
-    def __extractInputFromFeature(self, sline):
+    def extractInputFromFeature(self, sline):
 
-        # logger.debug("Using __extractInputFromFeature")
+        logger.debug("Using extractInputFromFeature")
 
         features1 = normalizeFeatures(
             featureReader(
@@ -332,20 +332,20 @@ class Trainer:
         input1 = torch.FloatTensor(features1).to(self.device)
         input2 = torch.FloatTensor(features2).to(self.device)
         
-        # logger.debug("__extractInputFromFeature used")
+        logger.debug("extractInputFromFeature used")
         
         return input1.unsqueeze(0), input2.unsqueeze(0)
 
 
-    def __extract_scores(self, trials):
+    def extract_scores(self, trials):
 
-        logger.debug("Using __extract_scores")
+        logger.debug("Using extract_scores")
 
         scores = []
         for line in trials:
             sline = line[:-1].split()
 
-            input1, input2 = self.__extractInputFromFeature(sline)
+            input1, input2 = self.extractInputFromFeature(sline)
 
             if torch.cuda.device_count() > 1:
                 emb1, emb2 = self.net.module.get_embedding(input1), self.net.module.get_embedding(input2)
@@ -355,14 +355,14 @@ class Trainer:
             dist = scoreCosineDistance(emb1, emb2)
             scores.append(dist.item())
 
-        logger.debug("__extract_scores used")
+        logger.debug("extract_scores used")
         
         return scores
 
 
-    def __calculate_EER(self, CL, IM):
+    def calculate_EER(self, CL, IM):
 
-        logger.debug("Using __calculate_EER")
+        logger.debug("Using calculate_EER")
 
         thresholds = np.arange(-1,1,0.01)
         FRR, FAR = np.zeros(len(thresholds)), np.zeros(len(thresholds))
@@ -378,7 +378,7 @@ class Trainer:
         else:
             EER = 50.00
 
-        logger.debug("__calculate_EER used")
+        logger.debug("calculate_EER used")
 
         return EER
 
@@ -395,11 +395,11 @@ class Trainer:
             # EER Validation
             with open(self.params.valid_clients,'r') as clients_in, open(self.params.valid_impostors,'r') as impostors_in:
                 # score clients
-                CL = self.__extract_scores(clients_in)
-                IM = self.__extract_scores(impostors_in)
+                CL = self.extract_scores(clients_in)
+                IM = self.extract_scores(impostors_in)
             
             # Compute EER
-            EER = self.__calculate_EER(CL, IM)
+            EER = self.calculate_EER(CL, IM)
             self.valid_eval_metric = EER
 
         # Return to training mode
@@ -528,7 +528,7 @@ class Trainer:
                 
                 
                 logger.debug(f"Optimizer updated.")
-                logger.info(f"New learning rate: {param_group['lr']}")
+                logger.debug(f"New learning rate: {param_group['lr']}")
 
 
     def check_early_stopping(self):
@@ -644,36 +644,10 @@ class Trainer:
                 break
             
         logger.info('Training finished!')
-
-
-    # TODO I think that this is redundant, parameters are saved with the model in checkpoint
-    def save_input_params(self):
-        '''Save the input argparse params into a pickle file.'''
-
-        # Create directory if doesn't exists
-        if not os.path.exists(self.params.model_output_folder):
-            os.makedirs(self.params.model_output_folder)
-
-        # Save argparse input params
-        config_file_name = f"{self.params.model_name}_config.pickle" 
-        config_file_dir = os.path.join(self.params.model_output_folder, config_file_name)
-        with open(config_file_dir, 'wb') as handle:
-            pickle.dump(self.params, handle, protocol = pickle.HIGHEST_PROTOCOL)
-
-    
-    # TODO I think that this is redundant, parameters are saved with the model in checkpoint
-    def load_input_params(self, load_folder, load_file_name):
-
-        load_path = os.path.join(load_folder, load_file_name)
-        file = open(load_path,'rb')
-        namespace = pickle.load(file)
-
-        return namespace
     
 
     def main(self):
 
-        # self.save_input_params() TODO I think this is useless
         self.train(self.starting_epoch, self.params.max_epochs)
 
 
