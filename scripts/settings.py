@@ -52,7 +52,6 @@ TRAIN_DEFAULT_SETTINGS = {
     'window_size' : 3.5,
     'normalization' : 'cmn',
     'num_workers' : 2,
-    'random_slicing' : False,
     'model_name_prefix' : 'cnn_pooling_fc',
     'front_end' : 'VGGNL',
     'vgg_n_blocks' : 4,

@@ -162,14 +162,14 @@ class Trainer:
 
     def load_checkpoint_network(self):
 
-        logger.debug(f"Loading checkpoint network...")
+        logger.info(f"Loading checkpoint network...")
 
         try:
             self.net.load_state_dict(self.checkpoint['model'])
         except RuntimeError:    
             self.net.module.load_state_dict(self.checkpoint['model'])
 
-        logger.debug(f"Checkpoint network loaded.")
+        logger.info(f"Checkpoint network loaded.")
 
 
     def load_network(self):
@@ -249,7 +249,7 @@ class Trainer:
         
         if self.params.load_checkpoint == True:
 
-            logger.debug(f"Loading checkpoint training variables...")
+            logger.info(f"Loading checkpoint training variables...")
 
             loaded_training_variables = self.checkpoint['training_variables']
 
@@ -295,16 +295,6 @@ class Trainer:
 
 
     # Training methods
-
-
-    def random_slice(self, inputTensor):
-        '''Takes a random slice of the tensor cutting the frames axis, from 0 to a random end point.'''
-
-        # TODO is this method usefull? maybe is a feature extractor task
-
-        index = random.randrange(200, self.params.window_size * 100) # HACK fix this harcoded 200
-        
-        return inputTensor[:,:index,:]
 
 
     def evaluate_training(self, prediction, label):
@@ -575,9 +565,6 @@ class Trainer:
             # Assign input and label to device
             input, label = input.float().to(self.device), label.long().to(self.device)
 
-            # Slice at random using the frames axis, if desired.
-            input = self.random_slice(input) if self.params.random_slicing else input
-
             # logger.debug(f"input size: {input.size()}")
 
             # Calculate loss
@@ -845,13 +832,6 @@ class ArgsParser:
             type = int, 
             default = TRAIN_DEFAULT_SETTINGS['num_workers'],
             help = 'num_workers to be used by the data loader'
-            )
-
-        self.parser.add_argument(
-            '--random_slicing', 
-            action = 'store_true',
-            default = TRAIN_DEFAULT_SETTINGS['random_slicing'],
-            help = 'Whether to do random slicing or not. This slice the inputs randomly at frames axis.',
             )
 
         # Network Parameters
