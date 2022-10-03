@@ -47,7 +47,7 @@ class FeatureExtractor:
             os.makedirs(self.params.log_file_folder)
         logger_file_path = os.path.join(self.params.log_file_folder, self.params.log_file_name)
         logger_file_handler = logging.FileHandler(logger_file_path, mode = 'w')
-        logger_file_handler.setLevel(logging.DEBUG)
+        logger_file_handler.setLevel(logging.INFO) # TODO set the file handler level as a input param
         logger_file_handler.setFormatter(logger_formatter)
 
         logger.addHandler(logger_file_handler)

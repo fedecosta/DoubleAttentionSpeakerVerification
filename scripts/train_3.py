@@ -24,20 +24,12 @@ logger_formatter = logging.Formatter(
     datefmt = '%H:%M:%S',
     )
 
-# Set a logging file handler
-if not os.path.exists('./logs'):
-    os.makedirs('./logs')
-logger_file_handler = logging.FileHandler('./logs/train_3.log', mode = 'w')
-logger_file_handler.setLevel(logging.DEBUG)
-logger_file_handler.setFormatter(logger_formatter)
-
 # Set a logging stream handler
 logger_stream_handler = logging.StreamHandler()
 logger_stream_handler.setLevel(logging.INFO)
 logger_stream_handler.setFormatter(logger_formatter)
 
 # Add handlers
-logger.addHandler(logger_file_handler)
 logger.addHandler(logger_stream_handler)
 
 
@@ -45,9 +37,10 @@ class Trainer:
 
     def __init__(self, input_params):
 
+        self.set_params(input_params)
+        self.set_log_file_handler()
         self.set_device()
         self.set_random_seed()
-        self.set_params(input_params)
         self.load_data()
         self.load_network()
         self.load_loss_function()
@@ -56,33 +49,6 @@ class Trainer:
 
 
     # Init methods
-
-
-    def set_device(self):
-        
-        logger.info('Setting device...')
-
-        # Set device to GPU or CPU depending on what is available
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        
-        logger.info(f"Running on {self.device} device.")
-        
-        if torch.cuda.device_count() > 1:
-            logger.info(f"{torch.cuda.device_count()} GPUs available.")
-        
-        logger.info("Device setted.")
-
-    
-    def set_random_seed(self):
-
-        logger.info("Setting random seed...")
-
-        # Set the seed for experimental reproduction
-        torch.manual_seed(1234)
-        np.random.seed(1234)
-        random.seed(1234)
-
-        logger.info("Random seed setted.")
 
 
     def set_params(self, input_params):
@@ -125,6 +91,46 @@ class Trainer:
         self.params = self.checkpoint['settings']
 
         logger.info(f"Checkpoint params loaded.")
+
+
+    def set_log_file_handler(self):
+
+        # Set a logging file handler
+        if not os.path.exists(self.params.log_file_folder):
+            os.makedirs(self.params.log_file_folder)
+        logger_file_path = os.path.join(self.params.log_file_folder, self.params.log_file_name)
+        logger_file_handler = logging.FileHandler(logger_file_path, mode = 'w')
+        logger_file_handler.setLevel(logging.INFO) # TODO set the file handler level as a input param
+        logger_file_handler.setFormatter(logger_formatter)
+
+        logger.addHandler(logger_file_handler)
+
+
+    def set_device(self):
+        
+        logger.info('Setting device...')
+
+        # Set device to GPU or CPU depending on what is available
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        
+        logger.info(f"Running on {self.device} device.")
+        
+        if torch.cuda.device_count() > 1:
+            logger.info(f"{torch.cuda.device_count()} GPUs available.")
+        
+        logger.info("Device setted.")
+
+    
+    def set_random_seed(self):
+
+        logger.info("Setting random seed...")
+
+        # Set the seed for experimental reproduction
+        torch.manual_seed(1234)
+        np.random.seed(1234)
+        random.seed(1234)
+
+        logger.info("Random seed setted.")
 
 
     def load_data(self):
@@ -743,6 +749,20 @@ class ArgsParser:
             type = str, 
             default = TRAIN_DEFAULT_SETTINGS['model_output_folder'], 
             help = 'Directory where model outputs and configs are saved.',
+            )
+
+        self.parser.add_argument(
+            '--log_file_folder',
+            type = str, 
+            default = TRAIN_DEFAULT_SETTINGS['log_file_folder'],
+            help = 'Name of folder that will contain the log file.',
+            )
+        
+        self.parser.add_argument(
+            '--log_file_name',
+            type = str, 
+            default = TRAIN_DEFAULT_SETTINGS['log_file_name'],
+            help = 'Name of the log file.',
             )
 
         # Training Parameters

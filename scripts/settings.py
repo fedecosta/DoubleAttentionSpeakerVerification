@@ -34,12 +34,14 @@ LABELS_GENERATOR_DEFAULT_SETTINGS = {
 }
 
 TRAIN_DEFAULT_SETTINGS = {
-    'train_labels_path' : 'scripts/labels/train/train_labels.ndx',
+    'train_labels_path' : './scripts/labels/train/train_labels.ndx',
     'train_data_dir' : '/home/usuaris/veussd/DATABASES/VoxCeleb/VoxCeleb2/dev/',
-    'valid_clients' : 'scripts/labels/valid/clients.ndx',
-    'valid_impostors' : 'scripts/labels/valid/impostors.ndx',
+    'valid_clients' : './scripts/labels/valid/clients.ndx',
+    'valid_impostors' : './scripts/labels/valid/impostors.ndx',
     'valid_data_dir' : '/home/usuaris/veussd/DATABASES/VoxCeleb/VoxCeleb2/dev/',
-    'model_output_folder' : 'scripts/models/',
+    'model_output_folder' : './scripts/models/',
+    'log_file_folder' : './logs',
+    'log_file_name' : 'train.log',
     'max_epochs' : 300,
     'batch_size' : 128,
     'eval_and_save_best_model_every' : 10,
