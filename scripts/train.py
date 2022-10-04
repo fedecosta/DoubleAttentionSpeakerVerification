@@ -776,7 +776,7 @@ class ArgsParser:
 
         self.parser.add_argument(
             '--load_checkpoint',
-            action = 'store_true',
+            action = argparse.BooleanOptionalAction,
             default = TRAIN_DEFAULT_SETTINGS['load_checkpoint'],
             help = 'Set to True if you want to load a previous checkpoint and continue training from that point. \
                 Loaded parameters will overwrite all inputted parameters.',
@@ -885,7 +885,7 @@ class ArgsParser:
 
         self.parser.add_argument(
             '--annealing', 
-            action = 'store_true',
+            action = argparse.BooleanOptionalAction,
             default = TRAIN_DEFAULT_SETTINGS['annealing'],
             )
 
@@ -913,7 +913,7 @@ class ArgsParser:
         
         self.parser.add_argument(
             "--verbose", 
-            action = "store_true", # TODO understand store_true vs store_false
+            action = argparse.BooleanOptionalAction,
             default = TRAIN_DEFAULT_SETTINGS['verbose'],
             help = "Increase output verbosity.",
             )

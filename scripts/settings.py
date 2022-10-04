@@ -2,6 +2,7 @@ PATHS_GENERATOR_DEFAULT_SETTINGS = {
     'dump_file_name' : 'feature_extractor_paths.lst',
     'dump_file_folder' : './feature_extractor/',
     'valid_audio_formats': ['wav', 'm4a'],
+    'verbose' : False,
 }
 
 FEATURE_EXTRACTOR_DEFAULT_SETTINGS = {
@@ -29,8 +30,9 @@ LABELS_GENERATOR_DEFAULT_SETTINGS = {
     'valid_clients_labels_dump_file_name' : 'valid_clients_labels.ndx',
     'train_speakers_pctg': 0.7,
     'random_split' : True,
-    'clients_lines_max' : None,
-    'impostors_lines_max' : None,
+    'clients_lines_max' : 20000,
+    'impostors_lines_max' : 20000,
+    'verbose' : False,
 }
 
 TRAIN_DEFAULT_SETTINGS = {

@@ -100,7 +100,8 @@ class ArgsParser:
 
         self.parser.add_argument(
             "--verbose", 
-            action = "store_true",
+            action = argparse.BooleanOptionalAction,
+            default = PATHS_GENERATOR_DEFAULT_SETTINGS['verbose'],
             help = "Increase output verbosity.",
             )
 
