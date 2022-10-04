@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logger_formatter = logging.Formatter(
     fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt = '%H:%M:%S',
+    datefmt = '%y-%m-%d %H:%M:%S',
     )
 
 # Set a logging stream handler
@@ -46,6 +46,7 @@ class Trainer:
         self.load_loss_function()
         self.load_optimizer()
         self.initialize_training_variables()
+        self.total_batches = len(self.training_generator)
 
 
     # Init methods
@@ -615,8 +616,8 @@ class Trainer:
                 break
 
             logger.info(f"Epoch {self.epoch} of {self.params.max_epochs}, \
-                batch {self.train_batch} of {self.total_batches}, step {self.step}, Loss {self.train_loss:.3f}, \
-                    Best EER {self.best_EER:.3f}...")
+                batch {self.batch_number} of {self.total_batches}, step {self.step}, Loss {self.train_loss:.3f}, \
+                    Best EER {self.best_model_valid_eval_metric:.3f}...")
             
             self.step = self.step + 1
         

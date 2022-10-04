@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logger_formatter = logging.Formatter(
     fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt = '%H:%M:%S',
+    datefmt = '%y-%m-%d %H:%M:%S',
     )
 
 # Set a logging stream handler
