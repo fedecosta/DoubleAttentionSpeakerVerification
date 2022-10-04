@@ -52,7 +52,8 @@ class LabelsGenerator:
                     
                 # If it is a .pickle file, add the path to speakers_dict
                 for file_name in file_names:
-                    if file_name.split(".")[-1] == "pickle":                
+                    if file_name.split(".")[-1] == "pickle":     
+                        # TODO maybe is better to write only the id.../....pickle part of the path           
                         file_path = os.path.join(dir_path, file_name.replace(".pickle", ""))
                         speakers_dict[speaker_id]["files_paths"].add(file_path)
                 
@@ -61,7 +62,7 @@ class LabelsGenerator:
 
             # If there is some other "/id..." in the directory it should be carefully analized
             if len(speaker_chunk) > 1:
-                warnings.warn(f"Ambiguous directory path: {dir_path}")
+                warnings.warn(f"Ambiguous directory path: {dir_path}. Taking {speaker_id} as id.")
                 
         print("Dev data loaded.")
         
@@ -175,6 +176,9 @@ class LabelsGenerator:
 
             lines_to_write.append(line_to_write)
 
+        # Remove duplicated trials
+        lines_to_write = list(set(lines_to_write))
+
         print(f"{len(lines_to_write)} lines to write for clients.")
 
         if not os.path.exists(clients_dump_file_folder):
@@ -204,7 +208,9 @@ class LabelsGenerator:
 
             # Choose a speaker randomly
             speaker_1 = random.choice(list(speakers_dict.keys()))
-            speaker_2 = random.choice(list(speakers_dict.keys()).remove(speaker_1))
+            remain_speakers_list = list(speakers_dict.keys())
+            remain_speakers_list.remove(speaker_1)
+            speaker_2 = random.choice(remain_speakers_list)
 
             speaker_1_dict = speakers_dict[speaker_1]
             speaker_1_files = list(speaker_1_dict["files_paths"])
@@ -218,6 +224,9 @@ class LabelsGenerator:
 
             lines_to_write.append(line_to_write)
 
+        # Remove duplicated trials
+        lines_to_write = list(set(lines_to_write))
+        
         print(f"{len(lines_to_write)} lines to write for impostors.")
 
         if not os.path.exists(impostors_dump_file_folder):
