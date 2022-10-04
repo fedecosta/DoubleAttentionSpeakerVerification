@@ -8,9 +8,10 @@ import os
 import json
 import time
 import datetime
+from torch.utils.data import DataLoader
 
 from model import SpeakerClassifier
-from data import normalizeFeatures, featureReader
+from data import normalizeFeatures, featureReader, TestDataset
 from utils import scoreCosineDistance, Score, Score_2, generate_model_name
 from settings import MODEL_EVALUATOR_DEFAULT_SETTINGS
 
@@ -71,6 +72,39 @@ class ModelEvaluator:
     def load_checkpoint_params(self):
 
         self.params = self.checkpoint['settings']
+
+
+    def load_data(self):
+            
+        print(f'Loading data from {self.input_params.test_clients}')
+        
+        # Read the paths of the clients audios
+        with open(self.input_params.test_clients, 'r') as clients_file:
+            clients_trials = clients_file.readlines()
+
+        print(f'Loading data from {self.input_params.test_impostors}')
+        
+        # Read the paths of the impostors audios
+        with open(self.input_params.test_impostors, 'r') as impostors_file:
+            impostors_trials = impostors_file.readlines()
+
+        # Instanciate a Dataset class
+        dataset = TestDataset(clients_trials, impostors_trials, self.params, self.input_params)
+        
+        # Load DataLoader params
+        data_loader_parameters = {
+            'batch_size': 64, #self.params.batch_size, 
+            'shuffle': False, # FIX hardcoded True
+            'num_workers': 1, #self.params.num_workers
+            }
+        
+        # Instanciate a DataLoader class
+        self.training_generator = DataLoader(
+            dataset, 
+            **data_loader_parameters,
+            )
+
+        print("Data and labels loaded.")
 
 
     def load_checkpoint_network(self):
@@ -229,13 +263,22 @@ class ModelEvaluator:
     def main(self):
         self.load_checkpoint()
         self.load_checkpoint_params()
-        self.load_network()
-        self.evaluate(
-            clients_labels = self.input_params.test_clients,
-            impostor_labels = self.input_params.test_impostors, 
-            data_dir = self.input_params.data_dir,
-            )
-        self.save_report()
+        self.load_data()
+
+        for self.batch_number, (input_1, input_2, label) in enumerate(self.training_generator):
+            print(input_1)
+            print(input_2)
+            print(label)
+            break
+
+        if False:
+            self.load_network()
+            self.evaluate(
+                clients_labels = self.input_params.test_clients,
+                impostor_labels = self.input_params.test_impostors, 
+                data_dir = self.input_params.data_dir,
+                )
+            self.save_report()
         
 
 class ArgsParser:

@@ -71,6 +71,7 @@ TRAIN_DEFAULT_SETTINGS = {
     'verbose' : False,
 }
 
-EVALUATE_MODEL_DEFAULT_SETTINGS = {
-    'verbose' : False,
+MODEL_EVALUATOR_DEFAULT_SETTINGS = {
+    'data_dir' : '',
+    'dump_folder' : './models_results',
 }
