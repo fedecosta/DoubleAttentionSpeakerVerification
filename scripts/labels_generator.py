@@ -1,7 +1,3 @@
-# HACK fix this hack
-# import sys
-# sys.path.append('./scripts/')
-
 import argparse
 import os
 import warnings
@@ -17,6 +13,17 @@ class LabelsGenerator:
 
     def __init__(self, params):
         self.params = params
+        self.set_random_seed()
+
+
+    def set_random_seed(self):
+
+        print("Setting random seed...")
+
+        # Set the seed for experimental reproduction
+        random.seed(1234)
+
+        print("Random seed setted.")
 
 
     def generate_speakers_dict(self, load_path):
@@ -52,7 +59,7 @@ class LabelsGenerator:
                 # Add speaker_id to set and continue with the loop
                 speakers_set.add(speaker_id)
 
-            # If there is some other "/id..." in the directory it should be analized
+            # If there is some other "/id..." in the directory it should be carefully analized
             if len(speaker_chunk) > 1:
                 warnings.warn(f"Ambiguous directory path: {dir_path}")
                 
@@ -115,7 +122,6 @@ class LabelsGenerator:
         train_files_pctg = train_files_num * 100 / total_files_num
         valid_files_pctg = valid_files_num * 100 / total_files_num
         
-        
         print(f"{train_speakers_num} speakers ({train_speakers_pctg:.1f}%) with a total of {train_files_num} files ({train_files_pctg:.1f}%) in training split.")
         print(f"{valid_speakers_num} speakers ({valid_speakers_pctg:.1f}%) with a total of {valid_files_num} files ({valid_files_pctg:.1f}%) in validation split.")
         
@@ -124,7 +130,7 @@ class LabelsGenerator:
         return train_speakers_dict, valid_speakers_dict
     
     
-    def generate_labels_file(self, dump_file_folder, dump_file_name, speakers_dict):
+    def generate_training_labels_file(self, dump_file_folder, dump_file_name, speakers_dict):
     
         print(f"Generating training labels...")
         
@@ -144,6 +150,88 @@ class LabelsGenerator:
         print(f"Training labels generated.")
 
     
+    def generate_clients_labels_file(
+        self,
+        clients_dump_file_folder, clients_dump_file_name,
+        speakers_dict, 
+        clients_lines_max,
+        ):
+
+        print(f"Generating valid clients trials...")
+
+        lines_to_write = []
+
+        for _ in range(clients_lines_max):
+
+            # Choose a speaker randomly
+            speaker_1 = random.choice(list(speakers_dict.keys()))
+
+            speaker_1_dict = speakers_dict[speaker_1]
+            speaker_1_files = list(speaker_1_dict["files_paths"])
+            speaker_1_file_1 = random.choice(speaker_1_files)
+            speaker_1_file_2 = random.choice(speaker_1_files)
+
+            line_to_write = f"{speaker_1_file_1} {speaker_1_file_2}"
+
+            lines_to_write.append(line_to_write)
+
+        print(f"{len(lines_to_write)} lines to write for clients.")
+
+        if not os.path.exists(clients_dump_file_folder):
+            os.makedirs(clients_dump_file_folder)
+        clients_dump_path = os.path.join(clients_dump_file_folder, clients_dump_file_name)
+        with open(clients_dump_path, 'w') as f:
+            for line_to_write in lines_to_write: 
+                f.write(line_to_write)
+                f.write('\n')
+            f.close()
+
+        print(f"Valid clients trials generated.")
+
+
+    def generate_impostors_labels_file(
+        self,
+        impostors_dump_file_folder, impostors_dump_file_name,
+        speakers_dict, 
+        impostors_lines_max,
+        ):
+
+        print(f"Generating valid impostors trials...")
+
+        lines_to_write = []
+
+        for _ in range(impostors_lines_max):
+
+            # Choose a speaker randomly
+            speaker_1 = random.choice(list(speakers_dict.keys()))
+            speaker_2 = random.choice(list(speakers_dict.keys()).remove(speaker_1))
+
+            speaker_1_dict = speakers_dict[speaker_1]
+            speaker_1_files = list(speaker_1_dict["files_paths"])
+            speaker_1_file_1 = random.choice(speaker_1_files)
+
+            speaker_2_dict = speakers_dict[speaker_2]
+            speaker_2_files = list(speaker_2_dict["files_paths"])
+            speaker_2_file_1 = random.choice(speaker_2_files)
+
+            line_to_write = f"{speaker_1_file_1} {speaker_2_file_1}"
+
+            lines_to_write.append(line_to_write)
+
+        print(f"{len(lines_to_write)} lines to write for impostors.")
+
+        if not os.path.exists(impostors_dump_file_folder):
+            os.makedirs(impostors_dump_file_folder)
+        clients_dump_path = os.path.join(impostors_dump_file_folder, impostors_dump_file_name)
+        with open(clients_dump_path, 'w') as f:
+            for line_to_write in lines_to_write: 
+                f.write(line_to_write)
+                f.write('\n')
+            f.close()
+
+        print(f"Valid impostors trials generated.")
+
+
     def generate_clients_impostors_files(
         self,
         impostors_dump_file_folder, impostors_dump_file_name,
@@ -222,19 +310,23 @@ class LabelsGenerator:
             self.params.random_split,
         )
         
-        self.generate_labels_file(
+        self.generate_training_labels_file(
             dump_file_folder = self.params.train_labels_dump_file_folder,
             dump_file_name = self.params.train_labels_dump_file_name, 
             speakers_dict = self.train_speakers_dict,
         )
         
-        self.generate_clients_impostors_files(
-            impostors_dump_file_folder = self.params.valid_impostors_labels_dump_file_folder, 
-            impostors_dump_file_name = self.params.valid_impostors_labels_dump_file_name, 
+        self.generate_clients_labels_file(
             clients_dump_file_folder = self.params.valid_clients_labels_dump_file_folder, 
             clients_dump_file_name = self.params.valid_clients_labels_dump_file_name, 
             speakers_dict = self.valid_speakers_dict, 
             clients_lines_max = self.params.clients_lines_max, 
+        )
+
+        self.generate_impostors_labels_file(
+            impostors_dump_file_folder = self.params.valid_impostors_labels_dump_file_folder, 
+            impostors_dump_file_name = self.params.valid_impostors_labels_dump_file_name, 
+            speakers_dict = self.valid_speakers_dict,
             impostors_lines_max = self.params.impostors_lines_max,
         )
         
@@ -250,9 +342,13 @@ class ArgsParser:
 
         self.parser = argparse.ArgumentParser(
             description = 'Generate labels for training and validation according to what is expected for the Network Training. \
-                It takes dev data and splits it into training and validation \
+                It takes dev data and splits it into training and validation. \
+                All audios of the same speaker goes to same split.\
+                Dev data files (.pickle) must be contained in a /id.../ folder to be parsed correctly.\
                 For the training split, it generates labels for the speaker classification task. \
-                For the validation split, it generates labels for the speaker verification task.',
+                Each line of the training file will be of the form: file_path speaker_num -1.\
+                For the validation split, it generates labels for the speaker verification task randomly.\
+                Each line of the validation file will be of the form: file_path file_path.',
             )
 
 
@@ -310,12 +406,12 @@ class ArgsParser:
             '--train_speakers_pctg', 
             type = float,
             default = LABELS_GENERATOR_DEFAULT_SETTINGS['train_speakers_pctg'],
-            help = 'Proportion of training split of the dev set. It must be between 0 and 1',
+            help = 'Proportion of training split of the dev set. It must be a float between 0 and 1',
             )
 
         self.parser.add_argument(
             '--random_split', 
-            action = "store_true",
+            action = argparse.BooleanOptionalAction,
             default = LABELS_GENERATOR_DEFAULT_SETTINGS['random_split'],
             help = 'Randomly split into train and validation.',
             )
@@ -336,7 +432,8 @@ class ArgsParser:
 
         self.parser.add_argument(
             "--verbose", 
-            action = "store_true",
+            action = argparse.BooleanOptionalAction,
+            default = LABELS_GENERATOR_DEFAULT_SETTINGS['verbose'],
             help = "Increase output verbosity.",
             )
 
