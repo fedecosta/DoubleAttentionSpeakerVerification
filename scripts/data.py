@@ -8,7 +8,11 @@ from torch.utils import data
 def featureReader(featurePath, VAD = None):
 
     with open(featurePath,'rb') as pickleFile:
-        features = pickle.load(pickleFile)
+        features_dict = pickle.load(pickleFile)
+
+        features = features_dict["features"]
+        features_settings = features_dict["settings"]
+
         if VAD is not None:
             filtered_features = VAD.filter(features)
         else:

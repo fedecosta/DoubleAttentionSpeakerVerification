@@ -428,6 +428,7 @@ class Trainer:
 
         training_variables = {
             'epoch': self.epoch,
+            'batch_number' : self.batch_number,
             'step' : self.step,
             'validations_without_improvement' : self.validations_without_improvement,
             'train_loss' : self.train_loss,
@@ -468,13 +469,6 @@ class Trainer:
         logger.info(f"Saving training and model information in {checkpoint_path}")
         torch.save(checkpoint, checkpoint_path)
 
-        # DEBUG
-        # We can also save the checkpoint with epoch and step for debug
-        # Warning! It will save a lot of checkpoints
-        # checkpoint_file_name_2 = f"{self.params.model_name}_epoch{self.epoch}_step{self.step}.chkpt"
-        # checkpoint_path_2 = os.path.join(checkpoint_folder, checkpoint_file_name_2)
-        # torch.save(checkpoint, checkpoint_path_2)
-
         logger.info(f"Training and model information saved.")
 
 
@@ -501,6 +495,7 @@ class Trainer:
                 logger.info(f"Best model train loss: {self.best_model_train_loss:.3f}")
                 logger.info(f"Best model train evaluation metric: {self.best_model_train_eval_metric:.3f}")
                 logger.info(f"Best model validation evaluation metric: {self.best_model_valid_eval_metric:.3f}")
+
                 self.save_model() 
 
                 # Since we found and improvement, validations_without_improvement is reseted.
@@ -546,12 +541,20 @@ class Trainer:
         if self.step > 0 and self.params.print_training_info_every > 0 \
             and self.step % self.params.print_training_info_every == 0:
 
-            logger.info(f"Step: {self.step}")
-            logger.info(f"Best loss achieved: {self.best_train_loss:.3f}")
-            logger.info(f"Best model training evaluation metric: {self.best_model_train_eval_metric:.3f}")
-            logger.info(f"Best model validation evaluation metric: {self.best_model_valid_eval_metric:.3f}")
+            info_to_print = f"Epoch {self.epoch} of {self.params.max_epochs}, "
+            info_to_print = info_to_print + f"batch {self.batch_number} of {self.total_batches}, "
+            info_to_print = info_to_print + f"step {self.step}, "
+            info_to_print = info_to_print + f"Loss {self.train_loss:.3f}, "
+            info_to_print = info_to_print + f"Best EER {self.best_model_valid_eval_metric:.3f}..."
 
+            logger.info(info_to_print)
+            
+            #logger.info(f"Step: {self.step}")
+            #logger.info(f"Best loss achieved: {self.best_train_loss:.3f}")
+            #logger.info(f"Best model training evaluation metric: {self.best_model_train_eval_metric:.3f}")
+            #logger.info(f"Best model validation evaluation metric: {self.best_model_valid_eval_metric:.3f}")
 
+            
     def train_single_epoch(self, epoch):
 
         logger.info(f"Epoch {epoch} of {self.params.max_epochs}...")
@@ -561,18 +564,13 @@ class Trainer:
 
         for self.batch_number, (input, label) in enumerate(self.training_generator):
 
-            #logger.info(f"Batch {self.batch_number} of {len(self.training_generator)}...")
-
             # Assign input and label to device
             input, label = input.float().to(self.device), label.long().to(self.device)
-
-            # logger.debug(f"input size: {input.size()}")
 
             # Calculate loss
             prediction, AMPrediction  = self.net(input_tensor = input, label = label, step = self.step) # TODO understand diff between prediction and AMPrediction
             self.loss = self.loss_function(AMPrediction, label)
             self.train_loss = self.loss.item()
-            #logger.info(f"Actual loss: {self.train_loss:.3f}")
 
             # Compute backpropagation and update weights
             
@@ -598,33 +596,10 @@ class Trainer:
             self.check_early_stopping()
             self.check_print_training_info()
 
-            # DEBUG
-            self.debug_step_info = {}
-            self.debug_step_info['epoch'] = epoch
-            self.debug_step_info['batch_number'] = self.batch_number
-            self.debug_step_info['step'] = self.step
-            self.debug_step_info['train_loss'] = self.train_loss
-            self.debug_step_info['train_eval_metric'] = self.train_eval_metric
-            self.debug_step_info['valid_eval_metric'] = self.valid_eval_metric
-            self.debug_step_info['best_train_loss'] = self.best_train_loss
-            self.debug_step_info['best_model_train_eval_metric'] = self.best_model_train_eval_metric
-            self.debug_step_info['best_model_valid_eval_metric'] = self.best_model_valid_eval_metric
-            self.debug_step_info['validations_without_improvement'] = self.validations_without_improvement
-            self.debug_info.append(self.debug_step_info)
-
             if self.early_stopping_flag == True: 
                 break
-
-            logger.info(f"Epoch {self.epoch} of {self.params.max_epochs}, \
-                batch {self.batch_number} of {self.total_batches}, step {self.step}, Loss {self.train_loss:.3f}, \
-                    Best EER {self.best_model_valid_eval_metric:.3f}...")
             
             self.step = self.step + 1
-        
-        # DEBUG
-        #self.debug_step_info['train_eval_metric'] = self.train_eval_metric
-        #self.debug_step_info['valid_eval_metric'] = self.valid_eval_metric
-        #self.debug_info[-1] = self.debug_step_info
 
         logger.info(f"-"*50)
         logger.info(f"Epoch {epoch} finished with:")
@@ -637,9 +612,6 @@ class Trainer:
     def train(self, starting_epoch, max_epochs):
 
         logger.info(f'Starting training for {max_epochs} epochs.')
-
-        # DEBUG
-        self.debug_info = []
 
         for self.epoch in range(starting_epoch, max_epochs):  
             

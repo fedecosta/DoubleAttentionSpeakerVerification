@@ -53,7 +53,7 @@ TRAIN_DEFAULT_SETTINGS = {
     'load_checkpoint' : False,
     'window_size' : 3.5,
     'normalization' : 'cmn',
-    'num_workers' : 2,
+    'num_workers' : 1,
     'model_name_prefix' : 'cnn_pooling_fc',
     'front_end' : 'VGGNL',
     'vgg_n_blocks' : 4,
