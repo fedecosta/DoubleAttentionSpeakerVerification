@@ -207,11 +207,11 @@ class Trainer:
 
     def load_checkpoint_optimizer(self):
 
-        logger.debug(f"Loading checkpoint optimizer...")
+        logger.info(f"Loading checkpoint optimizer...")
 
         self.optimizer.load_state_dict(self.checkpoint['optimizer'])
 
-        logger.debug(f"Checkpoint optimizer loaded.")
+        logger.info(f"Checkpoint optimizer loaded.")
 
 
     def load_optimizer(self):
@@ -273,10 +273,10 @@ class Trainer:
             logger.info(f"Epoch {self.starting_epoch}")
             logger.info(f"Step {self.step}")
             logger.info(f"validations_without_improvement {self.validations_without_improvement}")
-            logger.info(f"Loss {self.train_loss:.2f}")
-            logger.info(f"best_model_train_loss {self.best_model_train_loss:.2f}")
-            logger.info(f"best_model_train_eval_metric {self.best_model_train_eval_metric:.2f}")
-            logger.info(f"best_model_valid_eval_metric {self.best_model_valid_eval_metric:.2f}")
+            logger.info(f"Loss {self.train_loss:.3f}")
+            logger.info(f"best_model_train_loss {self.best_model_train_loss:.3f}")
+            logger.info(f"best_model_train_eval_metric {self.best_model_train_eval_metric:.3f}")
+            logger.info(f"best_model_valid_eval_metric {self.best_model_valid_eval_metric:.3f}")
 
         else:
             self.starting_epoch = 0
@@ -311,7 +311,7 @@ class Trainer:
         self.net.train()
 
         logger.info(f"Training evaluated.")
-        logger.info(f"Accuracy on training set: {accuracy:.2f}")
+        logger.info(f"Accuracy on training set: {accuracy:.3f}")
 
 
     def extractInputFromFeature(self, sline):
@@ -405,7 +405,7 @@ class Trainer:
         # Return to training mode
         self.net.train()
 
-        logger.info(f"EER on validation set: {EER:.2f}")
+        logger.info(f"EER on validation set: {EER:.3f}")
         logger.info(f"Validation evaluated.")
 
 
@@ -497,9 +497,9 @@ class Trainer:
                 self.best_model_train_eval_metric = self.train_eval_metric
                 self.best_model_valid_eval_metric = self.valid_eval_metric
 
-                logger.info(f"Best model train loss: {self.best_model_train_loss:.2f}")
-                logger.info(f"Best model train evaluation metric: {self.best_model_train_eval_metric:.2f}")
-                logger.info(f"Best model validation evaluation metric: {self.best_model_valid_eval_metric:.2f}")
+                logger.info(f"Best model train loss: {self.best_model_train_loss:.3f}")
+                logger.info(f"Best model train evaluation metric: {self.best_model_train_eval_metric:.3f}")
+                logger.info(f"Best model validation evaluation metric: {self.best_model_valid_eval_metric:.3f}")
                 self.save_model() 
 
                 # Since we found and improvement, validations_without_improvement is reseted.
@@ -521,14 +521,14 @@ class Trainer:
 
             if self.params.optimizer == 'sgd' or self.params.optimizer == 'adam':
 
-                logger.debug(f"Updating optimizer...")
+                logger.info(f"Updating optimizer...")
 
                 for param_group in self.optimizer.param_groups:
                     param_group['lr'] = param_group['lr'] * 0.5
                 
                 
-                logger.debug(f"Optimizer updated.")
-                logger.debug(f"New learning rate: {param_group['lr']}")
+                logger.info(f"Optimizer updated.")
+                logger.info(f"New learning rate: {param_group['lr']}")
 
 
     def check_early_stopping(self):
@@ -546,9 +546,9 @@ class Trainer:
             and self.step % self.params.print_training_info_every == 0:
 
             logger.info(f"Step: {self.step}")
-            logger.info(f"Best loss achieved: {self.best_train_loss:.2f}")
-            logger.info(f"Best model training evaluation metric: {self.best_model_train_eval_metric:.2f}")
-            logger.info(f"Best model validation evaluation metric: {self.best_model_valid_eval_metric:.2f}")
+            logger.info(f"Best loss achieved: {self.best_train_loss:.3f}")
+            logger.info(f"Best model training evaluation metric: {self.best_model_train_eval_metric:.3f}")
+            logger.info(f"Best model validation evaluation metric: {self.best_model_valid_eval_metric:.3f}")
 
 
     def train_single_epoch(self, epoch):
@@ -560,7 +560,7 @@ class Trainer:
 
         for self.batch_number, (input, label) in enumerate(self.training_generator):
 
-            logger.info(f"Batch {self.batch_number} of {len(self.training_generator)}...")
+            #logger.info(f"Batch {self.batch_number} of {len(self.training_generator)}...")
 
             # Assign input and label to device
             input, label = input.float().to(self.device), label.long().to(self.device)
@@ -571,7 +571,7 @@ class Trainer:
             prediction, AMPrediction  = self.net(input_tensor = input, label = label, step = self.step) # TODO understand diff between prediction and AMPrediction
             self.loss = self.loss_function(AMPrediction, label)
             self.train_loss = self.loss.item()
-            logger.info(f"Actual loss: {self.train_loss:.2f}")
+            #logger.info(f"Actual loss: {self.train_loss:.3f}")
 
             # Compute backpropagation and update weights
             
@@ -614,6 +614,10 @@ class Trainer:
             if self.early_stopping_flag == True: 
                 break
 
+            logger.info(f"Epoch {self.epoch} of {self.params.max_epochs}, \
+                batch {self.train_batch} of {self.total_batches}, step {self.step}, Loss {self.train_loss:.3f}, \
+                    Best EER {self.best_EER:.3f}...")
+            
             self.step = self.step + 1
         
         # DEBUG
@@ -623,9 +627,9 @@ class Trainer:
 
         logger.info(f"-"*50)
         logger.info(f"Epoch {epoch} finished with:")
-        logger.info(f"Loss {self.train_loss:.2f}")
-        logger.info(f"Best model training evaluation metric: {self.best_model_train_eval_metric:.2f}")
-        logger.info(f"Best model validation evaluation metric: {self.best_model_valid_eval_metric:.2f}")
+        logger.info(f"Loss {self.train_loss:.3f}")
+        logger.info(f"Best model training evaluation metric: {self.best_model_train_eval_metric:.3f}")
+        logger.info(f"Best model validation evaluation metric: {self.best_model_valid_eval_metric:.3f}")
         logger.info(f"-"*50)
 
     
@@ -746,7 +750,7 @@ class ArgsParser:
             '--eval_and_save_best_model_every', 
             type = int, 
             default = TRAIN_DEFAULT_SETTINGS['eval_and_save_best_model_every'],
-            help = "The model is evaluated on train and validation sets every eval_and_save_best_model_every steps. \
+            help = "The model is evaluated on train and validation sets and saved every eval_and_save_best_model_every steps. \
                 Set to 0 if you don't want to execute this utility.",
             )
         
@@ -814,7 +818,7 @@ class ArgsParser:
             '--model_name_prefix', 
             type = str, 
             default = TRAIN_DEFAULT_SETTINGS['model_name_prefix'], 
-            help = 'Give the model a name prefix for saving it.'
+            help = 'Give the model a name prefix when saving it.'
             )
 
         self.parser.add_argument(
