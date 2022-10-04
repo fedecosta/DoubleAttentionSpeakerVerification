@@ -41,7 +41,7 @@ class Dataset(data.Dataset):
         self.parameters = parameters
         self.num_samples = len(utterances_paths)
 
-    
+
     def __len__(self):
         
         # Mandatory torch method
@@ -109,7 +109,10 @@ class Dataset(data.Dataset):
 
         # Load the spectrogram saved in pickle format
         with open(utterance_path + '.pickle', 'rb') as pickle_file:
-            features = pickle.load(pickle_file)
+            features_dict = pickle.load(pickle_file)
+
+        features = features_dict["features"]
+        features_settings = features_dict["settings"]
 
         # HACK fix this transpose
         # It seems that the feature extractor's output spectrogram has mel bands as rows
@@ -118,7 +121,7 @@ class Dataset(data.Dataset):
         
         features = self.normalize(features)
 
-        windowedFeatures = self.sampleSpectogramWindow(features) 
+        windowedFeatures = self.sample_spectogram_window(features) 
 
         return windowedFeatures            
      
