@@ -15,6 +15,24 @@ from data import normalizeFeatures, featureReader, TestDataset
 from utils import scoreCosineDistance, Score, Score_2, generate_model_name
 from settings import MODEL_EVALUATOR_DEFAULT_SETTINGS
 
+# Set logging config
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger_formatter = logging.Formatter(
+    fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt = '%y-%m-%d %H:%M:%S',
+    )
+
+# Set a logging stream handler
+logger_stream_handler = logging.StreamHandler()
+logger_stream_handler.setLevel(logging.INFO)
+logger_stream_handler.setFormatter(logger_formatter)
+
+# Add handlers
+logger.addHandler(logger_stream_handler)
+
 
 class ModelEvaluator:
 
@@ -23,36 +41,55 @@ class ModelEvaluator:
         self.input_params = input_params
         self.set_device()
         self.set_random_seed()
+        self.set_log_file_handler()
         self.evaluation_results = {}
         self.start_time = time.time()
         self.start_datetime = datetime.datetime.strftime(datetime.datetime.now(), '%y-%m-%d %H:%M:%S')
+        self.load_checkpoint()
+        self.load_checkpoint_params()
+        self.load_network()
+        self.load_data()
+        self.total_batches = len(self.training_generator)
 
     
     def set_device(self):
     
-        print('Setting device...')
+        logger.info('Setting device...')
 
         # Set device to GPU or CPU depending on what is available
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
     
-        print(f"Running on {self.device} device.")
+        logger.info(f"Running on {self.device} device.")
     
         if torch.cuda.device_count() > 1:
-            print(f"{torch.cuda.device_count()} GPUs available.")
+            logger.info(f"{torch.cuda.device_count()} GPUs available.")
     
-        print("Device setted.")
+        logger.info("Device setted.")
 
     
     def set_random_seed(self):
 
-        print("Setting random seed...")
+        logger.info("Setting random seed...")
 
         # Set the seed for experimental reproduction
         torch.manual_seed(1234)
         np.random.seed(1234)
         random.seed(1234)
 
-        print("Random seed setted.")
+        logger.info("Random seed setted.")
+
+
+    def set_log_file_handler(self):
+
+        # Set a logging file handler
+        if not os.path.exists(self.input_params.log_file_folder):
+            os.makedirs(self.input_params.log_file_folder)
+        logger_file_path = os.path.join(self.input_params.log_file_folder, self.input_params.log_file_name)
+        logger_file_handler = logging.FileHandler(logger_file_path, mode = 'w')
+        logger_file_handler.setLevel(logging.INFO) # TODO set the file handler level as a input param
+        logger_file_handler.setFormatter(logger_formatter)
+
+        logger.addHandler(logger_file_handler)
 
 
     def load_checkpoint(self):
@@ -60,51 +97,18 @@ class ModelEvaluator:
         # Load checkpoint
         checkpoint_path = self.input_params.model_checkpoint_path
 
-        print(f"Loading checkpoint from {checkpoint_path}")
+        logger.info(f"Loading checkpoint from {checkpoint_path}")
 
         self.checkpoint = torch.load(checkpoint_path, map_location = self.device)
 
-        print(f"Model checkpoint was saved at epoch {self.checkpoint['training_variables']['epoch']}")
+        logger.info(f"Model checkpoint was saved at epoch {self.checkpoint['training_variables']['epoch']}")
 
-        print(f"Checkpoint loaded.")
+        logger.info(f"Checkpoint loaded.")
         
     
     def load_checkpoint_params(self):
 
         self.params = self.checkpoint['settings']
-
-
-    def load_data(self):
-            
-        print(f'Loading data from {self.input_params.test_clients}')
-        
-        # Read the paths of the clients audios
-        with open(self.input_params.test_clients, 'r') as clients_file:
-            clients_trials = clients_file.readlines()
-
-        print(f'Loading data from {self.input_params.test_impostors}')
-        
-        # Read the paths of the impostors audios
-        with open(self.input_params.test_impostors, 'r') as impostors_file:
-            impostors_trials = impostors_file.readlines()
-
-        # Instanciate a Dataset class
-        dataset = TestDataset(clients_trials, impostors_trials, self.params, self.input_params)
-        
-        # Load DataLoader params
-        data_loader_parameters = {
-            'batch_size': 64, #self.params.batch_size, 
-            'shuffle': False, # FIX hardcoded True
-            'num_workers': 1, #self.params.num_workers
-            }
-        
-        # Instanciate a DataLoader class
-        self.training_generator = DataLoader(
-            dataset, 
-            **data_loader_parameters,
-            )
-
-        print("Data and labels loaded.")
 
 
     def load_checkpoint_network(self):
@@ -125,8 +129,41 @@ class ModelEvaluator:
         self.net.to(self.device)
 
         if torch.cuda.device_count() > 1:
-            print(f"Let's use {torch.cuda.device_count()} GPUs!")
+            logger.info(f"Let's use {torch.cuda.device_count()} GPUs!")
             self.net = nn.DataParallel(self.net)
+
+
+    def load_data(self):
+            
+        logger.info(f'Loading data from {self.input_params.test_clients}')
+        
+        # Read the paths of the clients audios
+        with open(self.input_params.test_clients, 'r') as clients_file:
+            clients_trials = clients_file.readlines()
+
+        logger.info(f'Loading data from {self.input_params.test_impostors}')
+        
+        # Read the paths of the impostors audios
+        with open(self.input_params.test_impostors, 'r') as impostors_file:
+            impostors_trials = impostors_file.readlines()
+
+        # Instanciate a Dataset class
+        dataset = TestDataset(clients_trials, impostors_trials, self.params, self.input_params, self.net)
+        
+        # Load DataLoader params
+        data_loader_parameters = {
+            'batch_size': 256, #self.params.batch_size, 
+            'shuffle': False, # FIX hardcoded True
+            'num_workers': 2, #self.params.num_workers
+            }
+        
+        # Instanciate a DataLoader class
+        self.training_generator = DataLoader(
+            dataset, 
+            **data_loader_parameters,
+            )
+
+        logger.info("Data and labels loaded.")
 
 
     def __extractInputFromFeature(self, sline, data_dir):
@@ -148,33 +185,38 @@ class ModelEvaluator:
         return input1.unsqueeze(0), input2.unsqueeze(0)
 
 
-    def __extract_scores(self, trials, data_dir, total_trials):
+    def calculate_similarities(self):
 
-        scores = []
-        for num_line, line in enumerate(trials):
+        logger.info("Extracting embeddings and calculating similarities...")
 
-            print(f"\r Extracting score {num_line} of {total_trials - 1}...", end='', flush = True)
+        similarities = []
+        for self.batch_number, (input_1, input_2, label) in enumerate(self.training_generator):
 
-            sline = line[:-1].split()
-
-            input1, input2 = self.__extractInputFromFeature(sline, data_dir)
+            logger.info(f"Batch {self.batch_number} of {self.total_batches}")
+            
+            input_1 = input_1.float().to(self.device)
+            input_2 = input_2.float().to(self.device)
+            label = label.int().to(self.device)
 
             if torch.cuda.device_count() > 1:
-                emb1, emb2 = self.net.module.get_embedding(input1), self.net.module.get_embedding(input2)
+                embedding_1 = self.net.module.get_embedding(input_1)
+                embedding_2 = self.net.module.get_embedding(input_2)
             else:
-                emb1, emb2 = self.net.get_embedding(input1), self.net.get_embedding(input2)
+                embedding_1 = self.net.get_embedding(input_1),
+                embedding_2 = self.net.get_embedding(input_2),
 
-            dist = scoreCosineDistance(emb1, emb2)
-            scores.append(dist.item())
-        
-        print(f"Scores extracted.")
-        
-        return scores
+            dist = scoreCosineDistance(embedding_1, embedding_2)
+
+            similarities = similarities + list(zip(dist.cpu().detach().numpy(), label.cpu().detach().numpy()))
+
+        logger.info(f"Embeddings extracted and similarities calculated.")
+
+        return similarities
 
 
     def __calculate_EER(self, CL, IM):
 
-        print("Calculating EER...")
+        logger.info("Calculating EER...")
 
         thresholds = np.arange(-1, 1, 0.01)
         FRR, FAR = np.zeros(len(thresholds)), np.zeros(len(thresholds))
@@ -190,46 +232,43 @@ class ModelEvaluator:
         else:
             EER = 50.00
 
-        print("EER calculated.")
+        logger.info("EER calculated.")
 
         return EER
 
 
     def evaluate(self, clients_labels, impostor_labels, data_dir):
 
-        print("Evaluating model...")
+        logger.info("Evaluating model...")
 
         with torch.no_grad():
 
             # Switch torch to evaluation mode
             self.net.eval()
 
-            print("Going to evaluate using these labels:")
-            print(f"Clients: {clients_labels}")
-            print(f"Impostors: {impostor_labels}")
-            print(f"For each row in these labels where are using prefix {data_dir}")
+            logger.info("Going to evaluate using these labels:")
+            logger.info(f"Clients: {clients_labels}")
+            logger.info(f"Impostors: {impostor_labels}")
+            logger.info(f"For each row in these labels where are using prefix {data_dir}")
 
             self.clients_num = sum(1 for line in open(clients_labels))
             self.impostors_num = sum(1 for line in open(impostor_labels))
 
-            print(f"{self.clients_num} test clients to evaluate.")
-            print(f"{self.impostors_num} test impostors to evaluate.")
+            logger.info(f"{self.clients_num} test clients to evaluate.")
+            logger.info(f"{self.impostors_num} test impostors to evaluate.")
 
-            # EER Validation
-            with open(clients_labels,'r') as clients_in, open(impostor_labels,'r') as impostors_in:
-
-                # score clients
-                CL = self.__extract_scores(clients_in, data_dir, self.clients_num)
-                IM = self.__extract_scores(impostors_in, data_dir, self.impostors_num)
+            similarities = self.calculate_similarities()
+            self.CL = [similarity for similarity, label in similarities if label == 1]
+            self.IM = [similarity for similarity, label in similarities if label == 0]
             
             # Compute EER
-            self.EER = self.__calculate_EER(CL, IM)
-            print(f"Model evaluated on test dataset. EER: {self.EER:.2f}")
+            self.EER = self.__calculate_EER(self.CL, self.IM)
+            logger.info(f"Model evaluated on test dataset. EER: {self.EER:.2f}")
 
 
     def save_report(self):
 
-        print("Creating report...")
+        logger.info("Creating report...")
 
         self.end_time = time.time()
         self.end_datetime = datetime.datetime.strftime(datetime.datetime.now(), '%y-%m-%d %H:%M:%S')
@@ -244,42 +283,41 @@ class ModelEvaluator:
         self.evaluation_results['clients_num'] = self.clients_num
         self.evaluation_results['impostors_num'] = self.impostors_num
         self.evaluation_results['EER'] = self.EER
+        #self.evaluation_results['CL'] = str(self.CL)
+        #self.evaluation_results['IM'] = str(self.IM)
 
         
         dump_folder = self.input_params.dump_folder
         if not os.path.exists(dump_folder):
             os.makedirs(dump_folder)
 
-        dump_file_name = f"report_{model_name}_{self.start_datetime}.json"
+        dump_file_name = f"report_2_{model_name}_{self.start_datetime}.json"
 
         dump_path = os.path.join(dump_folder, dump_file_name)
         
-        print(f"Saving file into {dump_path}")
+        logger.info(f"Saving file into {dump_path}")
         with open(dump_path, 'w', encoding = 'utf-8') as handle:
             json.dump(self.evaluation_results, handle, ensure_ascii = False, indent = 4)
-        print("Saved.")
+        logger.info("Saved.")
 
 
     def main(self):
-        self.load_checkpoint()
-        self.load_checkpoint_params()
-        self.load_data()
 
-        for self.batch_number, (input_1, input_2, label) in enumerate(self.training_generator):
-            print(input_1)
-            print(input_2)
-            print(label)
-            break
+        self.evaluate(
+            clients_labels = self.input_params.test_clients,
+            impostor_labels = self.input_params.test_impostors, 
+            data_dir = self.input_params.data_dir,
+            )
 
-        if False:
-            self.load_network()
-            self.evaluate(
-                clients_labels = self.input_params.test_clients,
-                impostor_labels = self.input_params.test_impostors, 
-                data_dir = self.input_params.data_dir,
-                )
-            self.save_report()
+        self.save_report()
         
+
+
+
+
+
+
+
 
 class ArgsParser:
 
@@ -327,6 +365,20 @@ class ArgsParser:
             type = str, 
             default = MODEL_EVALUATOR_DEFAULT_SETTINGS["dump_folder"],
             help = 'Folder to save the results.'
+            )
+
+        self.parser.add_argument(
+            '--log_file_folder',
+            type = str, 
+            default = MODEL_EVALUATOR_DEFAULT_SETTINGS['log_file_folder'],
+            help = 'Name of folder that will contain the log file.',
+            )
+        
+        self.parser.add_argument(
+            '--log_file_name',
+            type = str, 
+            default = MODEL_EVALUATOR_DEFAULT_SETTINGS['log_file_name'],
+            help = 'Name of the log file.',
             )
 
 

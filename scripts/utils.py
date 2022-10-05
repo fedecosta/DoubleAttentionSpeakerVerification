@@ -33,7 +33,7 @@ def Score_2(SC, th, rate):
 
 def scoreCosineDistance(emb1, emb2):
 
-    dist = F.cosine_similarity(emb1,emb2, dim=-1, eps=1e-08)
+    dist = F.cosine_similarity(emb1, emb2, dim = -1, eps = 1e-08)
     return dist
 
 

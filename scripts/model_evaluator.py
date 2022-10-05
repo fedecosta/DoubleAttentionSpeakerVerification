@@ -9,6 +9,8 @@ import json
 import time
 import datetime
 
+from random import randint, randrange
+
 from model import SpeakerClassifier
 from data import normalizeFeatures, featureReader
 from utils import scoreCosineDistance, Score, Score_2, generate_model_name
@@ -95,6 +97,33 @@ class ModelEvaluator:
             self.net = nn.DataParallel(self.net)
 
 
+    def sample_spectogram_window(self, features):
+
+        
+
+        # Cut the spectrogram with a fixed length at a random start
+
+        file_frames = features.shape[0]
+        
+        # FIX why this hardcoded 100? 
+        # The cutting here is in FRAMES, not secs
+        # It would be nice to do the cutting at the feature extractor module
+        # It seems that some kind of padding is made with librosa, but it should be done at the feature extractor module also
+        sample_size_in_frames = 3.5 * 100
+
+        # Get a random start point
+        # index = randint(0, max(0, file_frames - sample_size_in_frames - 1))
+        index = 0
+
+        # Generate the index slicing
+        a = np.array(range(min(file_frames, int(sample_size_in_frames)))) + index
+        
+        # Slice the spectrogram
+        sliced_spectrogram = features[a,:]
+
+        return sliced_spectrogram
+
+
     def __extractInputFromFeature(self, sline, data_dir):
 
         features1 = normalizeFeatures(
@@ -107,6 +136,9 @@ class ModelEvaluator:
                 data_dir + '/' + sline[1] + '.pickle'), 
                 normalization = self.params.normalization,
                 )
+
+        features1 = self.sample_spectogram_window(features1)
+        features2 = self.sample_spectogram_window(features2)
 
         input1 = torch.FloatTensor(features1).to(self.device)
         input2 = torch.FloatTensor(features2).to(self.device)
@@ -185,11 +217,11 @@ class ModelEvaluator:
             with open(clients_labels,'r') as clients_in, open(impostor_labels,'r') as impostors_in:
 
                 # score clients
-                CL = self.__extract_scores(clients_in, data_dir, self.clients_num)
-                IM = self.__extract_scores(impostors_in, data_dir, self.impostors_num)
+                self.CL = self.__extract_scores(clients_in, data_dir, self.clients_num)
+                self.IM = self.__extract_scores(impostors_in, data_dir, self.impostors_num)
             
             # Compute EER
-            self.EER = self.__calculate_EER(CL, IM)
+            self.EER = self.__calculate_EER(self.CL, self.IM)
             print(f"Model evaluated on test dataset. EER: {self.EER:.2f}")
 
 
@@ -210,6 +242,8 @@ class ModelEvaluator:
         self.evaluation_results['clients_num'] = self.clients_num
         self.evaluation_results['impostors_num'] = self.impostors_num
         self.evaluation_results['EER'] = self.EER
+        #self.evaluation_results['CL'] = self.CL
+        #self.evaluation_results['IM'] = self.IM
 
         
         dump_folder = self.input_params.dump_folder

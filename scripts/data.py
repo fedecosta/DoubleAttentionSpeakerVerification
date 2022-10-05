@@ -2,7 +2,10 @@ import pickle
 import numpy as np
 from random import randint, randrange
 import os
+import torch
 from torch.utils import data
+
+from utils import scoreCosineDistance
 
 # TODO understand where is this function used, move to the correct module
 def featureReader(featurePath, VAD = None):
@@ -148,11 +151,12 @@ class Dataset(data.Dataset):
 
 class TestDataset(data.Dataset):
 
-    def __init__(self, clients_utterances_paths, impostors_utterances_paths, train_parameters, input_parameters):
+    def __init__(self, clients_utterances_paths, impostors_utterances_paths, train_parameters, input_parameters, trained_model):
         'Initialization'
 
         self.parameters = train_parameters
         self.input_parameters = input_parameters
+        self.trained_model = trained_model
         self.clients_utterances_paths = clients_utterances_paths
         self.impostors_utterances_paths = impostors_utterances_paths
         self.format_input_paths()
@@ -219,7 +223,8 @@ class TestDataset(data.Dataset):
         sample_size_in_frames = self.parameters.window_size * 100
 
         # Get a random start point
-        index = randint(0, max(0, file_frames - sample_size_in_frames - 1))
+        # index = randint(0, max(0, file_frames - sample_size_in_frames - 1))
+        index = 0
 
         # Generate the index slicing
         a = np.array(range(min(file_frames, int(sample_size_in_frames)))) + index
@@ -246,8 +251,9 @@ class TestDataset(data.Dataset):
         
         features = self.normalize(features)
 
+        # HACK using windowedFeatures as kind of padding
         windowedFeatures = self.sample_spectogram_window(features) 
-
+    
         return windowedFeatures   
 
 
@@ -262,5 +268,8 @@ class TestDataset(data.Dataset):
         speaker_1_utterance_path = os.path.join(self.input_parameters.data_dir, utterance_tuple[0])
         speaker_2_utterance_path = os.path.join(self.input_parameters.data_dir, utterance_tuple[1])
         utterance_label = int(utterance_tuple[2])
+
+        speaker_1_features = self.get_feature_vector(speaker_1_utterance_path)
+        speaker_2_features = self.get_feature_vector(speaker_2_utterance_path)
         
-        return self.get_feature_vector(speaker_1_utterance_path), self.get_feature_vector(speaker_2_utterance_path), np.array(utterance_label)
+        return speaker_1_features, speaker_2_features, np.array(utterance_label)
