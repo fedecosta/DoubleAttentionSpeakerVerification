@@ -51,6 +51,7 @@ TRAIN_DEFAULT_SETTINGS = {
     'early_stopping' : 25,
     'update_optimizer_every' : 0,
     'load_checkpoint' : False,
+    'checkpoint_file_folder' : './models/',
     'window_size' : 3.5,
     'normalization' : 'cmn',
     'num_workers' : 1,

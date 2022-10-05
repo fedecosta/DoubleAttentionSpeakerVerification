@@ -3,6 +3,7 @@ import os
 import numpy as np
 import random
 import pickle
+import datetime
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -37,10 +38,11 @@ class Trainer:
 
     def __init__(self, input_params):
 
-        self.set_params(input_params)
-        self.set_log_file_handler()
+        self.start_datetime = datetime.datetime.strftime(datetime.datetime.now(), '%y-%m-%d %H:%M:%S')
         self.set_device()
         self.set_random_seed()
+        self.set_params(input_params)
+        self.set_log_file_handler()
         self.load_data()
         self.load_network()
         self.load_loss_function()
@@ -74,8 +76,8 @@ class Trainer:
     def load_checkpoint(self):
 
         # Load checkpoint
-        checkpoint_folder = self.params.model_output_folder
-        checkpoint_file_name = f"{self.params.model_name}.chkpt"
+        checkpoint_folder = self.params.checkpoint_file_folder
+        checkpoint_file_name = self.params.checkpoint_file_name
         checkpoint_path = os.path.join(checkpoint_folder, checkpoint_file_name)
 
         logger.info(f"Loading checkpoint from {checkpoint_path}")
@@ -457,9 +459,13 @@ class Trainer:
                 'training_variables' : training_variables,
                 }
 
+        end_datetime = datetime.datetime.strftime(datetime.datetime.now(), '%y-%m-%d %H:%M:%S')
+        checkpoint['start_datetime'] = self.start_datetime
+        checkpoint['end_datetime'] = end_datetime
+
         # We will save this checkpoint and it will overwrite the last one of this model
         checkpoint_folder = self.params.model_output_folder
-        checkpoint_file_name = f"{self.params.model_name}.chkpt"
+        checkpoint_file_name = f"{self.params.model_name}_{self.step}.chkpt"
         checkpoint_path = os.path.join(checkpoint_folder, checkpoint_file_name)
 
         # Create directory if doesn't exists
@@ -757,6 +763,19 @@ class ArgsParser:
             default = TRAIN_DEFAULT_SETTINGS['load_checkpoint'],
             help = 'Set to True if you want to load a previous checkpoint and continue training from that point. \
                 Loaded parameters will overwrite all inputted parameters.',
+            )
+
+        self.parser.add_argument(
+            '--checkpoint_file_folder',
+            type = str, 
+            default = TRAIN_DEFAULT_SETTINGS['checkpoint_file_folder'],
+            help = 'Name of folder that contain the model checkpoint file. Mandatory if load_checkpoint is True.',
+            )
+        
+        self.parser.add_argument(
+            '--checkpoint_file_name',
+            type = str, 
+            help = 'Name of the model checkpoint file. Mandatory if load_checkpoint is True.',
             )
 
         # Data Parameters

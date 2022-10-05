@@ -1,6 +1,7 @@
 import torch
 from torch.nn import functional as F
 import numpy as np
+import datetime
 
 
 def Score(SC, th, rate):
@@ -35,7 +36,8 @@ def scoreCosineDistance(emb1, emb2):
     dist = F.cosine_similarity(emb1,emb2, dim=-1, eps=1e-08)
     return dist
 
-def chkptsave(opt,model,optimizer,epoch,step):
+
+def chkptsave(opt, model, optimizer, epoch, step, start_datetime):
     ''' function to save the model and optimizer parameters '''
     if torch.cuda.device_count() > 1:
         checkpoint = {
@@ -52,7 +54,12 @@ def chkptsave(opt,model,optimizer,epoch,step):
             'epoch': epoch,
             'step':step}
 
-    torch.save(checkpoint,'{}/{}_{}.chkpt'.format(opt.out_dir, opt.model_name,step))
+    end_datetime = datetime.datetime.strftime(datetime.datetime.now(), '%y-%m-%d %H:%M:%S')
+    checkpoint['start_datetime'] = start_datetime
+    checkpoint['end_datetime'] = end_datetime
+
+    torch.save(checkpoint,'{}/{}_{}.chkpt'.format(opt.out_dir, opt.model_name, step))
+
 
 def Accuracy(pred, labels):
 
@@ -65,6 +72,7 @@ def Accuracy(pred, labels):
 
     return acc/num_pred
 
+
 def get_number_of_speakers(labels_file_path):
 
     speakers_set = set()
@@ -74,6 +82,7 @@ def get_number_of_speakers(labels_file_path):
             speakers_set.add(speaker_label)
 
     return len(speakers_set)
+
 
 def generate_model_name(params):
 
