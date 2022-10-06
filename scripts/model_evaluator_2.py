@@ -9,6 +9,7 @@ import json
 import time
 import datetime
 from torch.utils.data import DataLoader
+from torch.nn.utils.rnn import pad_sequence
 
 from model import SpeakerClassifier
 from data import normalizeFeatures, featureReader, TestDataset
@@ -38,6 +39,7 @@ class ModelEvaluator:
 
     def __init__(self, input_params):
 
+        self.batch_size = 4
         self.input_params = input_params
         self.set_device()
         self.set_random_seed()
@@ -48,8 +50,6 @@ class ModelEvaluator:
         self.load_checkpoint()
         self.load_checkpoint_params()
         self.load_network()
-        self.load_data()
-        self.total_batches = len(self.training_generator)
 
     
     def set_device(self):
@@ -133,6 +133,58 @@ class ModelEvaluator:
             self.net = nn.DataParallel(self.net)
 
 
+    def collate_batch(self, data):
+        """
+        data: is a list of tuples with (example, label, length)
+        where 'example' is a tensor of arbitrary shape
+        and label/length are scalars
+        """
+
+        with torch.no_grad():
+        
+            features_1, lengths_1, features_2, lengths_2, labels,  = zip(*data)
+
+            max_len_1 = max(lengths_1)
+            max_len_2 = max(lengths_2)
+            
+            # We are assuming that all features have the same number of columns
+            number_columns = data[0][0].size(1)
+            
+            padded_features_1 = torch.zeros((len(data), max_len_1, number_columns))
+            for i in range(len(data)):
+                features_tensor = features_1[i]
+                rows, cols = features_tensor.size(0), features_tensor.size(1)
+
+                padded_features_tensor = torch.cat(
+                    [
+                        features_tensor, 
+                        torch.zeros((max_len_1 - rows, cols))
+                    ]
+                )
+                
+                padded_features_1[i] = padded_features_tensor
+
+            padded_features_2 = torch.zeros((len(data), max_len_2, number_columns))
+            for i in range(len(data)):
+                features_tensor = features_2[i]
+                rows, cols = features_tensor.size(0), features_tensor.size(1)
+
+                padded_features_tensor = torch.cat(
+                    [
+                        features_tensor, 
+                        torch.zeros((max_len_2 - rows, cols))
+                    ]
+                )
+                
+                padded_features_2[i] = padded_features_tensor
+                
+            labels = torch.tensor(labels)
+            lengths_1 = torch.tensor(lengths_1)
+            lengths_2 = torch.tensor(lengths_2)
+
+            return padded_features_1.float(), lengths_1.long(), padded_features_2.float(), lengths_2.long(), labels.long()
+
+
     def load_data(self):
             
         logger.info(f'Loading data from {self.input_params.test_clients}')
@@ -151,16 +203,25 @@ class ModelEvaluator:
         dataset = TestDataset(clients_trials, impostors_trials, self.params, self.input_params, self.net)
         
         # Load DataLoader params
-        data_loader_parameters = {
-            'batch_size': 256, #self.params.batch_size, 
-            'shuffle': False, # FIX hardcoded True
-            'num_workers': 2, #self.params.num_workers
-            }
+        #data_loader_parameters = {
+        #    'batch_size': 256, #self.params.batch_size, 
+        #    'shuffle': False, # FIX hardcoded True
+        #    'num_workers': 2, # self.params.num_workers
+        #    "collate_fn" : collate_batch,
+        #    }
         
         # Instanciate a DataLoader class
+        #self.training_generator = DataLoader(
+        #    dataset, 
+        #    **data_loader_parameters,
+        #    )
+
         self.training_generator = DataLoader(
             dataset, 
-            **data_loader_parameters,
+            batch_size = self.batch_size,
+            shuffle = False,
+            num_workers = 2,
+            collate_fn = self.collate_batch,
             )
 
         logger.info("Data and labels loaded.")
@@ -187,31 +248,37 @@ class ModelEvaluator:
 
     def calculate_similarities(self):
 
-        logger.info("Extracting embeddings and calculating similarities...")
+        with torch.no_grad():
 
-        similarities = []
-        for self.batch_number, (input_1, input_2, label) in enumerate(self.training_generator):
+            self.net.eval()
 
-            logger.info(f"Batch {self.batch_number} of {self.total_batches}")
-            
-            input_1 = input_1.float().to(self.device)
-            input_2 = input_2.float().to(self.device)
-            label = label.int().to(self.device)
+            logger.info("Extracting embeddings and calculating similarities...")
 
-            if torch.cuda.device_count() > 1:
-                embedding_1 = self.net.module.get_embedding(input_1)
-                embedding_2 = self.net.module.get_embedding(input_2)
-            else:
-                embedding_1 = self.net.get_embedding(input_1),
-                embedding_2 = self.net.get_embedding(input_2),
+            similarities = []
+            for self.batch_number, (input_1, len_1, input_2, len_2, label) in enumerate(self.training_generator):
 
-            dist = scoreCosineDistance(embedding_1, embedding_2)
+                logger.info(f"Batch {self.batch_number} of {self.total_batches}")
 
-            similarities = similarities + list(zip(dist.cpu().detach().numpy(), label.cpu().detach().numpy()))
+                logger.info(f"input_1 {input_1.size()}, input_2 {input_2.size()}")
+                
+                input_1 = input_1.float().to(self.device)
+                input_2 = input_2.float().to(self.device)
+                label = label.int().to(self.device)
+                
+                if torch.cuda.device_count() > 1:
+                    embedding_1 = self.net.module.get_embedding(input_1)
+                    embedding_2 = self.net.module.get_embedding(input_2)
+                else:
+                    embedding_1 = self.net.get_embedding(input_1)
+                    embedding_2 = self.net.get_embedding(input_2)
+                
+                dist = scoreCosineDistance(embedding_1, embedding_2)
 
-        logger.info(f"Embeddings extracted and similarities calculated.")
+                similarities = similarities + list(zip(dist.cpu().detach().numpy(), label.cpu().detach().numpy()))
 
-        return similarities
+            logger.info(f"Embeddings extracted and similarities calculated.")
+
+            return similarities
 
 
     def __calculate_EER(self, CL, IM):
@@ -241,29 +308,24 @@ class ModelEvaluator:
 
         logger.info("Evaluating model...")
 
-        with torch.no_grad():
+        logger.info("Going to evaluate using these labels:")
+        logger.info(f"Clients: {clients_labels}")
+        logger.info(f"Impostors: {impostor_labels}")
+        logger.info(f"For each row in these labels where are using prefix {data_dir}")
 
-            # Switch torch to evaluation mode
-            self.net.eval()
+        self.clients_num = sum(1 for line in open(clients_labels))
+        self.impostors_num = sum(1 for line in open(impostor_labels))
 
-            logger.info("Going to evaluate using these labels:")
-            logger.info(f"Clients: {clients_labels}")
-            logger.info(f"Impostors: {impostor_labels}")
-            logger.info(f"For each row in these labels where are using prefix {data_dir}")
+        logger.info(f"{self.clients_num} test clients to evaluate.")
+        logger.info(f"{self.impostors_num} test impostors to evaluate.")
 
-            self.clients_num = sum(1 for line in open(clients_labels))
-            self.impostors_num = sum(1 for line in open(impostor_labels))
-
-            logger.info(f"{self.clients_num} test clients to evaluate.")
-            logger.info(f"{self.impostors_num} test impostors to evaluate.")
-
-            similarities = self.calculate_similarities()
-            self.CL = [similarity for similarity, label in similarities if label == 1]
-            self.IM = [similarity for similarity, label in similarities if label == 0]
-            
-            # Compute EER
-            self.EER = self.__calculate_EER(self.CL, self.IM)
-            logger.info(f"Model evaluated on test dataset. EER: {self.EER:.2f}")
+        similarities = self.calculate_similarities()
+        self.CL = [similarity for similarity, label in similarities if label == 1]
+        self.IM = [similarity for similarity, label in similarities if label == 0]
+        
+        # Compute EER
+        self.EER = self.__calculate_EER(self.CL, self.IM)
+        logger.info(f"Model evaluated on test dataset. EER: {self.EER:.2f}")
 
 
     def save_report(self):
@@ -280,8 +342,11 @@ class ModelEvaluator:
         self.evaluation_results['elapsed_time_hours'] = self.elapsed_time_hours
         self.evaluation_results['model_name'] = model_name
         self.evaluation_results['model_loaded_from'] = self.input_params.model_checkpoint_path
+        self.evaluation_results['clients_loaded_from'] = self.input_params.test_clients
+        self.evaluation_results['impostors_loaded_from'] = self.input_params.test_impostors
         self.evaluation_results['clients_num'] = self.clients_num
         self.evaluation_results['impostors_num'] = self.impostors_num
+        self.evaluation_results['batch_size'] = self.batch_size
         self.evaluation_results['EER'] = self.EER
         #self.evaluation_results['CL'] = str(self.CL)
         #self.evaluation_results['IM'] = str(self.IM)
@@ -303,21 +368,22 @@ class ModelEvaluator:
 
     def main(self):
 
-        self.evaluate(
-            clients_labels = self.input_params.test_clients,
-            impostor_labels = self.input_params.test_impostors, 
-            data_dir = self.input_params.data_dir,
-            )
+        with torch.no_grad():
 
-        self.save_report()
+            # Switch torch to evaluation mode
+            self.net.eval()
+
+            self.load_data()
+            self.total_batches = len(self.training_generator)
+
+            self.evaluate(
+                clients_labels = self.input_params.test_clients,
+                impostor_labels = self.input_params.test_impostors, 
+                data_dir = self.input_params.data_dir,
+                )
+
+            self.save_report()
         
-
-
-
-
-
-
-
 
 class ArgsParser:
 
@@ -355,7 +421,8 @@ class ArgsParser:
 
         self.parser.add_argument(
             '--data_dir', 
-            type = str, 
+            nargs = '+',
+            type = str,
             default = MODEL_EVALUATOR_DEFAULT_SETTINGS["data_dir"],
             help = 'Optional additional directory to prepend to clients and impostors pairs paths.',
             )

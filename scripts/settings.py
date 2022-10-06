@@ -73,7 +73,7 @@ TRAIN_DEFAULT_SETTINGS = {
 }
 
 MODEL_EVALUATOR_DEFAULT_SETTINGS = {
-    'data_dir' : '',
+    'data_dir' : [''],
     'dump_folder' : './models_results',
     'log_file_folder' : './logs',
     'log_file_name' : 'model_evaluator.log',

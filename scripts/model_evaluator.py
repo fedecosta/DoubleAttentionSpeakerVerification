@@ -137,8 +137,8 @@ class ModelEvaluator:
                 normalization = self.params.normalization,
                 )
 
-        features1 = self.sample_spectogram_window(features1)
-        features2 = self.sample_spectogram_window(features2)
+        #features1 = self.sample_spectogram_window(features1)
+        #features2 = self.sample_spectogram_window(features2)
 
         input1 = torch.FloatTensor(features1).to(self.device)
         input2 = torch.FloatTensor(features2).to(self.device)
@@ -239,6 +239,8 @@ class ModelEvaluator:
         self.evaluation_results['elapsed_time_hours'] = self.elapsed_time_hours
         self.evaluation_results['model_name'] = model_name
         self.evaluation_results['model_loaded_from'] = self.input_params.model_checkpoint_path
+        self.evaluation_results['clients_loaded_from'] = self.input_params.test_clients
+        self.evaluation_results['impostors_loaded_from'] = self.input_params.test_impostors
         self.evaluation_results['clients_num'] = self.clients_num
         self.evaluation_results['impostors_num'] = self.impostors_num
         self.evaluation_results['EER'] = self.EER

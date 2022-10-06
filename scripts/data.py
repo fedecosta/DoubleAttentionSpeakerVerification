@@ -238,7 +238,7 @@ class TestDataset(data.Dataset):
     def get_feature_vector(self, utterance_path):
 
         # Load the spectrogram saved in pickle format
-        with open(utterance_path + '.pickle', 'rb') as pickle_file:
+        with open(utterance_path, 'rb') as pickle_file:
             features_dict = pickle.load(pickle_file)
 
         features = features_dict["features"]
@@ -252,9 +252,24 @@ class TestDataset(data.Dataset):
         features = self.normalize(features)
 
         # HACK using windowedFeatures as kind of padding
-        windowedFeatures = self.sample_spectogram_window(features) 
+        #features = self.sample_spectogram_window(features) 
     
-        return windowedFeatures   
+        return features   
+
+
+    def generate_path(self, directories, partial_path):
+
+        data_founded = False
+        for dir in directories:
+            partial_path = f"{partial_path}.pickle"
+            complete_utterance_path = os.path.join(dir, partial_path)
+            if os.path.exists(complete_utterance_path):
+                data_founded = True
+                break
+
+        assert data_founded, f"{partial_path} not founded."
+
+        return complete_utterance_path
 
 
     def __getitem__(self, index):
@@ -265,11 +280,19 @@ class TestDataset(data.Dataset):
         # Each line of the dataset is like: speaker_1_path speaker_2_path label \n
         utterance_tuple = self.formatted_utterances_paths[index].strip().replace('\n', '').split(' ')
 
-        speaker_1_utterance_path = os.path.join(self.input_parameters.data_dir, utterance_tuple[0])
-        speaker_2_utterance_path = os.path.join(self.input_parameters.data_dir, utterance_tuple[1])
-        utterance_label = int(utterance_tuple[2])
+        speaker_1_utterance_path = self.generate_path(self.input_parameters.data_dir, utterance_tuple[0])
+        speaker_2_utterance_path = self.generate_path(self.input_parameters.data_dir, utterance_tuple[1])
 
+        utterance_label = int(utterance_tuple[2])
         speaker_1_features = self.get_feature_vector(speaker_1_utterance_path)
         speaker_2_features = self.get_feature_vector(speaker_2_utterance_path)
+        speaker_1_features_length = speaker_1_features.shape[0]
+        speaker_2_features_length = speaker_2_features.shape[0]
         
-        return speaker_1_features, speaker_2_features, np.array(utterance_label)
+        return (
+            torch.from_numpy(speaker_1_features), 
+            speaker_1_features_length,
+            torch.from_numpy(speaker_2_features), 
+            speaker_2_features_length,
+            utterance_label,
+            )

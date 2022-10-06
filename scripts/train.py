@@ -663,7 +663,8 @@ class ArgsParser:
         
         self.parser.add_argument(
             '--train_data_dir', 
-            type = str, default = TRAIN_DEFAULT_SETTINGS['train_data_dir'],
+            type = str, 
+            default = TRAIN_DEFAULT_SETTINGS['train_data_dir'],
             help = 'Optional additional directory to prepend to the train_labels_path paths.',
             )
         
