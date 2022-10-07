@@ -8,13 +8,30 @@ import os
 import json
 import time
 import datetime
-
-from random import randint, randrange
+from torch.utils.data import DataLoader
 
 from model import SpeakerClassifier
-from data import normalizeFeatures, featureReader
-from utils import scoreCosineDistance, Score, Score_2, generate_model_name
+from data import TestDataset
+from utils import scoreCosineDistance, generate_model_name, calculate_EER
 from settings import MODEL_EVALUATOR_DEFAULT_SETTINGS
+
+# Set logging config
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger_formatter = logging.Formatter(
+    fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt = '%y-%m-%d %H:%M:%S',
+    )
+
+# Set a logging stream handler
+logger_stream_handler = logging.StreamHandler()
+logger_stream_handler.setLevel(logging.INFO)
+logger_stream_handler.setFormatter(logger_formatter)
+
+# Add handlers
+logger.addHandler(logger_stream_handler)
 
 
 class ModelEvaluator:
@@ -22,38 +39,63 @@ class ModelEvaluator:
     def __init__(self, input_params):
 
         self.input_params = input_params
+        self.set_batch_size()
         self.set_device()
         self.set_random_seed()
+        self.set_log_file_handler()
         self.evaluation_results = {}
         self.start_time = time.time()
         self.start_datetime = datetime.datetime.strftime(datetime.datetime.now(), '%y-%m-%d %H:%M:%S')
+        self.load_checkpoint()
+        self.load_checkpoint_params()
+        self.load_network()
 
     
     def set_device(self):
     
-        print('Setting device...')
+        logger.info('Setting device...')
 
         # Set device to GPU or CPU depending on what is available
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
     
-        print(f"Running on {self.device} device.")
+        logger.info(f"Running on {self.device} device.")
     
         if torch.cuda.device_count() > 1:
-            print(f"{torch.cuda.device_count()} GPUs available.")
+            logger.info(f"{torch.cuda.device_count()} GPUs available.")
     
-        print("Device setted.")
+        logger.info("Device setted.")
 
     
     def set_random_seed(self):
 
-        print("Setting random seed...")
+        logger.info("Setting random seed...")
 
         # Set the seed for experimental reproduction
         torch.manual_seed(1234)
         np.random.seed(1234)
         random.seed(1234)
 
-        print("Random seed setted.")
+        logger.info("Random seed setted.")
+
+
+    def set_log_file_handler(self):
+
+        # Set a logging file handler
+        if not os.path.exists(self.input_params.log_file_folder):
+            os.makedirs(self.input_params.log_file_folder)
+        logger_file_path = os.path.join(self.input_params.log_file_folder, self.input_params.log_file_name)
+        logger_file_handler = logging.FileHandler(logger_file_path, mode = 'w')
+        logger_file_handler.setLevel(logging.INFO) # TODO set the file handler level as a input param
+        logger_file_handler.setFormatter(logger_formatter)
+
+        logger.addHandler(logger_file_handler)
+
+
+    def set_batch_size(self):
+
+        # If evaluation_type is total_length, batch size must be 1 because we will have different-size samples
+        if self.input_params.evaluation_type == "total_length":
+            self.input_params.batch_size = 1
 
 
     def load_checkpoint(self):
@@ -61,13 +103,13 @@ class ModelEvaluator:
         # Load checkpoint
         checkpoint_path = self.input_params.model_checkpoint_path
 
-        print(f"Loading checkpoint from {checkpoint_path}")
+        logger.info(f"Loading checkpoint from {checkpoint_path}")
 
         self.checkpoint = torch.load(checkpoint_path, map_location = self.device)
 
-        print(f"Model checkpoint was saved at epoch {self.checkpoint['training_variables']['epoch']}")
+        logger.info(f"Model checkpoint was saved at epoch {self.checkpoint['training_variables']['epoch']}")
 
-        print(f"Checkpoint loaded.")
+        logger.info(f"Checkpoint loaded.")
         
     
     def load_checkpoint_params(self):
@@ -93,141 +135,117 @@ class ModelEvaluator:
         self.net.to(self.device)
 
         if torch.cuda.device_count() > 1:
-            print(f"Let's use {torch.cuda.device_count()} GPUs!")
+            logger.info(f"Let's use {torch.cuda.device_count()} GPUs!")
             self.net = nn.DataParallel(self.net)
 
+    # This function was created to be able to generate batches with different-length samples using padding.
+    # It is not used, but saved just in case.
+    def collate_batch(self, data):
+        """
+        data: is a list of tuples with (example, label, length)
+        where 'example' is a tensor of arbitrary shape
+        and label/length are scalars
+        """
 
-    def sample_spectogram_window(self, features):
-
+        with torch.no_grad():
         
+            features_1, lengths_1, features_2, lengths_2, labels,  = zip(*data)
 
-        # Cut the spectrogram with a fixed length at a random start
+            max_len_1 = max(lengths_1)
+            max_len_2 = max(lengths_2)
+            
+            # We are assuming that all features have the same number of columns
+            number_columns = data[0][0].size(1)
+            
+            padded_features_1 = torch.zeros((len(data), max_len_1, number_columns))
+            padded_features_2 = torch.zeros((len(data), max_len_2, number_columns))
+            for i in range(len(data)):
 
-        file_frames = features.shape[0]
-        
-        # FIX why this hardcoded 100? 
-        # The cutting here is in FRAMES, not secs
-        # It would be nice to do the cutting at the feature extractor module
-        # It seems that some kind of padding is made with librosa, but it should be done at the feature extractor module also
-        sample_size_in_frames = 3.5 * 100
+                padded_features_1[i][:lengths_1[i],:] = features_1[i]
+                padded_features_2[i][:lengths_2[i],:] = features_2[i]
+                
+            labels = torch.tensor(labels)
+            lengths_1 = torch.tensor(lengths_1)
+            lengths_2 = torch.tensor(lengths_2)
 
-        # Get a random start point
-        # index = randint(0, max(0, file_frames - sample_size_in_frames - 1))
-        index = 0
-
-        # Generate the index slicing
-        a = np.array(range(min(file_frames, int(sample_size_in_frames)))) + index
-        
-        # Slice the spectrogram
-        sliced_spectrogram = features[a,:]
-
-        return sliced_spectrogram
+            return padded_features_1.float(), lengths_1.long(), padded_features_2.float(), lengths_2.long(), labels.long()
 
 
-    def __extractInputFromFeature(self, sline, data_dir):
+    def load_data(self):
+            
+        logger.info(f'Loading data from {self.input_params.test_clients} and {self.input_params.test_impostors}')
 
-        features1 = normalizeFeatures(
-            featureReader(
-                data_dir + '/' + sline[0] + '.pickle'), 
-                normalization = self.params.normalization,
-                )
-        features2 = normalizeFeatures(
-            featureReader(
-                data_dir + '/' + sline[1] + '.pickle'), 
-                normalization = self.params.normalization,
-                )
+        # Instanciate a Dataset class
+        dataset = TestDataset(train_parameters = self.params, input_parameters = self.input_params)
 
-        #features1 = self.sample_spectogram_window(features1)
-        #features2 = self.sample_spectogram_window(features2)
+        # Instanciate a DataLoader class
+        self.evaluating_generator = DataLoader(
+            dataset, 
+            batch_size = self.input_params.batch_size,
+            shuffle = False,
+            num_workers = 1, # TODO set this as a input parameter
+            #collate_fn = self.collate_batch,
+            )
 
-        input1 = torch.FloatTensor(features1).to(self.device)
-        input2 = torch.FloatTensor(features2).to(self.device)
-        
-        return input1.unsqueeze(0), input2.unsqueeze(0)
+        logger.info("Data and labels loaded.")
 
 
-    def __extract_scores(self, trials, data_dir, total_trials):
+    def calculate_similarities(self):
 
-        scores = []
-        for num_line, line in enumerate(trials):
+        logger.info("Extracting embeddings and calculating similarities...")
 
-            print(f"\r Extracting score {num_line} of {total_trials - 1}...", end='', flush = True)
+        similarities = []
+        for self.batch_number, (input_1, input_2, label) in enumerate(self.evaluating_generator):
 
-            sline = line[:-1].split()
-
-            input1, input2 = self.__extractInputFromFeature(sline, data_dir)
+            logger.info(f"Batch {self.batch_number} of {self.total_batches}")
+            
+            input_1 = input_1.float().to(self.device)
+            input_2 = input_2.float().to(self.device)
+            label = label.int().to(self.device)
 
             if torch.cuda.device_count() > 1:
-                emb1, emb2 = self.net.module.get_embedding(input1), self.net.module.get_embedding(input2)
+                embedding_1 = self.net.module.get_embedding(input_1)
+                embedding_2 = self.net.module.get_embedding(input_2)
             else:
-                emb1, emb2 = self.net.get_embedding(input1), self.net.get_embedding(input2)
+                embedding_1 = self.net.get_embedding(input_1)
+                embedding_2 = self.net.get_embedding(input_2)
+            
+            dist = scoreCosineDistance(embedding_1, embedding_2)
 
-            dist = scoreCosineDistance(emb1, emb2)
-            scores.append(dist.item())
-        
-        print(f"Scores extracted.")
-        
-        return scores
+            similarities = similarities + list(zip(dist.cpu().detach().numpy(), label.cpu().detach().numpy()))
 
+        logger.info(f"Embeddings extracted and similarities calculated.")
 
-    def __calculate_EER(self, CL, IM):
-
-        print("Calculating EER...")
-
-        thresholds = np.arange(-1, 1, 0.01)
-        FRR, FAR = np.zeros(len(thresholds)), np.zeros(len(thresholds))
-        for idx, th in enumerate(thresholds):
-            FRR[idx] = Score(CL, th, 'FRR')
-            FAR[idx] = Score(IM, th, 'FAR')
-
-        EER_Idx = np.argwhere(np.diff(np.sign(FAR - FRR)) != 0).reshape(-1)
-        if len(EER_Idx) > 0:
-            if len(EER_Idx) > 1:
-                EER_Idx = EER_Idx[0]
-            EER = round((FAR[int(EER_Idx)] + FRR[int(EER_Idx)]) / 2, 4)
-        else:
-            EER = 50.00
-
-        print("EER calculated.")
-
-        return EER
+        return similarities
 
 
     def evaluate(self, clients_labels, impostor_labels, data_dir):
 
-        print("Evaluating model...")
+        logger.info("Evaluating model...")
 
-        with torch.no_grad():
+        logger.info("Going to evaluate using these labels:")
+        logger.info(f"Clients: {clients_labels}")
+        logger.info(f"Impostors: {impostor_labels}")
+        logger.info(f"For each row in these labels where are using prefix {data_dir}")
 
-            # Switch torch to evaluation mode
-            self.net.eval()
+        self.clients_num = sum(1 for line in open(clients_labels))
+        self.impostors_num = sum(1 for line in open(impostor_labels))
 
-            print("Going to evaluate using these labels:")
-            print(f"Clients: {clients_labels}")
-            print(f"Impostors: {impostor_labels}")
-            print(f"For each row in these labels where are using prefix {data_dir}")
+        logger.info(f"{self.clients_num} test clients to evaluate.")
+        logger.info(f"{self.impostors_num} test impostors to evaluate.")
 
-            self.clients_num = sum(1 for line in open(clients_labels))
-            self.impostors_num = sum(1 for line in open(impostor_labels))
-
-            print(f"{self.clients_num} test clients to evaluate.")
-            print(f"{self.impostors_num} test impostors to evaluate.")
-
-            # EER Validation
-            with open(clients_labels,'r') as clients_in, open(impostor_labels,'r') as impostors_in:
-
-                # score clients
-                self.CL = self.__extract_scores(clients_in, data_dir, self.clients_num)
-                self.IM = self.__extract_scores(impostors_in, data_dir, self.impostors_num)
-            
-            # Compute EER
-            self.EER = self.__calculate_EER(self.CL, self.IM)
-            print(f"Model evaluated on test dataset. EER: {self.EER:.2f}")
+        similarities = self.calculate_similarities()
+        self.CL = [similarity for similarity, label in similarities if label == 1]
+        self.IM = [similarity for similarity, label in similarities if label == 0]
+        
+        # Compute EER
+        self.EER = calculate_EER(self.CL, self.IM)
+        logger.info(f"Model evaluated on test dataset. EER: {self.EER:.3f}")
 
 
     def save_report(self):
 
-        print("Creating report...")
+        logger.info("Creating report...")
 
         self.end_time = time.time()
         self.end_datetime = datetime.datetime.strftime(datetime.datetime.now(), '%y-%m-%d %H:%M:%S')
@@ -244,9 +262,8 @@ class ModelEvaluator:
         self.evaluation_results['clients_num'] = self.clients_num
         self.evaluation_results['impostors_num'] = self.impostors_num
         self.evaluation_results['EER'] = self.EER
-        #self.evaluation_results['CL'] = self.CL
-        #self.evaluation_results['IM'] = self.IM
-
+        self.evaluation_results['input_params'] = vars(self.input_params) # convert Namespace object into dictionary
+        self.evaluation_results['training_params'] = vars(self.params) # convert Namespace object into dictionary
         
         dump_folder = self.input_params.dump_folder
         if not os.path.exists(dump_folder):
@@ -256,22 +273,29 @@ class ModelEvaluator:
 
         dump_path = os.path.join(dump_folder, dump_file_name)
         
-        print(f"Saving file into {dump_path}")
+        logger.info(f"Saving file into {dump_path}")
         with open(dump_path, 'w', encoding = 'utf-8') as handle:
             json.dump(self.evaluation_results, handle, ensure_ascii = False, indent = 4)
-        print("Saved.")
+        logger.info("Saved.")
 
 
     def main(self):
-        self.load_checkpoint()
-        self.load_checkpoint_params()
-        self.load_network()
-        self.evaluate(
-            clients_labels = self.input_params.test_clients,
-            impostor_labels = self.input_params.test_impostors, 
-            data_dir = self.input_params.data_dir,
-            )
-        self.save_report()
+
+        with torch.no_grad():
+
+            # Switch torch to evaluation mode
+            self.net.eval()
+
+            self.load_data()
+            self.total_batches = len(self.evaluating_generator)
+
+            self.evaluate(
+                clients_labels = self.input_params.test_clients,
+                impostor_labels = self.input_params.test_impostors, 
+                data_dir = self.input_params.data_dir,
+                )
+
+            self.save_report()
         
 
 class ArgsParser:
@@ -310,7 +334,8 @@ class ArgsParser:
 
         self.parser.add_argument(
             '--data_dir', 
-            type = str, 
+            nargs = '+',
+            type = str,
             default = MODEL_EVALUATOR_DEFAULT_SETTINGS["data_dir"],
             help = 'Optional additional directory to prepend to clients and impostors pairs paths.',
             )
@@ -320,6 +345,55 @@ class ArgsParser:
             type = str, 
             default = MODEL_EVALUATOR_DEFAULT_SETTINGS["dump_folder"],
             help = 'Folder to save the results.'
+            )
+
+        self.parser.add_argument(
+            '--log_file_folder',
+            type = str, 
+            default = MODEL_EVALUATOR_DEFAULT_SETTINGS['log_file_folder'],
+            help = 'Name of folder that will contain the log file.',
+            )
+        
+        self.parser.add_argument(
+            '--log_file_name',
+            type = str, 
+            default = MODEL_EVALUATOR_DEFAULT_SETTINGS['log_file_name'],
+            help = 'Name of the log file.',
+            )
+
+        self.parser.add_argument(
+            '--normalization', 
+            type = str, 
+            default = MODEL_EVALUATOR_DEFAULT_SETTINGS['normalization'], 
+            choices = ['cmn', 'cmvn'],
+            help = 'Type of normalization applied to the features. \
+                It can be Cepstral Mean Normalization or Cepstral Mean and Variance Normalization',
+            )
+
+        self.parser.add_argument(
+            '--evaluation_type', 
+            type = str, 
+            choices = ['random_crop', 'total_length'],
+            default = MODEL_EVALUATOR_DEFAULT_SETTINGS['evaluation_type'], 
+            help = 'With random_crop the utterances are croped at random with random_crop_size frames before doing the forward pass.\
+                In this case, samples are batched with batch_size.\
+                With total_length, full length audios are passed through the forward.\
+                In this case, samples are automatically batched with batch_size = 1, since they have different lengths.',
+            )
+
+        self.parser.add_argument(
+            '--batch_size', 
+            type = int, 
+            default = MODEL_EVALUATOR_DEFAULT_SETTINGS['batch_size'],
+            help = "Size of evaluation batches. Automatically set to 1 if evaluation_type is total_length.",
+            )
+
+        self.parser.add_argument(
+            '--random_crop_size', 
+            type = int, 
+            default = MODEL_EVALUATOR_DEFAULT_SETTINGS['random_crop_size'], 
+            help = 'Cut the input spectrogram with random_crop_size frames length at a random starting point. \
+                random_crop_size is measured in frames.',
             )
 
 

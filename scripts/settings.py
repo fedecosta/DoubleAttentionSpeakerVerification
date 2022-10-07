@@ -77,4 +77,8 @@ MODEL_EVALUATOR_DEFAULT_SETTINGS = {
     'dump_folder' : './models_results',
     'log_file_folder' : './logs',
     'log_file_name' : 'model_evaluator.log',
+    'normalization' : 'cmn',
+    'evaluation_type' : "total_length",
+    'batch_size' : 64,
+    'random_crop_size' : 350,
 }

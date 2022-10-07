@@ -39,6 +39,7 @@ def normalizeFeatures(features, normalization = 'cmn'):
         std = np.where(std>0.01,std,1.0)
         return features/std
 
+
 class Dataset(data.Dataset):
 
     def __init__(self, utterances_paths, parameters):
@@ -148,29 +149,38 @@ class Dataset(data.Dataset):
         return self.get_feature_vector(utterance_path), np.array(utterance_label)
 
 
-
 class TestDataset(data.Dataset):
 
-    def __init__(self, clients_utterances_paths, impostors_utterances_paths, train_parameters, input_parameters, trained_model):
+    def __init__(self, train_parameters, input_parameters):
         'Initialization'
 
         self.parameters = train_parameters
         self.input_parameters = input_parameters
-        self.trained_model = trained_model
-        self.clients_utterances_paths = clients_utterances_paths
-        self.impostors_utterances_paths = impostors_utterances_paths
-        self.format_input_paths()
+        self.load_utterances_paths()
         self.num_samples = len(self.formatted_utterances_paths)
 
 
     def format_input_paths(self):
 
-        # FIX \n MUST BE CONSIDERED!!!!!
+        # We label the trial with 1 for clients and 0 for impostors
         formatted_clients = [f"{trial} 1" for trial in self.clients_utterances_paths]
         formatted_impostors = [f"{trial} 0" for trial in self.impostors_utterances_paths]
         self.formatted_utterances_paths = formatted_clients + formatted_impostors
 
 
+    def load_utterances_paths(self):
+
+        # Read the paths of the clients audios
+        with open(self.input_parameters.test_clients, 'r') as clients_file:
+            self.clients_utterances_paths = clients_file.readlines()
+        
+        # Read the paths of the impostors audios
+        with open(self.input_parameters.test_impostors, 'r') as impostors_file:
+            self.impostors_utterances_paths = impostors_file.readlines()
+
+        self.format_input_paths()
+
+    
     def __len__(self):
         
         # Mandatory torch method
@@ -181,7 +191,7 @@ class TestDataset(data.Dataset):
     def normalize(self, features):
 
         # Cepstral mean normalization
-        if self.parameters.normalization == 'cmn':
+        if self.input_parameters.normalization == 'cmn':
 
             # Compute the mean for each frequency band (columns)
             mean = np.mean(features, axis = 0)
@@ -190,7 +200,7 @@ class TestDataset(data.Dataset):
             features = features - mean
 
         # Cepstral mean and variance normalization
-        elif self.parameters.normalization == 'cmvn':
+        elif self.input_parameters.normalization == 'cmvn':
 
             # Compute the mean for each frequency band (columns)
             mean = np.mean(features, axis = 0)
@@ -220,11 +230,11 @@ class TestDataset(data.Dataset):
         # The cutting here is in FRAMES, not secs
         # It would be nice to do the cutting at the feature extractor module
         # It seems that some kind of padding is made with librosa, but it should be done at the feature extractor module also
-        sample_size_in_frames = self.parameters.window_size * 100
+        sample_size_in_frames = self.input_parameters.random_crop_size
 
         # Get a random start point
-        # index = randint(0, max(0, file_frames - sample_size_in_frames - 1))
-        index = 0
+        index = randint(0, max(0, file_frames - sample_size_in_frames - 1))
+        # TODO I can't decice what is better, a random index or always index = 0 for evaluation
 
         # Generate the index slicing
         a = np.array(range(min(file_frames, int(sample_size_in_frames)))) + index
@@ -251,8 +261,10 @@ class TestDataset(data.Dataset):
         
         features = self.normalize(features)
 
-        # HACK using windowedFeatures as kind of padding
-        #features = self.sample_spectogram_window(features) 
+        if self.input_parameters.evaluation_type == "random_crop":
+            features = self.sample_spectogram_window(features)
+        elif self.input_parameters.evaluation_type == "total_length":
+            self.input_parameters.random_crop_size = 0
     
         return features   
 
@@ -260,14 +272,14 @@ class TestDataset(data.Dataset):
     def generate_path(self, directories, partial_path):
 
         data_founded = False
+        partial_path = f"{partial_path}.pickle"
         for dir in directories:
-            partial_path = f"{partial_path}.pickle"
             complete_utterance_path = os.path.join(dir, partial_path)
             if os.path.exists(complete_utterance_path):
                 data_founded = True
                 break
 
-        assert data_founded, f"{partial_path} not founded."
+        assert data_founded, f"{complete_utterance_path} not founded."
 
         return complete_utterance_path
 
@@ -286,13 +298,13 @@ class TestDataset(data.Dataset):
         utterance_label = int(utterance_tuple[2])
         speaker_1_features = self.get_feature_vector(speaker_1_utterance_path)
         speaker_2_features = self.get_feature_vector(speaker_2_utterance_path)
-        speaker_1_features_length = speaker_1_features.shape[0]
-        speaker_2_features_length = speaker_2_features.shape[0]
+
+        # Letting this comment in case wanting to develop a different length padding version
+        #speaker_1_features_length = speaker_1_features.shape[0]
+        #speaker_2_features_length = speaker_2_features.shape[0]
         
         return (
             torch.from_numpy(speaker_1_features), 
-            speaker_1_features_length,
             torch.from_numpy(speaker_2_features), 
-            speaker_2_features_length,
             utterance_label,
             )
