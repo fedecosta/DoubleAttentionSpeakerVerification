@@ -4,89 +4,129 @@ from torch import nn
 from torch.nn import functional as F
 import numpy as np
 
-def getVGG3LOutputDimension(inputDimension, outputChannel=128):
 
-    outputDimension = np.ceil(np.array(inputDimension, dtype=np.float32)/2)
-    outputDimension = np.ceil(np.array(outputDimension, dtype=np.float32)/2)
-    outputDimension = np.ceil(np.array(outputDimension, dtype=np.float32)/2)
-    return int(outputDimension) * outputChannel
+class VGGNL(torch.nn.Module):
 
-def getVGG4LOutputDimension(inputDimension, outputChannel=128):
+    def __init__(self, vgg_n_blocks, vgg_channels):
+        super().__init__()
 
-    outputDimension = np.ceil(np.array(inputDimension, dtype=np.float32)/2)
-    outputDimension = np.ceil(np.array(outputDimension, dtype=np.float32)/2)
-    outputDimension = np.ceil(np.array(outputDimension, dtype=np.float32)/2)
-    outputDimension = np.ceil(np.array(outputDimension, dtype=np.float32)/2)
-    return int(outputDimension) * outputChannel
+        self.vgg_n_blocks = vgg_n_blocks
+        self.vgg_channels = vgg_channels
+        self.generate_conv_blocks(
+            vgg_n_blocks = self.vgg_n_blocks, 
+            vgg_channels = self.vgg_channels,
+            )
 
-class VGG3L(torch.nn.Module):
 
-    def __init__(self, kernel_size):
-        super(VGG3L, self).__init__()
+    # Method used only at model.py
+    def get_hidden_states_dimension(self, input_dimension):
 
-        self.conv11 = torch.nn.Conv2d(1, int(kernel_size/4), 3, stride=1, padding=1)
-        self.conv12 = torch.nn.Conv2d(int(kernel_size/4), int(kernel_size/4), 3, stride=1, padding=1)
-        self.conv21 = torch.nn.Conv2d(int(kernel_size/4), int(kernel_size/2), 3, stride=1, padding=1)
-        self.conv22 = torch.nn.Conv2d(int(kernel_size/2), int(kernel_size/2), 3, stride=1, padding=1)
-        self.conv31 = torch.nn.Conv2d(int(kernel_size/2), int(kernel_size), 3, stride=1, padding=1)
-        self.conv32 = torch.nn.Conv2d(int(kernel_size), int(kernel_size), 3, stride=1, padding=1)
+        # Compute the front-end hidden state output's dimension
+        # The front-end inputs a (frames, freq_bins) spectrogram \
+        # and outputs (frames / (2 ^ vgg_n_blocks)) hidden states of size (freq_bins / (2 ^ vgg_n_blocks)) * vgg_end_channels
+
+        # Each convolutional block reduces dimension by /2
+        hidden_states_dimension = input_dimension
+        for num_block in range(self.vgg_n_blocks):
+            hidden_states_dimension = np.ceil(np.array(hidden_states_dimension, dtype = np.float32) / 2)
+
+        hidden_states_dimension = int(hidden_states_dimension) * self.vgg_end_channels
+
+        return hidden_states_dimension
+    
+
+    def generate_conv_block(self, start_block_channels, end_block_channels):
+
+        # Create one convolutional block
         
-    def forward(self, paddedInputTensor):
+        conv_block = nn.Sequential(
+            nn.Conv2d(
+                in_channels = start_block_channels, 
+                out_channels = end_block_channels, 
+                kernel_size = 3, 
+                stride = 1, 
+                padding = 1,
+                ),
+            nn.ReLU(),
+            nn.Conv2d(
+                in_channels = end_block_channels, 
+                out_channels = end_block_channels, 
+                kernel_size = 3, 
+                stride = 1, 
+                padding = 1,
+                ),
+            nn.ReLU(),
+            nn.MaxPool2d(
+                kernel_size = 2, 
+                stride = 2, 
+                padding = 0, 
+                ceil_mode = True,
+                )
+            )
 
-        paddedInputTensor =  paddedInputTensor.view( paddedInputTensor.size(0),  paddedInputTensor.size(1), 1, paddedInputTensor.size(2)).transpose(1, 2)
+        return conv_block
 
-        encodedTensorLayer1 = F.relu(self.conv11(paddedInputTensor))
-        encodedTensorLayer1 = F.relu(self.conv12(encodedTensorLayer1))
-        encodedTensorLayer1 = F.max_pool2d(encodedTensorLayer1, 2, stride=2, ceil_mode=True)
 
-        encodedTensorLayer2 = F.relu(self.conv21(encodedTensorLayer1))
-        encodedTensorLayer2 = F.relu(self.conv22(encodedTensorLayer2))
-        encodedTensorLayer2 = F.max_pool2d(encodedTensorLayer2, 2, stride=2, ceil_mode=True)
+    def generate_conv_blocks(self, vgg_n_blocks, vgg_channels):
 
-        encodedTensorLayer3 = F.relu(self.conv31(encodedTensorLayer2))
-        encodedTensorLayer3 = F.relu(self.conv32(encodedTensorLayer3))
-        encodedTensorLayer3 = F.max_pool2d(encodedTensorLayer3, 2, stride=2, ceil_mode=True)
-        outputTensor = encodedTensorLayer3.transpose(1, 2)
-        outputTensor = outputTensor.contiguous().view(outputTensor.size(0), outputTensor.size(1), outputTensor.size(2) * outputTensor.size(3))
-
-        return outputTensor
-
-class VGG4L(torch.nn.Module):
-
-    def __init__(self, kernel_size):
-        super(VGG4L, self).__init__()
-
-        self.conv11 = torch.nn.Conv2d(1, int(kernel_size/8), 3, stride=1, padding=1)
-        self.conv12 = torch.nn.Conv2d(int(kernel_size/8), int(kernel_size/8), 3, stride=1, padding=1)
-        self.conv21 = torch.nn.Conv2d(int(kernel_size/8), int(kernel_size/4), 3, stride=1, padding=1)
-        self.conv22 = torch.nn.Conv2d(int(kernel_size/4), int(kernel_size/4), 3, stride=1, padding=1)
-        self.conv31 = torch.nn.Conv2d(int(kernel_size/4), int(kernel_size/2), 3, stride=1, padding=1)
-        self.conv32 = torch.nn.Conv2d(int(kernel_size/2), int(kernel_size/2), 3, stride=1, padding=1)
-        self.conv41 = torch.nn.Conv2d(int(kernel_size/2), int(kernel_size), 3, stride=1, padding=1)
-        self.conv42 = torch.nn.Conv2d(int(kernel_size), int(kernel_size), 3, stride=1, padding=1)
+        # Generate a nn list of vgg_n_blocks convolutional blocks
         
-    def forward(self, paddedInputTensor):
+        self.conv_blocks = nn.Sequential() # A Python list will fail with torch
+        
+        start_block_channels = 1 # The first block starts with the input spectrogram, which has 1 channel
+        end_block_channels = vgg_channels[0] # The first block ends with vgg_channels[0] channels
 
-        paddedInputTensor =  paddedInputTensor.view( paddedInputTensor.size(0),  paddedInputTensor.size(1), 1, paddedInputTensor.size(2)).transpose(1, 2)
+        for num_block in range(1, vgg_n_blocks + 1):
+            
+            conv_block_name = f"convolutional_block_{num_block}"
+            conv_block = self.generate_conv_block(
+                start_block_channels = start_block_channels, 
+                end_block_channels = end_block_channels,
+                )
+            
+            self.conv_blocks.add_module(conv_block_name, conv_block)
 
-        encodedTensorLayer1 = F.relu(self.conv11(paddedInputTensor))
-        encodedTensorLayer1 = F.relu(self.conv12(encodedTensorLayer1))
-        encodedTensorLayer1 = F.max_pool2d(encodedTensorLayer1, 2, stride=2, ceil_mode=True)
+            
+            # Update start_block_channels and end_block_channels for the next block
+            if num_block < vgg_n_blocks: # If num_block = vgg_n_blocks, start_block_channels and end_block_channels must not get updated
+                start_block_channels = end_block_channels # The next block will start with end_block_channels channels
+                end_block_channels = vgg_channels[num_block] 
+        
+        # VGG ends with the end_block_channels of the last block
+        self.vgg_end_channels = end_block_channels
 
-        encodedTensorLayer2 = F.relu(self.conv21(encodedTensorLayer1))
-        encodedTensorLayer2 = F.relu(self.conv22(encodedTensorLayer2))
-        encodedTensorLayer2 = F.max_pool2d(encodedTensorLayer2, 2, stride=2, ceil_mode=True)
 
-        encodedTensorLayer3 = F.relu(self.conv31(encodedTensorLayer2))
-        encodedTensorLayer3 = F.relu(self.conv32(encodedTensorLayer3)) 
-        encodedTensorLayer3 = F.max_pool2d(encodedTensorLayer3, 2, stride=2, ceil_mode=True)
+    def forward(self, input_tensor):
 
-        encodedTensorLayer4 = F.relu(self.conv41(encodedTensorLayer3))
-        encodedTensorLayer4 = F.relu(self.conv42(encodedTensorLayer4))
-        encodedTensorLayer4 = F.max_pool2d(encodedTensorLayer4, 2, stride=2, ceil_mode=True)
+        # input_tensor dimensions are:
+        # input_tensor.size(0) = number of batches
+        # input_tensor.size(1) = number of frames of the spectrogram
+        # input_tensor.size(2) = number of frequency bins of the spectrogram
 
-        outputTensor = encodedTensorLayer4.transpose(1, 2)
-        outputTensor = outputTensor.contiguous().view(outputTensor.size(0), outputTensor.size(1), outputTensor.size(2) * outputTensor.size(3))
+        # We need to add a new dimension corresponding to the channels
+        # This channel dimension will be 1 because the spectrogram has only 1 channel
+        input_tensor =  input_tensor.view( 
+            input_tensor.size(0),  
+            input_tensor.size(1), 
+            1, 
+            input_tensor.size(2),
+            )
+            
+        # We need to put the channel dimension first because nn.Conv2d need it that way
+        input_tensor = input_tensor.transpose(1, 2)
 
-        return outputTensor
+        # Pass the tensor through the convolutional blocks 
+        encoded_tensor = self.conv_blocks(input_tensor)
+        
+        # We want to flatten the output
+        # For each batch, we will have encoded_tensor.size(1) hidden state vectors \
+        # of size encoded_tensor.size(2) * encoded_tensor.size(3)
+        output_tensor = encoded_tensor.transpose(1, 2)
 
+        output_tensor = output_tensor.contiguous().view(
+            output_tensor.size(0), 
+            output_tensor.size(1), 
+            output_tensor.size(2) * output_tensor.size(3)
+            )
+
+        return output_tensor
