@@ -17,12 +17,11 @@ class SpeakerClassifier(nn.Module):
         self.__initPoolingLayers(parameters)
         self.__initFullyConnectedBlock(parameters)
         
-        self.predictionLayer = AMSoftmax(
+        self.am_softmax_layer = AMSoftmax(
             parameters.embedding_size, 
             parameters.number_speakers, 
             s = parameters.scaling_factor, 
             m = parameters.margin_factor, 
-            annealing = parameters.annealing
             )
  
 
@@ -70,8 +69,10 @@ class SpeakerClassifier(nn.Module):
         self.fc3 = nn.Linear(parameters.embedding_size, parameters.embedding_size)
         self.b3 = nn.BatchNorm1d(parameters.embedding_size)
 
+        self.softmax = nn.Softmax(dim=1)
 
-    def forward(self, input_tensor, label = None, step = 0):
+
+    def forward(self, input_tensor, label = None):
 
         # Mandatory torch method
         # Set the net's forward pass
@@ -96,9 +97,12 @@ class SpeakerClassifier(nn.Module):
         embedding_3 = self.fc3(embedding_2)
         embedding_3 = self.b3(embedding_3)
 
-        prediction, ouput_tensor = self.predictionLayer(embedding_3, label, step)
+        inner_products, inner_products_m_s = self.am_softmax_layer(embedding_3, label)
+
+        probs = self.softmax(inner_products)
     
-        return prediction, ouput_tensor
+        # returning also inner_products_m_s to use them at the AM-Softmax loss calculation 
+        return probs, inner_products_m_s
 
 
     # TODO not used in this class. where?

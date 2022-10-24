@@ -1,6 +1,6 @@
 import torch
-import logging
 from torch import nn
+
 
 class AMSoftmax(nn.Module):
 
@@ -11,61 +11,58 @@ class AMSoftmax(nn.Module):
     https://github.com/clovaai/voxceleb_trainer/blob/master/loss/cosface.py
     '''
 
-    def __init__(self, in_feats, n_classes, m=0.3, s=15, annealing=False):
-        super(AMSoftmax, self).__init__()
-        self.in_feats = in_feats
+    def __init__(self, last_features_dim, n_classes, m = 0.3, s = 15):
+
+        super().__init__()
+        self.last_features_dim = last_features_dim # dimension of the feature vector
         self.m = m
         self.s = s
-        self.annealing = annealing
-        self.W = torch.nn.Parameter(torch.randn(in_feats, n_classes), requires_grad=True)
-        nn.init.xavier_normal_(self.W, gain=1)
-        self.annealing=annealing
+        self.W = torch.nn.Parameter(torch.randn(last_features_dim, n_classes), requires_grad=True)
+        nn.init.xavier_normal_(self.W, gain = 1)
 
-    def getAnnealedFactor(self,step):
-        alpha = self.__getAlpha(step) if self.annealing else 0.
-        return 1/(1+alpha)
 
-    def __getAlpha(self,step):
-        return max(0, 1000./(pow(1.+0.0001*float(step),2.)))        
+    def forward(self, last_features, label = None):
 
-    def __getCombinedCosth(self, costh, costh_m, step):
+        assert last_features.size()[0] == label.size()[0] # checks the batch dimension
+        assert last_features.size()[1] == self.last_features_dim
 
-        alpha = self.__getAlpha(step) if self.annealing else 0.
-        costh_combined = costh_m + alpha*costh
-        return costh_combined/(1+alpha)
+        # We take the last_features vector x and connect it with a fully connected linear layer f with weights W
+        # The neuron i of f is <x, W[:i]> = norm(X) * norm (W[:i]) cos(theta)
+        # We normalize x and W[:i] for each i.
+        # Then, we substract the margin m only to the <x, W[:i]> corresponding to the label
+        # As ouputs of this function we will have two vectors:
+        # The first with all the cosines values 
+        # and the second with all the cosines values except one of them with the m substraction corresponding to the label position
 
-    def forward(self, x, label=None, step=0):
-        assert x.size()[0] == label.size()[0]
-        assert x.size()[1] == self.in_feats
-        x_norm = torch.norm(x, p=2, dim=1, keepdim=True).clamp(min=1e-12)
-        x_norm = torch.div(x, x_norm)
-        w_norm = torch.norm(self.W, p=2, dim=0, keepdim=True).clamp(min=1e-12)
+        # TODO torch.norm will be deprecated
+
+        # We normalize last_features:
+        # 1 - We calculate the 2_norm of last_features vector. Clamping is done to avoid division numerical problems
+        x_norm = torch.norm(last_features, p = 2, dim = 1, keepdim = True).clamp(min = 1e-12) 
+        # 2 - We divide by the norm
+        x_norm = torch.div(last_features, x_norm)
+
+        # We normalize the weights W over the columns (number of classes)
+        w_norm = torch.norm(self.W, p = 2, dim = 0, keepdim = True).clamp(min = 1e-12)
         w_norm = torch.div(self.W, w_norm)
-        costh = torch.mm(x_norm, w_norm)
+
+        # x_norm size is (1, last_features_dim) ignoring batch size
+        # w_norm size is (last_features_dim, n_classes)
+        # inner_products = x_norm * w_norm = (<x, W[:1]>, ..., <x, W[:n_classes]>)
+        inner_products = torch.mm(x_norm, w_norm)
+        
+        # We need some reshaping of label
         label_view = label.view(-1, 1)
         if label_view.is_cuda: label_view = label_view.cpu()
-        delt_costh = torch.zeros(costh.size()).scatter_(1, label_view, self.m)
-        if x.is_cuda: delt_costh = delt_costh.cuda()
-        costh_m = costh - delt_costh
-        costh_combined = self.__getCombinedCosth(costh, costh_m, step)
-        costh_m_s = self.s * costh_combined
-        return costh, costh_m_s 
- 
-class FocalSoftmax(nn.Module):
-    ''' 
-    Focal softmax as proposed in:
-    "Focal Loss for Dense Object Detection"
-    by T-Y. Lin et al.
-    https://github.com/foamliu/InsightFace-v2/blob/master/focal_loss.py
-    '''
-    def __init__(self, gamma=2):
-        super(FocalSoftmax, self).__init__()
-        self.gamma = gamma
-        self.ce = nn.CrossEntropyLoss()
 
-    def forward(self, input, target):
-        logp = self.ce(input, target)
-        p = torch.exp(-logp)
-        loss = (1 - p) ** self.gamma * logp
-        return loss.mean()
+        # We construct the inner_products with the corresponding -m
+        aux_m = torch.zeros(inner_products.size()).scatter_(1, label_view, self.m) # make a zeros matrix with m in the corresponding label position
+        if last_features.is_cuda: aux_m = aux_m.cuda() # TODO I don't know if this is ok 
+        inner_products_m = inner_products - aux_m
+        
+        # We multiply by the scaling factor s
+        inner_products_m_s = self.s * inner_products_m
+        
+        return inner_products, inner_products_m_s 
+
     

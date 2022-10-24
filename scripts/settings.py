@@ -68,7 +68,6 @@ TRAIN_DEFAULT_SETTINGS = {
     'optimizer' : 'adam',
     'learning_rate' : 0.0001,
     'weight_decay' : 0.001,
-    'annealing' : False,
     'verbose' : False,
 }
 
