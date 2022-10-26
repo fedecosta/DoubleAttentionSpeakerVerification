@@ -138,7 +138,10 @@ class Trainer:
 
     def set_random_crop_size(self, pickle_path):
 
+        # TODO write help comments and logging
+        # TODO edit the random cropping of the TestDataset
         # Set the correct random crop size (convert from seconds to frames)
+
 
         with open(pickle_path, 'rb') as pickle_file:
             features_dict = pickle.load(pickle_file)
@@ -190,9 +193,6 @@ class Trainer:
             )
 
         logger.info("Data and labels loaded.")
-
-
-
 
 
     def load_checkpoint_network(self):
