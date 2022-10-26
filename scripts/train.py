@@ -136,6 +136,30 @@ class Trainer:
         logger.info("Random seed setted.")
 
 
+    def set_random_crop_size(self, pickle_path):
+
+        # Set the correct random crop size (convert from seconds to frames)
+
+        with open(pickle_path, 'rb') as pickle_file:
+            features_dict = pickle.load(pickle_file)
+            
+        features = features_dict["features"]
+        features_settings = features_dict["settings"]
+        
+        file_frames = features.shape[0]
+        sampling_rate = features_settings.sampling_rate
+        hop_length = int(features_settings.hop_length_secs * sampling_rate)
+        n_fft = int(features_settings.n_fft_secs * sampling_rate)
+
+        estimated_samples = (file_frames - 1) * hop_length + n_fft
+        estimated_audio_length_secs = estimated_samples / sampling_rate
+        estimated_frames_1_sec = file_frames / estimated_audio_length_secs 
+        
+        self.params.random_crop_frames = int(self.params.random_crop_secs * estimated_frames_1_sec)
+
+        logger.info(f'Random crop size in frames: {self.params.random_crop_frames}')
+
+
     def load_data(self):
             
         logger.info(f'Loading data and labels from {self.params.train_labels_path}')
@@ -143,6 +167,11 @@ class Trainer:
         # Read the paths of the train audios and their labels
         with open(self.params.train_labels_path, 'r') as data_labels_file:
             train_labels = data_labels_file.readlines()
+
+        # Get one sample to calculate the random crop size in frames
+        representative_sample = train_labels[0]
+        pickle_path = representative_sample.replace('\n', '').split(' ')[0] + ".pickle"
+        self.set_random_crop_size(pickle_path)
 
         # Instanciate a Dataset class
         dataset = Dataset(train_labels, self.params)
@@ -161,6 +190,9 @@ class Trainer:
             )
 
         logger.info("Data and labels loaded.")
+
+
+
 
 
     def load_checkpoint_network(self):

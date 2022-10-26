@@ -89,25 +89,17 @@ class Dataset(data.Dataset):
         return features
 
 
-    def sample_spectogram_crop(self, features, features_settings):
+    def sample_spectogram_crop(self, features):
 
         # Cut the spectrogram with a fixed length at a random start
 
         file_frames = features.shape[0]
-        sampling_rate = features_settings.sampling_rate
-        hop_length = int(features_settings.hop_length_secs * sampling_rate)
-        n_fft = int(features_settings.n_fft_secs * sampling_rate)
-
-        estimated_samples = (file_frames - 1) * hop_length + n_fft
-        estimated_audio_length_secs = estimated_samples / sampling_rate
-        estimated_frames_1_sec = file_frames / estimated_audio_length_secs 
-        sample_size_in_frames = int(self.parameters.random_crop_secs * estimated_frames_1_sec)
-
+        
         # Get a random start point
-        index = randint(0, max(0, file_frames - sample_size_in_frames - 1))
+        index = randint(0, max(0, file_frames - self.parameters.random_crop_frames - 1))
 
         # Generate the index slicing
-        a = np.array(range(min(file_frames, int(sample_size_in_frames)))) + index
+        a = np.array(range(min(file_frames, int(self.parameters.random_crop_frames)))) + index
         
         # Slice the spectrogram
         sliced_spectrogram = features[a,:]
@@ -122,7 +114,7 @@ class Dataset(data.Dataset):
             features_dict = pickle.load(pickle_file)
 
         features = features_dict["features"]
-        features_settings = features_dict["settings"]
+        # features_settings = features_dict["settings"]
 
         # HACK fix this transpose
         # It seems that the feature extractor's output spectrogram has mel bands as rows
@@ -131,7 +123,7 @@ class Dataset(data.Dataset):
         
         features = self.normalize(features)
 
-        random_crop = self.sample_spectogram_crop(features, features_settings) 
+        random_crop = self.sample_spectogram_crop(features) 
 
         return random_crop            
      
