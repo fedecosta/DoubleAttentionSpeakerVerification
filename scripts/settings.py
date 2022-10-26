@@ -52,7 +52,7 @@ TRAIN_DEFAULT_SETTINGS = {
     'update_optimizer_every' : 0,
     'load_checkpoint' : False,
     'checkpoint_file_folder' : './models/',
-    'window_size' : 3.5,
+    'random_crop_secs' : 3.5,
     'normalization' : 'cmn',
     'num_workers' : 1,
     'model_name_prefix' : 'cnn_pooling_fc',

@@ -782,10 +782,10 @@ class ArgsParser:
         # Data Parameters
 
         self.parser.add_argument(
-            '--window_size', 
+            '--random_crop_secs', 
             type = float, 
-            default = TRAIN_DEFAULT_SETTINGS['window_size'], 
-            help = 'Cut the input spectrogram with window_size length at a random starting point. \
+            default = TRAIN_DEFAULT_SETTINGS['random_crop_secs'], 
+            help = 'Cut the input spectrogram with random_crop_secs length at a random starting point. \
                 window_size is measured in #frames / 100.', # TODO this should be improved, it is used at data.py
             )
 

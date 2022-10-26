@@ -89,17 +89,19 @@ class Dataset(data.Dataset):
         return features
 
 
-    def sample_spectogram_window(self, features):
+    def sample_spectogram_crop(self, features, features_settings):
 
         # Cut the spectrogram with a fixed length at a random start
 
         file_frames = features.shape[0]
-        
-        # FIX why this hardcoded 100? 
-        # The cutting here is in FRAMES, not secs
-        # It would be nice to do the cutting at the feature extractor module
-        # It seems that some kind of padding is made with librosa, but it should be done at the feature extractor module also
-        sample_size_in_frames = self.parameters.window_size * 100
+        sampling_rate = features_settings.sampling_rate
+        hop_length = int(features_settings.hop_length_secs * sampling_rate)
+        n_fft = int(features_settings.n_fft_secs * sampling_rate)
+
+        estimated_samples = (file_frames - 1) * hop_length + n_fft
+        estimated_audio_length_secs = estimated_samples / sampling_rate
+        estimated_frames_1_sec = file_frames / estimated_audio_length_secs 
+        sample_size_in_frames = int(self.parameters.random_crop_secs * estimated_frames_1_sec)
 
         # Get a random start point
         index = randint(0, max(0, file_frames - sample_size_in_frames - 1))
@@ -129,9 +131,9 @@ class Dataset(data.Dataset):
         
         features = self.normalize(features)
 
-        windowedFeatures = self.sample_spectogram_window(features) 
+        random_crop = self.sample_spectogram_crop(features, features_settings) 
 
-        return windowedFeatures            
+        return random_crop            
      
 
     def __getitem__(self, index):
@@ -145,8 +147,11 @@ class Dataset(data.Dataset):
 
         utterance_path = os.path.join(self.parameters.train_data_dir, utterance_tuple[0])
         utterance_label = int(utterance_tuple[1])
+
+        features = self.get_feature_vector(utterance_path)
+        labels = np.array(utterance_label)
         
-        return self.get_feature_vector(utterance_path), np.array(utterance_label)
+        return features, labels
 
 
 class TestDataset(data.Dataset):
