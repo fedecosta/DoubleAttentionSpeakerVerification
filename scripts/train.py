@@ -573,9 +573,9 @@ class Trainer:
             # Assign input and label to device
             input, label = input.float().to(self.device), label.long().to(self.device)
 
-            # Calculate loss
-            prediction, AMPrediction  = self.net(input_tensor = input, label = label, step = self.step) # TODO understand diff between prediction and AMPrediction
-            self.loss = self.loss_function(AMPrediction, label)
+            # Calculate prediction and loss
+            prediction, inner_products_m_s  = self.net(input_tensor = input, label = label)
+            self.loss = self.loss_function(inner_products_m_s, label)
             self.train_loss = self.loss.item()
 
             # Compute backpropagation and update weights
@@ -878,12 +878,6 @@ class ArgsParser:
             '--margin_factor', 
             type = float, 
             default = TRAIN_DEFAULT_SETTINGS['margin_factor'],
-            )
-
-        self.parser.add_argument(
-            '--annealing', 
-            action = argparse.BooleanOptionalAction,
-            default = TRAIN_DEFAULT_SETTINGS['annealing'],
             )
 
         # Optimization arguments
