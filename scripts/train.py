@@ -839,7 +839,7 @@ class ArgsParser:
             '--num_workers', 
             type = int, 
             default = TRAIN_DEFAULT_SETTINGS['num_workers'],
-            help = 'num_workers to be used by the data loader'
+            help = 'num_workers to be used by the data loader.'
             )
 
         # Network Parameters
@@ -863,7 +863,8 @@ class ArgsParser:
             '--vgg_n_blocks', 
             type = int, 
             default = TRAIN_DEFAULT_SETTINGS['vgg_n_blocks'],
-            help = 'Number of blocks the VGG front-end block will have.',
+            help = 'Number of blocks the VGG front-end block will have.\
+                Each block consists in two convolutional layers followed by a max pooling layer.',
             )
 
         self.parser.add_argument(
@@ -894,7 +895,7 @@ class ArgsParser:
             '--mask_prob', 
             type = float, 
             default = TRAIN_DEFAULT_SETTINGS['mask_prob'], 
-            help = 'Masking Drop Probability. Only Used for Only Double MHA',
+            help = 'Masking Drop Probability. Only used for Double MHA',
             )
 
         self.parser.add_argument(
@@ -909,12 +910,14 @@ class ArgsParser:
             '--scaling_factor', 
             type = float, 
             default = TRAIN_DEFAULT_SETTINGS['scaling_factor'], 
+            help = 'Scaling factor of the AM-Softmax (referred as s in the AM-Softmax definition).'
             )
 
         self.parser.add_argument(
             '--margin_factor', 
             type = float, 
             default = TRAIN_DEFAULT_SETTINGS['margin_factor'],
+            help = 'Margin factor of the AM-Softmax (referred as m in the AM-Softmax definition).'
             )
 
         # Optimization arguments
