@@ -136,6 +136,39 @@ class Trainer:
         logger.info("Random seed setted.")
 
 
+    def set_random_crop_size(self, pickle_path):
+
+        logger.info(f'Defining the random crop size in frames from a sample...')
+        logger.info(f'(We are assuming that all files in the dataset have the same spectrogram settings).')
+        
+        # Takes a path of a .pickle file that has a spectrogram matrix and its settings parameters.
+        # Given a random crop size in seconds, we calculate the equivalent size in frames.
+        # For this it is crucial to know the setting parameters of the spectrogram.
+
+        # Load the file
+        with open(pickle_path, 'rb') as pickle_file:
+            features_dict = pickle.load(pickle_file)
+            
+        # Unpack the spectrogram and the settings
+        features = features_dict["features"]
+        features_settings = features_dict["settings"]
+        
+        # Get the setting parameters
+        file_frames = features.shape[0]
+        sampling_rate = features_settings.sampling_rate
+        hop_length = int(features_settings.hop_length_secs * sampling_rate)
+        n_fft = int(features_settings.n_fft_secs * sampling_rate)
+
+        # Estimate the random crop size in frames
+        estimated_samples = (file_frames - 1) * hop_length + n_fft
+        estimated_audio_length_secs = estimated_samples / sampling_rate
+        estimated_frames_1_sec = file_frames / estimated_audio_length_secs 
+        
+        self.params.random_crop_frames = int(self.params.random_crop_secs * estimated_frames_1_sec)
+
+        logger.info(f'Random crop size calculated: {self.params.random_crop_frames} frames (eq to {self.params.random_crop_secs} seconds).')
+        
+
     def load_data(self):
             
         logger.info(f'Loading data and labels from {self.params.train_labels_path}')
@@ -143,6 +176,11 @@ class Trainer:
         # Read the paths of the train audios and their labels
         with open(self.params.train_labels_path, 'r') as data_labels_file:
             train_labels = data_labels_file.readlines()
+
+        # Get one sample to calculate the random crop size in frames for all the dataset
+        representative_sample = train_labels[0]
+        pickle_path = representative_sample.replace('\n', '').split(' ')[0] + ".pickle"
+        self.set_random_crop_size(pickle_path)
 
         # Instanciate a Dataset class
         dataset = Dataset(train_labels, self.params)
@@ -782,11 +820,10 @@ class ArgsParser:
         # Data Parameters
 
         self.parser.add_argument(
-            '--window_size', 
+            '--random_crop_secs', 
             type = float, 
-            default = TRAIN_DEFAULT_SETTINGS['window_size'], 
-            help = 'Cut the input spectrogram with window_size length at a random starting point. \
-                window_size is measured in #frames / 100.', # TODO this should be improved, it is used at data.py
+            default = TRAIN_DEFAULT_SETTINGS['random_crop_secs'], 
+            help = 'Cut the input spectrogram with random_crop_secs length at a random starting point.'
             )
 
         self.parser.add_argument(
@@ -802,7 +839,7 @@ class ArgsParser:
             '--num_workers', 
             type = int, 
             default = TRAIN_DEFAULT_SETTINGS['num_workers'],
-            help = 'num_workers to be used by the data loader'
+            help = 'num_workers to be used by the data loader.'
             )
 
         # Network Parameters
@@ -826,7 +863,8 @@ class ArgsParser:
             '--vgg_n_blocks', 
             type = int, 
             default = TRAIN_DEFAULT_SETTINGS['vgg_n_blocks'],
-            help = 'Number of blocks the VGG front-end block will have.',
+            help = 'Number of blocks the VGG front-end block will have.\
+                Each block consists in two convolutional layers followed by a max pooling layer.',
             )
 
         self.parser.add_argument(
@@ -857,7 +895,7 @@ class ArgsParser:
             '--mask_prob', 
             type = float, 
             default = TRAIN_DEFAULT_SETTINGS['mask_prob'], 
-            help = 'Masking Drop Probability. Only Used for Only Double MHA',
+            help = 'Masking Drop Probability. Only used for Double MHA',
             )
 
         self.parser.add_argument(
@@ -872,12 +910,14 @@ class ArgsParser:
             '--scaling_factor', 
             type = float, 
             default = TRAIN_DEFAULT_SETTINGS['scaling_factor'], 
+            help = 'Scaling factor of the AM-Softmax (referred as s in the AM-Softmax definition).'
             )
 
         self.parser.add_argument(
             '--margin_factor', 
             type = float, 
             default = TRAIN_DEFAULT_SETTINGS['margin_factor'],
+            help = 'Margin factor of the AM-Softmax (referred as m in the AM-Softmax definition).'
             )
 
         # Optimization arguments

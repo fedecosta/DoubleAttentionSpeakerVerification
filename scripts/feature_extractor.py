@@ -217,7 +217,7 @@ class ArgsParser:
 
         self.parser.add_argument(
             "--n_fft_secs", 
-            type = int,
+            type = float,
             default = FEATURE_EXTRACTOR_DEFAULT_SETTINGS['n_fft_secs'],
             help = "Length of the windowed signal after padding with zeros (in seconds).\
                 int(n_fft_secs x sampling_rate) should be a power of 2 for better performace,\

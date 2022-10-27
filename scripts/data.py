@@ -89,23 +89,17 @@ class Dataset(data.Dataset):
         return features
 
 
-    def sample_spectogram_window(self, features):
+    def sample_spectogram_crop(self, features):
 
         # Cut the spectrogram with a fixed length at a random start
 
         file_frames = features.shape[0]
         
-        # FIX why this hardcoded 100? 
-        # The cutting here is in FRAMES, not secs
-        # It would be nice to do the cutting at the feature extractor module
-        # It seems that some kind of padding is made with librosa, but it should be done at the feature extractor module also
-        sample_size_in_frames = self.parameters.window_size * 100
-
         # Get a random start point
-        index = randint(0, max(0, file_frames - sample_size_in_frames - 1))
+        index = randint(0, max(0, file_frames - self.parameters.random_crop_frames - 1))
 
         # Generate the index slicing
-        a = np.array(range(min(file_frames, int(sample_size_in_frames)))) + index
+        a = np.array(range(min(file_frames, int(self.parameters.random_crop_frames)))) + index
         
         # Slice the spectrogram
         sliced_spectrogram = features[a,:]
@@ -120,7 +114,7 @@ class Dataset(data.Dataset):
             features_dict = pickle.load(pickle_file)
 
         features = features_dict["features"]
-        features_settings = features_dict["settings"]
+        # features_settings = features_dict["settings"]
 
         # HACK fix this transpose
         # It seems that the feature extractor's output spectrogram has mel bands as rows
@@ -129,9 +123,9 @@ class Dataset(data.Dataset):
         
         features = self.normalize(features)
 
-        windowedFeatures = self.sample_spectogram_window(features) 
+        random_crop = self.sample_spectogram_crop(features) 
 
-        return windowedFeatures            
+        return random_crop            
      
 
     def __getitem__(self, index):
@@ -145,8 +139,11 @@ class Dataset(data.Dataset):
 
         utterance_path = os.path.join(self.parameters.train_data_dir, utterance_tuple[0])
         utterance_label = int(utterance_tuple[1])
+
+        features = self.get_feature_vector(utterance_path)
+        labels = np.array(utterance_label)
         
-        return self.get_feature_vector(utterance_path), np.array(utterance_label)
+        return features, labels
 
 
 class TestDataset(data.Dataset):
@@ -220,24 +217,17 @@ class TestDataset(data.Dataset):
         return features
 
 
-    def sample_spectogram_window(self, features):
+    def sample_spectogram_crop(self, features):
 
         # Cut the spectrogram with a fixed length at a random start
 
         file_frames = features.shape[0]
         
-        # FIX why this hardcoded 100? 
-        # The cutting here is in FRAMES, not secs
-        # It would be nice to do the cutting at the feature extractor module
-        # It seems that some kind of padding is made with librosa, but it should be done at the feature extractor module also
-        sample_size_in_frames = self.input_parameters.random_crop_size
-
         # Get a random start point
-        index = randint(0, max(0, file_frames - sample_size_in_frames - 1))
-        # TODO I can't decice what is better, a random index or always index = 0 for evaluation
+        index = randint(0, max(0, file_frames - self.input_parameters.random_crop_frames - 1))
 
         # Generate the index slicing
-        a = np.array(range(min(file_frames, int(sample_size_in_frames)))) + index
+        a = np.array(range(min(file_frames, int(self.input_parameters.random_crop_frames)))) + index
         
         # Slice the spectrogram
         sliced_spectrogram = features[a,:]
@@ -262,7 +252,7 @@ class TestDataset(data.Dataset):
         features = self.normalize(features)
 
         if self.input_parameters.evaluation_type == "random_crop":
-            features = self.sample_spectogram_window(features)
+            features = self.sample_spectogram_crop(features)
         elif self.input_parameters.evaluation_type == "total_length":
             self.input_parameters.random_crop_size = 0
     
