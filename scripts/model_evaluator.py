@@ -423,7 +423,7 @@ class ArgsParser:
             type = str, 
             choices = ['random_crop', 'total_length'],
             default = MODEL_EVALUATOR_DEFAULT_SETTINGS['evaluation_type'], 
-            help = 'With random_crop the utterances are croped at random with random_crop_size frames before doing the forward pass.\
+            help = 'With random_crop the utterances are croped at random with random_crop_secs secs before doing the forward pass.\
                 In this case, samples are batched with batch_size.\
                 With total_length, full length audios are passed through the forward.\
                 In this case, samples are automatically batched with batch_size = 1, since they have different lengths.',
