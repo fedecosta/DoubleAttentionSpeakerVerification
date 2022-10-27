@@ -138,8 +138,42 @@ class ModelEvaluator:
             logger.info(f"Let's use {torch.cuda.device_count()} GPUs!")
             self.net = nn.DataParallel(self.net)
 
+
+    def set_random_crop_size(self, pickle_path):
+
+        logger.info(f'Defining the random crop size in frames from a sample...')
+        logger.info(f'(We are assuming that all files in the dataset have the same spectrogram settings).')
+        
+        # Takes a path of a .pickle file that has a spectrogram matrix and its settings parameters.
+        # Given a random crop size in seconds, we calculate the equivalent size in frames.
+        # For this it is crucial to know the setting parameters of the spectrogram.
+
+        # Load the file
+        with open(pickle_path, 'rb') as pickle_file:
+            features_dict = pickle.load(pickle_file)
+            
+        # Unpack the spectrogram and the settings
+        features = features_dict["features"]
+        features_settings = features_dict["settings"]
+        
+        # Get the setting parameters
+        file_frames = features.shape[0]
+        sampling_rate = features_settings.sampling_rate
+        hop_length = int(features_settings.hop_length_secs * sampling_rate)
+        n_fft = int(features_settings.n_fft_secs * sampling_rate)
+
+        # Estimate the random crop size in frames
+        estimated_samples = (file_frames - 1) * hop_length + n_fft
+        estimated_audio_length_secs = estimated_samples / sampling_rate
+        estimated_frames_1_sec = file_frames / estimated_audio_length_secs 
+        
+        self.input_params.random_crop_frames = int(self.input_params.random_crop_secs * estimated_frames_1_sec)
+
+        logger.info(f'Random crop size calculated: {self.input_params.random_crop_frames} frames (eq to {self.input_params.random_crop_secs} seconds).')
+ 
+
     # This function was created to be able to generate batches with different-length samples using padding.
-    # It is not used, but saved just in case.
+    # It is not used, but saved for future iterations.
     def collate_batch(self, data):
         """
         data: is a list of tuples with (example, label, length)
@@ -174,6 +208,20 @@ class ModelEvaluator:
     def load_data(self):
             
         logger.info(f'Loading data from {self.input_params.test_clients} and {self.input_params.test_impostors}')
+
+        if self.input_params.evaluation_type == "random_crop":
+
+            # Get one sample to calculate the random crop size in frames for all the dataset
+            with open(self.input_params.test_clients, 'r') as clients_file:
+                clients_utterances_paths = clients_file.readlines()
+            representative_sample = clients_utterances_paths[0]
+            partial_pickle_path = representative_sample.replace('\n', '').split(' ')[0] + ".pickle"
+            for dir in self.input_params.data_dir:
+                complete_pickle_path = os.path.join(dir, partial_pickle_path)
+                if os.path.exists(complete_pickle_path):
+                    break
+            self.set_random_crop_size(complete_pickle_path)
+
 
         # Instanciate a Dataset class
         dataset = TestDataset(train_parameters = self.params, input_parameters = self.input_params)
@@ -389,11 +437,10 @@ class ArgsParser:
             )
 
         self.parser.add_argument(
-            '--random_crop_size', 
-            type = int, 
-            default = MODEL_EVALUATOR_DEFAULT_SETTINGS['random_crop_size'], 
-            help = 'Cut the input spectrogram with random_crop_size frames length at a random starting point. \
-                random_crop_size is measured in frames.',
+            '--random_crop_secs', 
+            type = float, 
+            default = MODEL_EVALUATOR_DEFAULT_SETTINGS['random_crop_secs'], 
+            help = 'Cut the input spectrogram with random_crop_secs seconds length at a random starting point.',
             )
 
 
