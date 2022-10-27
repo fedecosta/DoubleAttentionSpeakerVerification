@@ -79,5 +79,5 @@ MODEL_EVALUATOR_DEFAULT_SETTINGS = {
     'normalization' : 'cmn',
     'evaluation_type' : "total_length",
     'batch_size' : 64,
-    'random_crop_size' : 350,
+    'random_crop_secs' : 3.5,
 }
