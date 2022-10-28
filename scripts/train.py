@@ -33,6 +33,10 @@ logger_stream_handler.setFormatter(logger_formatter)
 # Add handlers
 logger.addHandler(logger_stream_handler)
 
+import wandb
+#wandb.init(project = "my-test-project-fede")
+
+
 
 class Trainer:
 
@@ -49,6 +53,7 @@ class Trainer:
         self.load_optimizer()
         self.initialize_training_variables()
         self.total_batches = len(self.training_generator)
+        self.config_wandb()
 
 
     # Init methods
@@ -335,6 +340,33 @@ class Trainer:
         logger.info("Training variables initialized.")
 
 
+    def config_wandb(self):
+
+        # 1 - Save the params
+        wandb.config.update(self.params)
+
+        # 2 - Save the feature extraction configuration params
+
+        # Read the paths of the train audios and their labels
+        with open(self.params.train_labels_path, 'r') as data_labels_file:
+            train_labels = data_labels_file.readlines() 
+
+        # Get one sample to get the feature extraction configuration for all the dataset
+        representative_sample = train_labels[0]
+        pickle_path = representative_sample.replace('\n', '').split(' ')[0] + ".pickle"
+
+        # Load the file
+        with open(pickle_path, 'rb') as pickle_file:
+            features_dict = pickle.load(pickle_file)
+            
+        # Unpack the spectrogram and the settings
+        features = features_dict["features"]
+        features_settings = features_dict["settings"]
+
+        wandb_features_settings = vars(features_settings)
+        wandb.config.update({"features_settings" : wandb_features_settings})
+
+
     # Training methods
 
 
@@ -592,11 +624,6 @@ class Trainer:
             info_to_print = info_to_print + f"Best EER {self.best_model_valid_eval_metric:.3f}..."
 
             logger.info(info_to_print)
-            
-            #logger.info(f"Step: {self.step}")
-            #logger.info(f"Best loss achieved: {self.best_train_loss:.3f}")
-            #logger.info(f"Best model training evaluation metric: {self.best_model_train_eval_metric:.3f}")
-            #logger.info(f"Best model validation evaluation metric: {self.best_model_valid_eval_metric:.3f}")
 
             
     def train_single_epoch(self, epoch):
@@ -639,6 +666,17 @@ class Trainer:
             self.check_update_optimizer()
             self.check_early_stopping()
             self.check_print_training_info()
+
+            wandb.log(
+                {
+                    "loss": self.train_loss,
+                    "epoch" : self.epoch,
+                    "batch_number" : self.batch_number,
+                    "train_eval_metric" : self.train_eval_metric,
+                    "valid_eval_metric" : self.valid_eval_metric,
+                },
+                step = self.step
+                )
 
             if self.early_stopping_flag == True: 
                 break
@@ -958,6 +996,8 @@ class ArgsParser:
 
 if __name__=="__main__":
 
+    wandb.init(project = "my-test-project-fede")
+    
     args_parser = ArgsParser()
     args_parser.main()
     parameters = args_parser.arguments
