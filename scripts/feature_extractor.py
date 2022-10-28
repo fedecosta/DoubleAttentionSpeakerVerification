@@ -123,7 +123,7 @@ class FeatureExtractor:
 
         with open(self.params.audio_paths_file_path, 'r') as file:
         
-            logger.info(f"[Feature Extractor] {self.total_lines} audios ready for feature extraction.")
+            logger.info(f"{self.total_lines} audios ready for feature extraction.")
 
             line_num = 0
             progress_pctg_to_print = 0
@@ -131,7 +131,7 @@ class FeatureExtractor:
 
                 audio_path = line.replace("\n", "")
 
-                if self.params.verbose: logger.info(f"[Feature Extractor] Processing file {audio_path}...")
+                if self.params.verbose: logger.info(f"Processing file {audio_path}...")
 
                 file_dump_path = '.'.join(line.split(".")[:-1]) # remove the file extension
                 file_dump_path = file_dump_path + ".pickle" # add the pickle extension
@@ -148,19 +148,19 @@ class FeatureExtractor:
                     with open(file_dump_path, 'wb') as handle:
                         pickle.dump(info_dict, handle)
 
-                    if self.params.verbose: logger.info(f"[Feature Extractor] File processed. Dumpled pickle in {file_dump_path}")
+                    if self.params.verbose: logger.info(f"File processed. Dumpled pickle in {file_dump_path}")
                     
                 progress_pctg = line_num / self.total_lines * 100
                 if progress_pctg >=  progress_pctg_to_print:
-                    logger.info(f"[Feature Extractor] {progress_pctg:.0f}% audios processed...")
+                    logger.info(f"{progress_pctg:.0f}% audios processed...")
                     progress_pctg_to_print = progress_pctg_to_print + 1
                 
                 # A flush print have some issues with large datasets
-                # print(f"\r [Feature Extractor] {progress_pctg:.1f}% audios processed...", end = '', flush = True)
+                # print(f"\r {progress_pctg:.1f}% audios processed...", end = '', flush = True)
 
                 line_num = line_num + 1
 
-            logger.info(f"[Feature Extractor] All audios processed!")
+            logger.info(f"All audios processed!")
 
 
 class ArgsParser:
