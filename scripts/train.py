@@ -34,7 +34,7 @@ logger_stream_handler.setFormatter(logger_formatter)
 logger.addHandler(logger_stream_handler)
 
 import wandb
-#wandb.init(project = "my-test-project-fede")
+wandb.init(project = "my-test-project-fede")
 
 
 
@@ -237,8 +237,7 @@ class Trainer:
             logger.info(f"Let's use {torch.cuda.device_count()} GPUs!")
             self.net = nn.DataParallel(self.net)
         
-        # TODO set the correct size in this call to see the network summary
-        # summary(self.net, torch.Size([80, 350]))
+        summary(self.net, input_tensor = (350, 80))
         logger.info("Network loaded.")
 
 
@@ -995,8 +994,6 @@ class ArgsParser:
 
 
 if __name__=="__main__":
-
-    wandb.init(project = "my-test-project-fede")
     
     args_parser = ArgsParser()
     args_parser.main()
