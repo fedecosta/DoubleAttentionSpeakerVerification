@@ -54,7 +54,7 @@ TRAIN_DEFAULT_SETTINGS = {
     'checkpoint_file_folder' : './models/',
     'random_crop_secs' : 3.5,
     'normalization' : 'cmn',
-    'num_workers' : 1,
+    'num_workers' : 2,
     'model_name_prefix' : 'cnn_pooling_fc',
     'front_end' : 'VGGNL',
     'vgg_n_blocks' : 4,

@@ -27,7 +27,7 @@ class AMSoftmax(nn.Module):
         assert last_features.size()[1] == self.last_features_dim
 
         # We take the last_features vector x and connect it with a fully connected linear layer f with weights W
-        # The neuron i of f is <x, W[:i]> = norm(X) * norm (W[:i]) cos(theta)
+        # The neuron i of f is <x, W[:i]> = norm(X) * norm (W[:i]) * cos(theta)
         # We normalize x and W[:i] for each i.
         # Then, we substract the margin m only to the <x, W[:i]> corresponding to the label
         # As ouputs of this function we will have two vectors:

@@ -34,8 +34,7 @@ logger_stream_handler.setFormatter(logger_formatter)
 logger.addHandler(logger_stream_handler)
 
 import wandb
-wandb.init(project = "my-test-project-fede")
-
+run = wandb.init(project = "speaker_verification")
 
 
 class Trainer:
@@ -238,6 +237,12 @@ class Trainer:
             self.net = nn.DataParallel(self.net)
         
         summary(self.net, input_tensor = (350, 80))
+
+        # Calculate trainable parameters (to estimate model complexity)
+        self.total_trainable_params = sum(
+            p.numel() for p in self.net.parameters() if p.requires_grad
+        )
+
         logger.info("Network loaded.")
 
 
@@ -364,6 +369,8 @@ class Trainer:
 
         wandb_features_settings = vars(features_settings)
         wandb.config.update({"features_settings" : wandb_features_settings})
+        wandb.config.update({"total_trainable_params" : self.total_trainable_params})
+        
 
 
     # Training methods
@@ -509,6 +516,7 @@ class Trainer:
             'best_model_train_loss' : self.best_model_train_loss,
             'best_model_train_eval_metric' : self.best_model_train_eval_metric,
             'best_model_valid_eval_metric' : self.best_model_valid_eval_metric,
+            'total_trainable_params' : self.total_trainable_params,
         }
         
         if torch.cuda.device_count() > 1:
@@ -534,7 +542,8 @@ class Trainer:
 
         # We will save this checkpoint and it will overwrite the last one of this model
         checkpoint_folder = self.params.model_output_folder
-        checkpoint_file_name = f"{self.params.model_name}_{self.step}.chkpt"
+        # checkpoint_file_name = f"{self.params.model_name}_{self.step}.chkpt"
+        checkpoint_file_name = f"{self.params.model_name}.chkpt"
         checkpoint_path = os.path.join(checkpoint_folder, checkpoint_file_name)
 
         # Create directory if doesn't exists
@@ -543,6 +552,15 @@ class Trainer:
 
         logger.info(f"Saving training and model information in {checkpoint_path}")
         torch.save(checkpoint, checkpoint_path)
+
+        trained_model_artifact = wandb.Artifact(
+            name = "cnn_pooling_fc",
+            type = "model",
+            description = "tests",
+        )
+        # wandb.run.id
+        trained_model_artifact.add_dir(checkpoint_folder)
+        run.log_artifact(trained_model_artifact)
 
         logger.info(f"Training and model information saved.")
 
