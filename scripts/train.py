@@ -33,6 +33,7 @@ logger_stream_handler.setFormatter(logger_formatter)
 # Add handlers
 logger.addHandler(logger_stream_handler)
 
+# Init a wandb project
 import wandb
 run = wandb.init(project = "speaker_verification")
 
@@ -51,7 +52,6 @@ class Trainer:
         self.load_loss_function()
         self.load_optimizer()
         self.initialize_training_variables()
-        self.total_batches = len(self.training_generator)
         self.config_wandb()
 
 
@@ -64,7 +64,11 @@ class Trainer:
 
         self.params = input_params
         self.params.number_speakers = get_number_of_speakers(self.params.train_labels_path)
-        self.params.model_name = generate_model_name(self.params)
+        self.params.model_name = generate_model_name(
+            self.params, 
+            start_datetime = self.start_datetime, 
+            wandb_run_id = wandb.run.id,
+            )
 
         if self.params.load_checkpoint == True:
 
@@ -103,9 +107,12 @@ class Trainer:
     def set_log_file_handler(self):
 
         # Set a logging file handler
+
         if not os.path.exists(self.params.log_file_folder):
             os.makedirs(self.params.log_file_folder)
-        logger_file_path = os.path.join(self.params.log_file_folder, self.params.log_file_name)
+        
+        logger_file_name = f"{self.params.model_name}.log"
+        logger_file_path = os.path.join(self.params.log_file_folder, logger_file_name)
         logger_file_handler = logging.FileHandler(logger_file_path, mode = 'w')
         logger_file_handler.setLevel(logging.INFO) # TODO set the file handler level as a input param
         logger_file_handler.setFormatter(logger_formatter)
@@ -122,8 +129,8 @@ class Trainer:
         
         logger.info(f"Running on {self.device} device.")
         
-        if torch.cuda.device_count() > 1:
-            logger.info(f"{torch.cuda.device_count()} GPUs available.")
+        self.gpus = torch.cuda.device_count()
+        logger.info(f"{self.gpus} GPUs available.")
         
         logger.info("Device setted.")
 
@@ -317,6 +324,7 @@ class Trainer:
             self.best_model_train_loss = loaded_training_variables['best_model_train_loss'] 
             self.best_model_train_eval_metric = loaded_training_variables['best_model_train_eval_metric'] 
             self.best_model_valid_eval_metric = loaded_training_variables['best_model_valid_eval_metric']
+            
 
             logger.info(f"Checkpoint training variables loaded.") 
             logger.info(f"Training will start from:")
@@ -340,6 +348,8 @@ class Trainer:
             self.best_model_train_loss = np.inf
             self.best_model_train_eval_metric = 0.0
             self.best_model_valid_eval_metric = 50.0
+        
+        self.total_batches = len(self.training_generator)
 
         logger.info("Training variables initialized.")
 
@@ -369,8 +379,10 @@ class Trainer:
 
         wandb_features_settings = vars(features_settings)
         wandb.config.update({"features_settings" : wandb_features_settings})
+
+        # 3 - Save additional params
         wandb.config.update({"total_trainable_params" : self.total_trainable_params})
-        
+        wandb.config.update({"gpus" : self.gpus})
 
 
     # Training methods
@@ -498,6 +510,8 @@ class Trainer:
 
         '''Function to save the model info and optimizer parameters.'''
 
+        # 1 - Add all the info that will be saved in checkpoint 
+        
         model_results = {
             'train_loss' : self.best_model_train_loss,
             'train_eval_metric' : self.best_model_train_eval_metric,
@@ -540,26 +554,33 @@ class Trainer:
         checkpoint['start_datetime'] = self.start_datetime
         checkpoint['end_datetime'] = end_datetime
 
-        # We will save this checkpoint and it will overwrite the last one of this model
-        checkpoint_folder = self.params.model_output_folder
-        # checkpoint_file_name = f"{self.params.model_name}_{self.step}.chkpt"
+        # 2 - Save the checkpoint
+
+        checkpoint_folder = os.path.join(self.params.model_output_folder, self.params.model_name)
         checkpoint_file_name = f"{self.params.model_name}.chkpt"
         checkpoint_path = os.path.join(checkpoint_folder, checkpoint_file_name)
 
         # Create directory if doesn't exists
-        if not os.path.exists(self.params.model_output_folder):
-            os.makedirs(self.params.model_output_folder)
+        if not os.path.exists(checkpoint_folder):
+            os.makedirs(checkpoint_folder)
 
         logger.info(f"Saving training and model information in {checkpoint_path}")
         torch.save(checkpoint, checkpoint_path)
+        logger.info(f"Done.")
 
+        # 3 - Save checkpoint as a wandb artifact
+
+        # Define the artifact
         trained_model_artifact = wandb.Artifact(
-            name = "cnn_pooling_fc",
+            name = self.params.model_name,
             type = "model",
-            description = "tests",
+            description = self.params.model_name_prefix, # TODO set as an argparse input param
         )
-        # wandb.run.id
+
+        # Add folder directory
         trained_model_artifact.add_dir(checkpoint_folder)
+        
+        # Log the artifact
         run.log_artifact(trained_model_artifact)
 
         logger.info(f"Training and model information saved.")
@@ -794,13 +815,6 @@ class ArgsParser:
             type = str, 
             default = TRAIN_DEFAULT_SETTINGS['log_file_folder'],
             help = 'Name of folder that will contain the log file.',
-            )
-        
-        self.parser.add_argument(
-            '--log_file_name',
-            type = str, 
-            default = TRAIN_DEFAULT_SETTINGS['log_file_name'],
-            help = 'Name of the log file.',
             )
 
         # Training Parameters
