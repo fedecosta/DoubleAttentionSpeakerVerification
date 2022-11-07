@@ -373,20 +373,18 @@ class Trainer:
         with open(pickle_path, 'rb') as pickle_file:
             features_dict = pickle.load(pickle_file)
             
-        # Unpack the spectrogram and the settings
-        features = features_dict["features"]
-        features_settings = features_dict["settings"]
+        # Unpack the spectrogram and the features settings
+        # features = features_dict["features"]
+        dev_features_settings = features_dict["settings"]
 
-        wandb_features_settings = vars(features_settings)
-        self.wandb_config["features_settings"] = wandb_features_settings
+        self.wandb_config["dev_features_settings"] = vars(dev_features_settings)
 
         # 3 - Save additional params
 
         self.wandb_config["total_trainable_params"] = self.total_trainable_params
         self.wandb_config["gpus"] = self.gpus
-        #wandb.config.update({"total_trainable_params" : self.total_trainable_params})
-        #wandb.config.update({"gpus" : self.gpus})
 
+        # 4 - Update the wandb config
         wandb.config.update(self.wandb_config)
 
 
@@ -518,9 +516,9 @@ class Trainer:
         # 1 - Add all the info that will be saved in checkpoint 
         
         model_results = {
-            'train_loss' : self.best_model_train_loss,
-            'train_eval_metric' : self.best_model_train_eval_metric,
-            'valid_eval_metric' : self.best_model_valid_eval_metric,
+            'best_model_train_loss' : self.best_model_train_loss,
+            'best_model_train_eval_metric' : self.best_model_train_eval_metric,
+            'best_model_valid_eval_metric' : self.best_model_valid_eval_metric,
         }
 
         training_variables = {
@@ -559,7 +557,7 @@ class Trainer:
         checkpoint['start_datetime'] = self.start_datetime
         checkpoint['end_datetime'] = end_datetime
 
-        # 2 - Save the checkpoint
+        # 2 - Save the checkpoint locally
 
         checkpoint_folder = os.path.join(self.params.model_output_folder, self.params.model_name)
         checkpoint_file_name = f"{self.params.model_name}.chkpt"
@@ -575,17 +573,22 @@ class Trainer:
 
         # 3 - Save checkpoint as a wandb artifact
 
+        # Add checkpoint data to wandb config
+        #self.wandb_config["model_results"] = model_results
+        #self.wandb_config["training_variables"] = training_variables
+        #wandb.config.update(self.wandb_config)
+
         # Define the artifact
         trained_model_artifact = wandb.Artifact(
             name = self.params.model_name,
-            type = "model",
+            type = "trained_model",
             description = self.params.model_name_prefix, # TODO set as an argparse input param
             metadata = self.wandb_config,
         )
 
         # Add folder directory
         trained_model_artifact.add_dir(checkpoint_folder)
-        
+
         # Log the artifact
         run.log_artifact(trained_model_artifact)
 
@@ -713,11 +716,14 @@ class Trainer:
 
             wandb.log(
                 {
-                    "loss": self.train_loss,
                     "epoch" : self.epoch,
                     "batch_number" : self.batch_number,
+                    "loss": self.train_loss,
                     "train_eval_metric" : self.train_eval_metric,
                     "valid_eval_metric" : self.valid_eval_metric,
+                    'best_model_train_loss' : self.best_model_train_loss,
+                    'best_model_train_eval_metric' : self.best_model_train_eval_metric,
+                    'best_model_valid_eval_metric' : self.best_model_valid_eval_metric,
                 },
                 step = self.step
                 )
@@ -955,7 +961,7 @@ class ArgsParser:
             '--pooling_method', 
             type = str, 
             default = TRAIN_DEFAULT_SETTINGS['pooling_method'], 
-            choices = ['Attention', 'MHA', 'DoubleMHA'], 
+            choices = ['statistical', 'Attention', 'MHA', 'DoubleMHA'], 
             help = 'Type of pooling method.',
             )
 

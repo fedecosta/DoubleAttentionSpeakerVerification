@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 from torch.nn import functional as F
-from poolings import Attention, MultiHeadAttention, DoubleMHA
+from poolings import StatisticalPooling, Attention, MultiHeadAttention, DoubleMHA
 from CNNs import VGGNL
 from loss import AMSoftmax
 
@@ -45,8 +45,10 @@ class SpeakerClassifier(nn.Module):
         # Set the pooling component that will take the front-end features and summarize them in a context vector
 
         self.pooling_method = parameters.pooling_method
-
-        if self.pooling_method == 'Attention':
+        
+        if self.pooling_method == 'statistical':
+            self.poolingLayer = StatisticalPooling()
+        elif self.pooling_method == 'Attention':
             self.poolingLayer = Attention(self.hidden_states_dimension)
         elif self.pooling_method == 'MHA':
             self.poolingLayer = MultiHeadAttention(self.hidden_states_dimension, parameters.heads_number)

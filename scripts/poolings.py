@@ -15,6 +15,21 @@ def new_parameter(*size):
     return out
 
 
+class StatisticalPooling(nn.Module):
+
+    def __init__(self):
+
+        super().__init__()
+
+    def forward(self, hidden_states):
+
+        # Get the average of the hidden states (dim = 0 is the batch dimension)
+        context_vector = hidden_states.mean(dim = 1)
+        
+        # Returning a tuple because the other pooling methods do this
+        return context_vector, None
+
+
 class Attention(nn.Module):
 
     def __init__(self, embedding_size):

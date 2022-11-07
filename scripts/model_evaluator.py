@@ -49,6 +49,7 @@ class ModelEvaluator:
         self.load_checkpoint()
         self.load_checkpoint_params()
         self.load_network()
+        self.load_data()
 
     
     def set_device(self):
@@ -101,11 +102,18 @@ class ModelEvaluator:
     def load_checkpoint(self):
 
         # Load checkpoint
-        checkpoint_path = self.input_params.model_checkpoint_path
+        self.checkpoint_path = os.path.join(
+            self.input_params.model_checkpoint_folder, 
+            self.input_params.model_checkpoint_file_name,
+            )
+        
+        # Saved for the future in case we want to load as an artifact
+        #model_artifact = run.use_artifact(f'{self.input_params.model_checkpoint_folder}:latest')
+        #datadir = model_artifact.download()
 
-        logger.info(f"Loading checkpoint from {checkpoint_path}")
+        logger.info(f"Loading checkpoint from {self.checkpoint_path}")
 
-        self.checkpoint = torch.load(checkpoint_path, map_location = self.device)
+        self.checkpoint = torch.load(self.checkpoint_path, map_location = self.device)
 
         logger.info(f"Model checkpoint was saved at epoch {self.checkpoint['training_variables']['epoch']}")
 
@@ -235,6 +243,8 @@ class ModelEvaluator:
             #collate_fn = self.collate_batch,
             )
 
+        self.total_batches = len(self.evaluating_generator)
+
         logger.info("Data and labels loaded.")
 
 
@@ -298,13 +308,13 @@ class ModelEvaluator:
         self.end_time = time.time()
         self.end_datetime = datetime.datetime.strftime(datetime.datetime.now(), '%y-%m-%d %H:%M:%S')
         self.elapsed_time_hours = (self.end_time - self.start_time) / 60 / 60
-        model_name = generate_model_name(self.params)
+        model_name = self.params.model_name
 
         self.evaluation_results['start_datetime'] = self.start_datetime
         self.evaluation_results['end_datetime'] = self.end_datetime
         self.evaluation_results['elapsed_time_hours'] = self.elapsed_time_hours
         self.evaluation_results['model_name'] = model_name
-        self.evaluation_results['model_loaded_from'] = self.input_params.model_checkpoint_path
+        self.evaluation_results['model_loaded_from'] = self.checkpoint_path
         self.evaluation_results['clients_loaded_from'] = self.input_params.test_clients
         self.evaluation_results['impostors_loaded_from'] = self.input_params.test_impostors
         self.evaluation_results['clients_num'] = self.clients_num
@@ -317,7 +327,8 @@ class ModelEvaluator:
         if not os.path.exists(dump_folder):
             os.makedirs(dump_folder)
 
-        dump_file_name = f"report_{model_name}_{self.start_datetime}.json"
+        formatted_start_datetime = self.start_datetime.replace(':', '_').replace(' ', '_').replace('-', '_')
+        dump_file_name = f"report_{formatted_start_datetime}_model_{model_name}.json"
 
         dump_path = os.path.join(dump_folder, dump_file_name)
         
@@ -333,9 +344,6 @@ class ModelEvaluator:
 
             # Switch torch to evaluation mode
             self.net.eval()
-
-            self.load_data()
-            self.total_batches = len(self.evaluating_generator)
 
             self.evaluate(
                 clients_labels = self.input_params.test_clients,
@@ -363,9 +371,15 @@ class ArgsParser:
     def add_parser_args(self):
 
         self.parser.add_argument(
-            'model_checkpoint_path', 
+            'model_checkpoint_folder', 
             type = str, 
-            help = 'Complete path where the checkpoint model is saved.'
+            help = 'Folder where the checkpoint model is saved.'
+            )
+
+        self.parser.add_argument(
+            'model_checkpoint_file_name', 
+            type = str, 
+            help = 'File name of the checkpoint model.'
             ) 
 
         self.parser.add_argument(
