@@ -35,7 +35,7 @@ logger.addHandler(logger_stream_handler)
 
 # Init a wandb project
 import wandb
-run = wandb.init(project = "speaker_verification")
+run = wandb.init(project = "speaker_verification", job_type = "training")
 
 
 class Trainer:
@@ -357,7 +357,7 @@ class Trainer:
     def config_wandb(self):
 
         # 1 - Save the params
-        wandb.config.update(self.params)
+        self.wandb_config = vars(self.params)
 
         # 2 - Save the feature extraction configuration params
 
@@ -378,11 +378,16 @@ class Trainer:
         features_settings = features_dict["settings"]
 
         wandb_features_settings = vars(features_settings)
-        wandb.config.update({"features_settings" : wandb_features_settings})
+        self.wandb_config["features_settings"] = wandb_features_settings
 
         # 3 - Save additional params
-        wandb.config.update({"total_trainable_params" : self.total_trainable_params})
-        wandb.config.update({"gpus" : self.gpus})
+
+        self.wandb_config["total_trainable_params"] = self.total_trainable_params
+        self.wandb_config["gpus"] = self.gpus
+        #wandb.config.update({"total_trainable_params" : self.total_trainable_params})
+        #wandb.config.update({"gpus" : self.gpus})
+
+        wandb.config.update(self.wandb_config)
 
 
     # Training methods
@@ -575,6 +580,7 @@ class Trainer:
             name = self.params.model_name,
             type = "model",
             description = self.params.model_name_prefix, # TODO set as an argparse input param
+            metadata = self.wandb_config,
         )
 
         # Add folder directory
