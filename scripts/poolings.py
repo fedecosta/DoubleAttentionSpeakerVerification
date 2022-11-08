@@ -15,21 +15,6 @@ def new_parameter(*size):
     return out
 
 
-class StatisticalPooling(nn.Module):
-
-    def __init__(self):
-
-        super().__init__()
-
-    def forward(self, hidden_states):
-
-        # Get the average of the hidden states (dim = 0 is the batch dimension)
-        context_vector = hidden_states.mean(dim = 1)
-        
-        # Returning a tuple because the other pooling methods do this
-        return context_vector, None
-
-
 class Attention(nn.Module):
 
     def __init__(self, embedding_size):
@@ -167,4 +152,179 @@ class DoubleMHA(nn.Module):
         # print(f"[poolings] DoubleMHA output size : {compressedRepresentation.size()}")
         
         return compressedRepresentation, alignment
+
+
+# ----------------------------------------------------------------------------
+# new classes
+
+# TODO make dim asserts in every new class
+
+class SelfAttention(nn.Module):
+  
+  def __init__(self):
+    
+    super().__init__()
+
+  def forward(self, x):
+
+    raw_weights = torch.bmm(x, x.transpose(1, 2))
+
+    weights = F.softmax(raw_weights, dim = 2)
+
+    y = torch.bmm(weights, x)
+
+    return y
+
+
+class MultiHeadAttention2(nn.Module):
+
+    def __init__(self, emb_in, emb_out, heads=8):
+        """
+        :param emb_in: dimension of the embeddings input vectors
+        :param emb_in: dimension of the embeddings output vectors
+        :param heads: number of heads to use
+        :param mask: ?
+        """
+
+        super().__init__()
+
+        self.emb_in = emb_in
+        self.emb_out = emb_out
+        self.heads = heads
+
+        self.to_keys = nn.Linear(emb_in, emb_out * heads, bias=False)
+        self.to_queries = nn.Linear(emb_in, emb_out * heads, bias=False)
+        self.to_values = nn.Linear(emb_in, emb_out * heads, bias=False)
+
+        self.unify_heads = nn.Linear(heads * self.emb_out, self.emb_out)
+
+    def forward(self, x):
+
+        b, t, e = x.size()
+        assert e == self.emb_in, f'Input embedding dim ({e}) should match layer embedding dim ({self.emb_in})'
+
+        keys = self.to_keys(x).view(b, t, self.heads, self.emb_out)
+        queries = self.to_queries(x).view(b, t, self.heads, self.emb_out)
+        values = self.to_values(x).view(b, t, self.heads, self.emb_out)
+
+        # compute scaled dot-product self-attention
+
+        # - fold heads into the batch dimension
+        keys = keys.transpose(1, 2).contiguous().view(b * self.heads, t, self.emb_out)
+        queries = queries.transpose(1, 2).contiguous().view(b * self.heads, t, self.emb_out)
+        values = values.transpose(1, 2).contiguous().view(b * self.heads, t, self.emb_out)
+
+        # - get dot product of queries and keys, and scale
+        dot = torch.bmm(queries, keys.transpose(1, 2))
+        dot = dot / math.sqrt(self.emb_out) # dot contains b*h  t-by-t matrices with raw self-attention logits
+
+        assert dot.size() == (b * self.heads, t, t), f'Matrix has size {dot.size()}, expected {(b * self.heads, t, t)}.'
+
+        dot = F.softmax(dot, dim = 2) # dot now has row-wise self-attention probabilities
+
+        # apply the self attention to the values
+        out = torch.bmm(dot, values).view(b, self.heads, t, self.emb_out)
+
+        # swap h, t back
+        out = out.transpose(1, 2).contiguous().view(b, t, self.heads * self.emb_out)
+
+        # unify heads
+        out = self.unify_heads(out)
+
+        return out
+
+
+class StatisticalPooling(nn.Module):
+
+    def __init__(self):
+
+        super().__init__()
+
+    def forward(self, hidden_states):
+
+        # Get the average of the hidden states (dim = 0 is the batch dimension)
+        context_vector = hidden_states.mean(dim = 1)
+        
+        # Returning a tuple because the other pooling methods do this
+        return context_vector, None
+
+
+class AttentionPooling(nn.Module):
+
+    def __init__(self, emb_in):
+
+        super().__init__()
+
+        self.emb_in = emb_in
+
+        self.query = torch.nn.Parameter(torch.FloatTensor(self.emb_in, 1))
+        torch.nn.init.xavier_normal_(self.query)
+
+    def forward(self, x):
+
+        attention_scores = torch.matmul(x, self.query)
+        attention_scores = attention_scores.squeeze(dim = -1)
+        attention_scores = F.softmax(attention_scores, dim = 1)
+        attention_scores = attention_scores.unsqueeze(dim = -1)
+
+        output_embedding = torch.bmm(attention_scores.transpose(1, 2), x)
+
+        return output_embedding, attention_scores
+
+
+class SelfAttentionAttentionPooling(nn.Module):
+
+    def __init__(self, emb_in):
+
+        super().__init__()
+
+        self.emb_in = emb_in
+        self.self_attention = SelfAttention()
+        self.attention_pooling = AttentionPooling(emb_in)
+
+    def forward(self, x):
+
+        output = self.self_attention(x)
+        output_embedding, attention_scores = self.attention_pooling(output)
+
+        return output_embedding, attention_scores
+
+
+class MultiHeadAttentionAttentionPooling(nn.Module):
+
+    def __init__(self, emb_in, emb_out, heads):
+
+        super().__init__()
+
+        self.emb_in, self.emb_out, self.heads = emb_in, emb_out, heads
+        self.mha = MultiHeadAttention2(self.emb_in, self.emb_out, self.heads)
+        self.attention_pooling = AttentionPooling(self.emb_out)
+
+    def forward(self, x):
+
+        output = self.mha(x)
+        output_embedding, attention_scores = self.attention_pooling(output)
+
+        return output_embedding, attention_scores
+        
+
+
+
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

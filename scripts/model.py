@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 from torch.nn import functional as F
-from poolings import StatisticalPooling, Attention, MultiHeadAttention, DoubleMHA
+from poolings import StatisticalPooling, Attention, MultiHeadAttention, DoubleMHA, SelfAttentionAttentionPooling
 from CNNs import VGGNL
 from loss import AMSoftmax
 
@@ -55,6 +55,10 @@ class SpeakerClassifier(nn.Module):
         elif self.pooling_method == 'DoubleMHA':
             self.poolingLayer = DoubleMHA(self.hidden_states_dimension, parameters.heads_number, mask_prob = parameters.mask_prob)
             self.hidden_states_dimension = self.hidden_states_dimension // parameters.heads_number
+        elif self.pooling_method == 'SelfAttentionAttentionPooling':
+            self.poolingLayer = SelfAttentionAttentionPooling(self.hidden_states_dimension)
+        elif self.pooling_method == 'MultiHeadAttentionAttentionPooling':
+            self.poolingLayer = SelfAttentionAttentionPooling(self.hidden_states_dimension, self.hidden_states_dimension, parameters.heads_number)
 
 
     def __initFullyConnectedBlock(self, parameters):
