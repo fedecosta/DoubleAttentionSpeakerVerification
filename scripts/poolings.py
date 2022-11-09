@@ -213,9 +213,14 @@ class MultiHeadAttention2(nn.Module):
         queries = queries.transpose(1, 2).contiguous().view(b * self.heads, t, self.emb_out)
         values = values.transpose(1, 2).contiguous().view(b * self.heads, t, self.emb_out)
 
+        # - Instead of dividing the dot products by sqrt(e), we scale the keys and values.
+        #   This should be more memory efficient
+        queries = queries / (self.emb_out ** (1/4))
+        keys    = keys / (self.emb_out ** (1/4))
+
         # - get dot product of queries and keys, and scale
         dot = torch.bmm(queries, keys.transpose(1, 2))
-        dot = dot / math.sqrt(self.emb_out) # dot contains b*h  t-by-t matrices with raw self-attention logits
+        #dot = dot / math.sqrt(self.emb_out) # dot contains b*h  t-by-t matrices with raw self-attention logits
 
         assert dot.size() == (b * self.heads, t, t), f'Matrix has size {dot.size()}, expected {(b * self.heads, t, t)}.'
 
