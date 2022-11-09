@@ -969,7 +969,7 @@ class ArgsParser:
             '--heads_number', 
             type = int, 
             default = TRAIN_DEFAULT_SETTINGS['heads_number'],
-            help = 'Number of heads for the pooling method (only for MHA and DoubleMHA options).',
+            help = 'Number of heads for the pooling method (only for MHA based options).',
             )
 
         self.parser.add_argument(
@@ -984,6 +984,31 @@ class ArgsParser:
             type = int, 
             default = TRAIN_DEFAULT_SETTINGS['embedding_size'],
             help = 'Size of the embedding that the system will generate.',
+            )
+
+        self.parser.add_argument(
+            '--n_transformers_blocks', 
+            type = int, 
+            default = TRAIN_DEFAULT_SETTINGS['n_transformers_blocks'],
+            help = 'Number of transformers blocks to stack in the attention component \
+                (only for pooling_method = TransformerStackedAttentionPooling).',
+            )
+
+        self.parser.add_argument(
+            '--expansion_coef', 
+            type = int, 
+            default = TRAIN_DEFAULT_SETTINGS['expansion_coef'], 
+            help = 'Number you want to multiply by the size of the hidden layer of the feed forward net \
+                (only for pooling_method = TransformerStackedAttentionPooling).'
+            )
+
+        self.parser.add_argument(
+            '--attention_type', 
+            type = str, 
+            default = TRAIN_DEFAULT_SETTINGS['attention_type'], 
+            choices = ['SelfAttention', 'MultiHeadAttention'],
+            help = 'Type of Attention to use in the Pooling component\
+                (only for pooling_method = TransformerStackedAttentionPooling).'
             )
 
         # AMSoftmax Config
