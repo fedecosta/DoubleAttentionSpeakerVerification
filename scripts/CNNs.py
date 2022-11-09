@@ -86,7 +86,6 @@ class VGGNL(torch.nn.Module):
             
             self.conv_blocks.add_module(conv_block_name, conv_block)
 
-            
             # Update start_block_channels and end_block_channels for the next block
             if num_block < vgg_n_blocks: # If num_block = vgg_n_blocks, start_block_channels and end_block_channels must not get updated
                 start_block_channels = end_block_channels # The next block will start with end_block_channels channels

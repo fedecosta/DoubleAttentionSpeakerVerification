@@ -155,185 +155,234 @@ class DoubleMHA(nn.Module):
 
 
 # ----------------------------------------------------------------------------
-# new classes
+# New Classes
+# Based on https://peterbloem.nl/blog/transformers
 
 # TODO make dim asserts in every new class
 
+# 1 - Attention blocks (sequence to sequence blocks, the input dimension is the same than the output dimension)
+
 class SelfAttention(nn.Module):
-  
-  def __init__(self):
-    
-    super().__init__()
 
-  def forward(self, x):
+    """
+    Sequence to sequence component, the input dimension is the same than the output dimension.
+    Self-attention without trainable parameters.
+    """
 
-    raw_weights = torch.bmm(x, x.transpose(1, 2))
+    def __init__(self):
 
-    weights = F.softmax(raw_weights, dim = 2)
-
-    y = torch.bmm(weights, x)
-
-    return y
+        super().__init__()
 
 
-class MultiHeadAttention2(nn.Module):
+    def forward(self, x):
 
-    def __init__(self, emb_in, emb_out, heads):
-        """
-        :param emb_in: dimension of the embeddings input vectors
-        :param emb_in: dimension of the embeddings output vectors
-        :param heads: number of heads to use
-        """
+        raw_weights = torch.bmm(x, x.transpose(1, 2))
+
+        weights = F.softmax(raw_weights, dim = 2)
+
+        output = torch.bmm(weights, x)
+
+        return output
+
+
+class MultiHeadAttention(nn.Module):
+
+    """
+        Sequence to sequence component, the input dimension is the same than the output dimension.
+        emb_in is the dimension of every input vector (embedding).
+        heads is the number of heads to use in the Multi-Head Attention.
+    """
+
+    def __init__(self, emb_in, heads):
 
         super().__init__()
 
         self.emb_in = emb_in
-        self.emb_out = emb_out
+        self.emb_out = emb_in # we force the same input and output dimension
         self.heads = heads
 
-        self.to_keys = nn.Linear(emb_in, emb_out * heads, bias=False)
-        self.to_queries = nn.Linear(emb_in, emb_out * heads, bias=False)
-        self.to_values = nn.Linear(emb_in, emb_out * heads, bias=False)
+        self.init_matrix_transformations()
+    
 
-        self.unify_heads = nn.Linear(heads * self.emb_out, self.emb_out)
+    def init_matrix_transformations(self):
 
+        # Matrix transformations to stack every head keys, queries and values matrices
+        self.to_keys = nn.Linear(self.emb_in, self.emb_out * self.heads, bias=False)
+        self.to_queries = nn.Linear(self.emb_in, self.emb_out * self.heads, bias=False)
+        self.to_values = nn.Linear(self.emb_in, self.emb_out * self.heads, bias=False)
+
+        # Linear projection. For each input vector we get self.heads heads, we project them into only one.
+        self.unify_heads = nn.Linear(self.heads * self.emb_out, self.emb_out)
+    
+    
     def forward(self, x):
 
         b, t, e = x.size()
-        assert e == self.emb_in, f'Input embedding dim ({e}) should match layer embedding dim ({self.emb_in})'
+        assert e == self.emb_in, f'[MultiHeadAttention] Input embedding dim ({e}) should match layer embedding dim ({self.emb_in})'
 
         keys = self.to_keys(x).view(b, t, self.heads, self.emb_out)
         queries = self.to_queries(x).view(b, t, self.heads, self.emb_out)
         values = self.to_values(x).view(b, t, self.heads, self.emb_out)
 
-        # compute scaled dot-product self-attention
+        # 1 - Compute scaled dot-product self-attention
 
         # - fold heads into the batch dimension
         keys = keys.transpose(1, 2).contiguous().view(b * self.heads, t, self.emb_out)
         queries = queries.transpose(1, 2).contiguous().view(b * self.heads, t, self.emb_out)
         values = values.transpose(1, 2).contiguous().view(b * self.heads, t, self.emb_out)
 
-        # - Instead of dividing the dot products by sqrt(e), we scale the keys and values.
+        # - Instead of dividing the dot products by sqrt(e), we scale the queries and keys.
         #   This should be more memory efficient
         queries = queries / (self.emb_out ** (1/4))
         keys    = keys / (self.emb_out ** (1/4))
 
         # - get dot product of queries and keys, and scale
         dot = torch.bmm(queries, keys.transpose(1, 2))
-        #dot = dot / math.sqrt(self.emb_out) # dot contains b*h  t-by-t matrices with raw self-attention logits
 
-        assert dot.size() == (b * self.heads, t, t), f'Matrix has size {dot.size()}, expected {(b * self.heads, t, t)}.'
+        assert dot.size() == (b * self.heads, t, t), f'[MultiHeadAttention] Matrix has size {dot.size()}, expected {(b * self.heads, t, t)}.'
 
         dot = F.softmax(dot, dim = 2) # dot now has row-wise self-attention probabilities
 
-        # apply the self attention to the values
-        out = torch.bmm(dot, values).view(b, self.heads, t, self.emb_out)
+        # 2 - Apply the self attention to the values
+        output = torch.bmm(dot, values).view(b, self.heads, t, self.emb_out)
 
         # swap h, t back
-        out = out.transpose(1, 2).contiguous().view(b, t, self.heads * self.emb_out)
+        output = output.transpose(1, 2).contiguous().view(b, t, self.heads * self.emb_out)
 
         # unify heads
-        out = self.unify_heads(out)
+        output = self.unify_heads(output)
 
-        return out
-
-
-class StatisticalPooling(nn.Module):
-
-    def __init__(self):
-
-        super().__init__()
-
-    def forward(self, hidden_states):
-
-        # Get the average of the hidden states (dim = 0 is the batch dimension)
-        context_vector = hidden_states.mean(dim = 1)
-        
-        # Returning a tuple because the other pooling methods do this
-        return context_vector, None
+        return output
 
 
-class AttentionPooling(nn.Module):
+class TransformerBlock(nn.Module):
 
-    def __init__(self, emb_in):
+    """
+        Sequence to sequence component, the input dimension is the same than the output dimension.
+        One Transformer block.
+        emb_in is the dimension of every input vector (embedding).
+        expansion_coef is the number you want to multiply the size of the hidden layer of the feed forward net.
+        attention_type is the type of attention to use in the attention component.
+        heads is the number of heads to use in the attention component, if Multi-Head Attention is used.
+    """
+
+    def __init__(self, emb_in, expansion_coef, attention_type, heads = None):
 
         super().__init__()
 
         self.emb_in = emb_in
+        self.emb_out = emb_in # we want the same dimension
+        self.expansion_coef = expansion_coef
+        self.attention_type = attention_type
+        self.heads = heads
 
-        self.query = torch.nn.Parameter(torch.FloatTensor(self.emb_in, 1))
-        torch.nn.init.xavier_normal_(self.query)
+        self.init_attention_layer()
+        self.init_norm_layers()
+        self.init_feed_forward_layer()
 
-    def forward(self, x):
 
-        attention_scores = torch.matmul(x, self.query)
-        attention_scores = attention_scores.squeeze(dim = -1)
-        attention_scores = F.softmax(attention_scores, dim = 1)
-        attention_scores = attention_scores.unsqueeze(dim = -1)
+    def init_attention_layer(self):
 
-        output_embedding = torch.bmm(attention_scores.transpose(1, 2), x)
-        
-        output_embedding = output_embedding.view(
-            output_embedding.size()[0], 
-            output_embedding.size()[1] * output_embedding.size()[2],
+        if self.attention_type == "SelfAttention":
+            self.attention_layer = SelfAttention()
+        elif self.attention_type == "MultiHeadAttention":
+            self.attention_layer = MultiHeadAttention(self.emb_in, self.heads)
+
+
+    def init_norm_layers(self):
+
+        self.norm1 = nn.LayerNorm(self.emb_out)
+        self.norm2 = nn.LayerNorm(self.emb_out)
+
+
+    def init_feed_forward_layer(self):
+
+        self.feed_forward_layer = nn.Sequential(
+            nn.Linear(self.emb_out, self.expansion_coef * self.emb_out),
+            nn.ReLU(),
+            nn.Linear(self.expansion_coef * self.emb_out, self.emb_out),
             )
 
-        return output_embedding, attention_scores
+
+    def forward(self, x):
+
+        # Pass through the attention component
+        attention_layer_output = self.attention_layer(x)
+
+        # Make the skip connection
+        skip_connection_1 = attention_layer_output + x
+
+        # Normalization layer
+        normalized_1 = self.norm1(skip_connection_1)
+
+        # Feed forward component
+        feed_forward = self.feed_forward_layer(normalized_1)
+        
+        # Make the skip connection
+        skip_connection_2 = feed_forward + normalized_1
+
+        # Normalization layer
+        norm_attended_2 = self.norm2(skip_connection_2)
+
+        # Output
+        output = norm_attended_2
+
+        return output
 
 
-class SelfAttentionAttentionPooling(nn.Module):
+class TransformerStacked(nn.Module):
 
-    def __init__(self, emb_in):
+    """
+        Sequence to sequence component, the input dimension is the same than the output dimension.
+        Stack of n_blocks Transformer blocks.
+        emb_in is the dimension of every input vector (embedding).
+        expansion_coef is the number you want to multiply the size of the hidden layer of the feed forward net.
+        attention_type is the type of attention to use in the attention component.
+        heads is the number of heads to use in the attention component, if Multi-Head Attention is used.
+    """
+  
+    def __init__(self, emb_in, n_blocks, expansion_coef, attention_type, heads = None):
 
         super().__init__()
 
         self.emb_in = emb_in
-        self.self_attention = SelfAttention()
-        self.attention_pooling = AttentionPooling(emb_in)
+        self.emb_out = emb_in # we force the same input and output dimension
+        self.n_blocks = n_blocks
+        self.expansion_coef = expansion_coef
+        self.attention_type = attention_type
+        self.heads = heads
+
+        self.init_transformer_blocks()
+
+
+    def init_transformer_block(self, emb_in, expansion_coef, attention_type, heads = None):
+
+        # Init one transformer block
+
+        transformer_block = TransformerBlock(emb_in, expansion_coef, attention_type, heads)
+
+        return transformer_block
+
+
+    def init_transformer_blocks(self):
+
+        self.transformer_blocks = nn.Sequential()
+
+        for num_block in range(self.n_blocks):
+
+            transformer_block_name = f"transformer_block_{num_block}"
+            transformer_block = self.init_transformer_block(self.emb_in, self.expansion_coef, self.attention_type, self.heads)
+                
+            self.transformer_blocks.add_module(transformer_block_name, transformer_block)
+
 
     def forward(self, x):
 
-        output = self.self_attention(x)
-        output_embedding, attention_scores = self.attention_pooling(output)
+        transformer_output = self.transformer_blocks(x)
 
-        return output_embedding, attention_scores
+        output = transformer_output
 
-
-class MultiHeadAttentionAttentionPooling(nn.Module):
-
-    def __init__(self, emb_in, emb_out, heads):
-
-        super().__init__()
-
-        self.emb_in, self.emb_out, self.heads = emb_in, emb_out, heads
-
-        self.projection = nn.Linear(self.emb_in, self.emb_out, bias=False)
-        self.mha = MultiHeadAttention2(self.emb_out, self.emb_out, self.heads)
-        self.attention_pooling = AttentionPooling(self.emb_out)
-
-    def forward(self, x):
-
-        output = self.projection(x)
-        output = self.mha(output)
-        output_embedding, attention_scores = self.attention_pooling(output)
-
-        return output_embedding, attention_scores
-        
-
-
-
-    
-
-
-
-
-
-
-
-
-
-
-
+        return output
 
 
 
