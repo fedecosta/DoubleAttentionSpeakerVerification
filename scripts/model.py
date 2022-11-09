@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 from torch.nn import functional as F
-from poolings import StatisticalPooling, Attention, MultiHeadAttention, DoubleMHA, SelfAttentionAttentionPooling
+from poolings import StatisticalPooling, Attention, MultiHeadAttention, DoubleMHA, SelfAttentionAttentionPooling, MultiHeadAttentionAttentionPooling
 from CNNs import VGGNL
 from loss import AMSoftmax
 
@@ -37,8 +37,6 @@ class SpeakerClassifier(nn.Module):
                 parameters.feature_size, 
                 )
             
-            #print(f"[model] hidden_states_dimension: {self.hidden_states_dimension}")
-            
 
     def __initPoolingLayers(self, parameters):    
 
@@ -58,7 +56,11 @@ class SpeakerClassifier(nn.Module):
         elif self.pooling_method == 'SelfAttentionAttentionPooling':
             self.poolingLayer = SelfAttentionAttentionPooling(self.hidden_states_dimension)
         elif self.pooling_method == 'MultiHeadAttentionAttentionPooling':
-            self.poolingLayer = SelfAttentionAttentionPooling(self.hidden_states_dimension, self.hidden_states_dimension, parameters.heads_number)
+            self.poolingLayer = MultiHeadAttentionAttentionPooling(
+                emb_in = self.hidden_states_dimension,
+                emb_out = parameters.embedding_size, 
+                heads = parameters.heads_number,
+                )
 
 
     def __initFullyConnectedBlock(self, parameters):
@@ -68,7 +70,12 @@ class SpeakerClassifier(nn.Module):
         # TODO abstract the FC component in a class with a forward method like the other components
         # TODO Get also de RELUs in this class
         # Should we batch norm and relu the last layer?
-        self.fc1 = nn.Linear(self.hidden_states_dimension, parameters.embedding_size)
+
+        if self.pooling_method in ('MultiHeadAttentionAttentionPooling'):
+            # MultiHeadAttentionAttentionPooling output size is different from other poolings
+            self.fc1 = nn.Linear(parameters.embedding_size, parameters.embedding_size)
+        else:
+            self.fc1 = nn.Linear(self.hidden_states_dimension, parameters.embedding_size)
         self.b1 = nn.BatchNorm1d(parameters.embedding_size)
         self.fc2 = nn.Linear(parameters.embedding_size, parameters.embedding_size)
         self.b2 = nn.BatchNorm1d(parameters.embedding_size)
@@ -85,13 +92,10 @@ class SpeakerClassifier(nn.Module):
 
         encoder_output = self.front_end(input_tensor)
 
-        # print(f"[model] encoder_output size: {encoder_output.size()}")
-
         # TODO seems that alignment is not used anywhere
         embedding_0, alignment = self.poolingLayer(encoder_output)
 
         # TODO should we use relu and bn in every layer?
-
         embedding_1 = self.fc1(embedding_0)
         embedding_1 = F.relu(embedding_1)
         embedding_1 = self.b1(embedding_1)

@@ -178,12 +178,11 @@ class SelfAttention(nn.Module):
 
 class MultiHeadAttention2(nn.Module):
 
-    def __init__(self, emb_in, emb_out, heads=8):
+    def __init__(self, emb_in, emb_out, heads):
         """
         :param emb_in: dimension of the embeddings input vectors
         :param emb_in: dimension of the embeddings output vectors
         :param heads: number of heads to use
-        :param mask: ?
         """
 
         super().__init__()
@@ -268,6 +267,11 @@ class AttentionPooling(nn.Module):
         attention_scores = attention_scores.unsqueeze(dim = -1)
 
         output_embedding = torch.bmm(attention_scores.transpose(1, 2), x)
+        
+        output_embedding = output_embedding.view(
+            output_embedding.size()[0], 
+            output_embedding.size()[1] * output_embedding.size()[2],
+            )
 
         return output_embedding, attention_scores
 
@@ -297,12 +301,15 @@ class MultiHeadAttentionAttentionPooling(nn.Module):
         super().__init__()
 
         self.emb_in, self.emb_out, self.heads = emb_in, emb_out, heads
-        self.mha = MultiHeadAttention2(self.emb_in, self.emb_out, self.heads)
+
+        self.projection = nn.Linear(self.emb_in, self.emb_out, bias=False)
+        self.mha = MultiHeadAttention2(self.emb_out, self.emb_out, self.heads)
         self.attention_pooling = AttentionPooling(self.emb_out)
 
     def forward(self, x):
 
-        output = self.mha(x)
+        output = self.projection(x)
+        output = self.mha(output)
         output_embedding, attention_scores = self.attention_pooling(output)
 
         return output_embedding, attention_scores
