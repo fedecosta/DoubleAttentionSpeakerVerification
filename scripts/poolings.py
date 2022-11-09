@@ -160,12 +160,13 @@ class DoubleMHA(nn.Module):
 
 # TODO make dim asserts in every new class
 
-# 1 - Attention blocks (sequence to sequence blocks, the input dimension is the same than the output dimension)
+# 1 - Attention components (sequence to sequence blocks, the input dimension is the same than the output dimension)
 
 class SelfAttention(nn.Module):
 
     """
     Sequence to sequence component, the input dimension is the same than the output dimension.
+    Sequence length is not fixed.
     Self-attention without trainable parameters.
     """
 
@@ -189,6 +190,7 @@ class MultiHeadAttention(nn.Module):
 
     """
         Sequence to sequence component, the input dimension is the same than the output dimension.
+        Sequence length is not fixed.
         emb_in is the dimension of every input vector (embedding).
         heads is the number of heads to use in the Multi-Head Attention.
     """
@@ -218,7 +220,7 @@ class MultiHeadAttention(nn.Module):
     def forward(self, x):
 
         b, t, e = x.size()
-        assert e == self.emb_in, f'[MultiHeadAttention] Input embedding dim ({e}) should match layer embedding dim ({self.emb_in})'
+        assert e == self.emb_in, f'Input embedding dim ({e}) should match layer embedding dim ({self.emb_in})'
 
         keys = self.to_keys(x).view(b, t, self.heads, self.emb_out)
         queries = self.to_queries(x).view(b, t, self.heads, self.emb_out)
@@ -239,7 +241,7 @@ class MultiHeadAttention(nn.Module):
         # - get dot product of queries and keys, and scale
         dot = torch.bmm(queries, keys.transpose(1, 2))
 
-        assert dot.size() == (b * self.heads, t, t), f'[MultiHeadAttention] Matrix has size {dot.size()}, expected {(b * self.heads, t, t)}.'
+        assert dot.size() == (b * self.heads, t, t), f'Matrix has size {dot.size()}, expected {(b * self.heads, t, t)}.'
 
         dot = F.softmax(dot, dim = 2) # dot now has row-wise self-attention probabilities
 
@@ -259,6 +261,7 @@ class TransformerBlock(nn.Module):
 
     """
         Sequence to sequence component, the input dimension is the same than the output dimension.
+        Sequence length is not fixed.
         One Transformer block.
         emb_in is the dimension of every input vector (embedding).
         expansion_coef is the number you want to multiply the size of the hidden layer of the feed forward net.
@@ -306,6 +309,9 @@ class TransformerBlock(nn.Module):
 
     def forward(self, x):
 
+        b, t, e = x.size()
+        assert e == self.emb_in, f'Input embedding dim ({e}) should match layer embedding dim ({self.emb_in})'
+
         # Pass through the attention component
         attention_layer_output = self.attention_layer(x)
 
@@ -334,6 +340,7 @@ class TransformerStacked(nn.Module):
 
     """
         Sequence to sequence component, the input dimension is the same than the output dimension.
+        Sequence length is not fixed.
         Stack of n_blocks Transformer blocks.
         emb_in is the dimension of every input vector (embedding).
         expansion_coef is the number you want to multiply the size of the hidden layer of the feed forward net.
@@ -378,6 +385,9 @@ class TransformerStacked(nn.Module):
 
     def forward(self, x):
 
+        b, t, e = x.size()
+        assert e == self.emb_in, f'Input embedding dim ({e}) should match layer embedding dim ({self.emb_in})'
+
         transformer_output = self.transformer_blocks(x)
 
         output = transformer_output
@@ -385,7 +395,249 @@ class TransformerStacked(nn.Module):
         return output
 
 
+# 2 - Pooling components (sequence to one components, the input dimension is the same than the output dimension)
 
+class StatisticalPooling(nn.Module):
+
+    """
+        Sequence to one component, the input dimension is the same than the output dimension.
+        Sequence length is not fixed.
+        Given n vectors, takes their average as output.
+        emb_in is the dimension of every input vector (embedding).
+    """
+
+    def __init__(self, emb_in):
+
+        super().__init__()
+        
+        self.emb_in = emb_in 
+
+
+    def forward(self, x):
+
+        b, t, e = x.size()
+        assert e == self.emb_in, f'Input embedding dim ({e}) should match layer embedding dim ({self.emb_in})'
+
+        # Get the average of the input vectors (dim = 0 is the batch dimension)
+        output = x.mean(dim = 1)
+
+        return output
+
+
+class AttentionPooling(nn.Module):
+
+    """
+        Sequence to one component, the input dimension is the same than the output dimension.
+        Sequence length is not fixed.
+        Given n vectors, takes their weighted average as output. These weights comes from an attention mechanism.
+        It can be seen as a One Head Self-Attention, where a unique query is used and input vectors are the values and keys.   
+        emb_in is the dimension of every input vector (embedding).
+    """
+
+    def __init__(self, emb_in):
+
+        super().__init__()
+
+        self.emb_in = emb_in
+        self.init_query()
+
+        
+    def init_query(self):
+
+        # Init the unique trainable query.
+        self.query = torch.nn.Parameter(torch.FloatTensor(self.emb_in, 1))
+        torch.nn.init.xavier_normal_(self.query)
+
+
+    def forward(self, x):
+
+        b, t, e = x.size()
+        assert e == self.emb_in, f'Input embedding dim ({e}) should match layer embedding dim ({self.emb_in})'
+
+        attention_scores = torch.matmul(x, self.query)
+        attention_scores = attention_scores.squeeze(dim = -1)
+        attention_scores = F.softmax(attention_scores, dim = 1)
+        attention_scores = attention_scores.unsqueeze(dim = -1)
+
+        output = torch.bmm(attention_scores.transpose(1, 2), x)
+        output = output.view(output.size()[0], output.size()[1] * output.size()[2])
+        
+        return output
+
+
+# 3 - Pooling Systems (sequence to one components, the input dimension can be different than the output dimension)
+# Consists of an Attention component followed by a Pooling component 
+
+# HACK The following classes are constructed in this way to keep the old classes running. 
+# Must refactor all the module eventually to allow choosing an Attention and Pooling component as a argparse input param.
+
+class SelfAttentionAttentionPooling(nn.Module):
+
+    """
+        Sequence to one component, the input dimension can be different than the output dimension.
+        Sequence length is not fixed.
+        Consists of an SelfAttention component followed by a AttentionPooling component.
+        emb_in is the dimension of every input vector (embedding).
+        emb_out is the dimension of the final output vector (embedding).
+    """
+
+    def __init__(self, emb_in, emb_out):
+
+        super().__init__()
+
+        self.emb_in = emb_in
+        self.emb_out = emb_out
+        self.init_linear_projection()
+        self.init_attention_layer()
+        self.init_pooling_layer()
+
+    
+    def init_linear_projection(self):
+    
+      self.projection = nn.Linear(self.emb_in, self.emb_out, bias=False)
+
+
+    def init_attention_layer(self):
+      
+      self.attention_layer = SelfAttention()
+
+
+    def init_pooling_layer(self):
+
+      self.pooling_layer = AttentionPooling(self.emb_out)
+
+
+    def forward(self, x):
+
+        b, t, e = x.size()
+        assert e == self.emb_in, f'Input embedding dim ({e}) should match layer embedding dim ({self.emb_in})'
+      
+        x = self.projection(x)
+
+        output = self.attention_layer(x)
+
+        output = self.pooling_layer(output)
+
+        assert output.size()[1] == self.emb_out, f'Output embedding dim ({output.size()[1]}) should match layer embedding dim ({self.emb_out})'
+        
+        # Returing a tuple to keep old classes running
+        return output, None
+
+
+class MultiHeadAttentionAttentionPooling(nn.Module):
+
+    """
+        Sequence to one component, the input dimension can be different than the output dimension.
+        Sequence length is not fixed.
+        Consists of an MultiHeadAttention component followed by a AttentionPooling component.
+        emb_in is the dimension of every input vector (embedding).
+        emb_out is the dimension of the final output vector (embedding).
+        heads is the number of heads to use in the Multi-Head Attention component.
+    """
+
+    def __init__(self, emb_in, emb_out, heads):
+
+        super().__init__()
+
+        self.emb_in = emb_in
+        self.emb_out = emb_out
+        self.heads = heads
+        self.init_linear_projection()
+        self.init_attention_layer()
+        self.init_pooling_layer()
+
+    
+    def init_linear_projection(self):
+    
+      self.projection = nn.Linear(self.emb_in, self.emb_out, bias=False)
+
+
+    def init_attention_layer(self):
+      
+      self.attention_layer = MultiHeadAttention(self.emb_out, self.heads)
+
+
+    def init_pooling_layer(self):
+
+      self.pooling_layer = AttentionPooling(self.emb_out)
+
+
+    def forward(self, x):
+
+        b, t, e = x.size()
+        assert e == self.emb_in, f'Input embedding dim ({e}) should match layer embedding dim ({self.emb_in})'
+
+        x = self.projection(x)
+
+        output = self.attention_layer(x)
+
+        output = self.pooling_layer(output)
+
+        assert output.size()[1] == self.emb_out, f'Output embedding dim ({output.size()[1]}) should match layer embedding dim ({self.emb_out})'
+
+        # Returing a tuple to keep old classes running
+        return output, None
+
+
+class TransformerStackedAttentionPooling(nn.Module):
+
+    """
+        Sequence to one component, the input dimension can be different than the output dimension.
+        Sequence length is not fixed.
+        Consists of an TransformerStacked component followed by a AttentionPooling component.
+        emb_in is the dimension of every input vector (embedding).
+        emb_out is the dimension of the final output vector (embedding).
+        n_blocks is the number of Transformer blocks to use.
+        expansion_coef is the number you want to multiply the size of the hidden layer of the feed forward net.
+        attention_type is the type of attention to use in the attention component.
+        heads is the number of heads to use in the attention component, if Multi-Head Attention is used.
+    """
+
+    def __init__(self, emb_in, emb_out, n_blocks, expansion_coef, attention_type, heads):
+
+        super().__init__()
+
+        self.emb_in = emb_in
+        self.emb_out = emb_out
+        self.n_blocks = n_blocks
+        self.expansion_coef = expansion_coef
+        self.attention_type = attention_type
+        self.heads = heads
+        self.init_linear_projection()
+        self.init_attention_layer()
+        self.init_pooling_layer()
+
+    
+    def init_linear_projection(self):
+    
+      self.projection = nn.Linear(self.emb_in, self.emb_out, bias=False)
+
+
+    def init_attention_layer(self):
+      
+      self.attention_layer = TransformerStacked(self.emb_out, self.n_blocks, self.expansion_coef, self.attention_type, self.heads)
+
+
+    def init_pooling_layer(self):
+
+      self.pooling_layer = AttentionPooling(self.emb_out)
+
+
+    def forward(self, x):
+      
+        b, t, e = x.size()
+        assert e == self.emb_in, f'Input embedding dim ({e}) should match layer embedding dim ({self.emb_in})'
+
+        x = self.projection(x)
+
+        output = self.attention_layer(x)
+
+        output = self.pooling_layer(output)
+
+        assert output.size()[1] == self.emb_out, f'Output embedding dim ({output.size()[1]}) should match layer embedding dim ({self.emb_out})'
+
+        # Returing a tuple to keep old classes running
+        return output, None
 
 
 

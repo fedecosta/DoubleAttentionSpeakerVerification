@@ -961,7 +961,7 @@ class ArgsParser:
             '--pooling_method', 
             type = str, 
             default = TRAIN_DEFAULT_SETTINGS['pooling_method'], 
-            choices = ['statistical', 'Attention', 'MHA', 'DoubleMHA', 'SelfAttentionAttentionPooling', 'MultiHeadAttentionAttentionPooling'], 
+            choices = ['Attention', 'MHA', 'DoubleMHA', 'SelfAttentionAttentionPooling', 'MultiHeadAttentionAttentionPooling', 'TransformerStackedAttentionPooling'], 
             help = 'Type of pooling method.',
             )
 
