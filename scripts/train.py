@@ -969,14 +969,14 @@ class ArgsParser:
             '--heads_number', 
             type = int, 
             default = TRAIN_DEFAULT_SETTINGS['heads_number'],
-            help = 'Number of heads for the pooling method (only for MHA based options).',
+            help = 'Number of heads for the pooling method (only for MHA based pooling_method options).',
             )
 
         self.parser.add_argument(
             '--mask_prob', 
             type = float, 
             default = TRAIN_DEFAULT_SETTINGS['mask_prob'], 
-            help = 'Masking Drop Probability. Only used for Double MHA',
+            help = 'Masking Drop Probability. Only used for pooling_method = Double MHA',
             )
 
         self.parser.add_argument(
@@ -990,25 +990,25 @@ class ArgsParser:
             '--n_transformers_blocks', 
             type = int, 
             default = TRAIN_DEFAULT_SETTINGS['n_transformers_blocks'],
-            help = 'Number of transformers blocks to stack in the attention component \
-                (only for pooling_method = TransformerStackedAttentionPooling).',
+            help = 'Number of transformers blocks to stack in the attention component of the pooling_method. \
+                (Only for pooling_method = TransformerStackedAttentionPooling).',
             )
 
         self.parser.add_argument(
-            '--expansion_coef', 
+            '--transformer_expansion_coef', 
             type = int, 
-            default = TRAIN_DEFAULT_SETTINGS['expansion_coef'], 
-            help = 'Number you want to multiply by the size of the hidden layer of the feed forward net \
-                (only for pooling_method = TransformerStackedAttentionPooling).'
+            default = TRAIN_DEFAULT_SETTINGS['transformer_expansion_coef'], 
+            help = "Number you want to multiply by the size of the hidden layer of the transformer block's feed forward net. \
+                (Only for pooling_method = TransformerStackedAttentionPooling)."
             )
 
         self.parser.add_argument(
-            '--attention_type', 
+            '--transformer_attention_type', 
             type = str, 
-            default = TRAIN_DEFAULT_SETTINGS['attention_type'], 
+            default = TRAIN_DEFAULT_SETTINGS['transformer_attention_type'], 
             choices = ['SelfAttention', 'MultiHeadAttention'],
-            help = 'Type of Attention to use in the Pooling component\
-                (only for pooling_method = TransformerStackedAttentionPooling).'
+            help = 'Type of Attention to use in the attention component of the transformer block.\
+                (Only for pooling_method = TransformerStackedAttentionPooling).'
             )
 
         # AMSoftmax Config

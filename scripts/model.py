@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 from torch.nn import functional as F
-from poolings import Attention, MultiHeadAttention, DoubleMHA, 
+from poolings import Attention, MultiHeadAttention, DoubleMHA
 from poolings import SelfAttentionAttentionPooling, MultiHeadAttentionAttentionPooling, TransformerStackedAttentionPooling
 from CNNs import VGGNL
 from loss import AMSoftmax
@@ -11,7 +11,7 @@ class SpeakerClassifier(nn.Module):
     def __init__(self, parameters, device):
         super().__init__()
        
-        parameters.feature_size = 80 # HACK hardcoded 80 for mel bands. Read the number of mel bands from the input spectrogram 
+        parameters.feature_size = 80 # FIX hardcoded 80 for mel bands. Read the number of mel bands from the input spectrogram 
         self.device = device
         
         self.__initFrontEnd(parameters)        
@@ -57,21 +57,21 @@ class SpeakerClassifier(nn.Module):
         elif self.pooling_method == 'SelfAttentionAttentionPooling':
             self.poolingLayer = SelfAttentionAttentionPooling(
                 emb_in = self.hidden_states_dimension,
-                emb_out = parameters.embedding_size,
+                emb_out = parameters.embedding_size, # TODO this could be a different argparse parameter
                 )
         elif self.pooling_method == 'MultiHeadAttentionAttentionPooling':
             self.poolingLayer = MultiHeadAttentionAttentionPooling(
                 emb_in = self.hidden_states_dimension,
-                emb_out = parameters.embedding_size, 
+                emb_out = parameters.embedding_size, # TODO this could be a different argparse parameter
                 heads = parameters.heads_number,
                 )
         elif self.pooling_method == 'TransformerStackedAttentionPooling':
             self.poolingLayer = TransformerStackedAttentionPooling(
                 emb_in = self.hidden_states_dimension,
-                emb_out = parameters.embedding_size, 
-                n_blocks = 2, # FIX set as argparse input param
-                expansion_coef = 2, # FIX set as argparse input param
-                attention_type = "MultiHeadAttention", # FIX set as argparse input param
+                emb_out = parameters.embedding_size, # TODO this could be a different argparse parameter
+                n_blocks = parameters.n_transformers_blocks, 
+                expansion_coef = parameters.transformer_expansion_coef, 
+                attention_type = parameters.transformer_attention_type, 
                 heads = parameters.heads_number,
                 )
 
