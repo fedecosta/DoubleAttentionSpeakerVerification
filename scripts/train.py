@@ -989,7 +989,7 @@ class ArgsParser:
         self.parser.add_argument(
             '--n_transformers_blocks', 
             type = int, 
-            default = TRAIN_DEFAULT_SETTINGS['n_transformers_blocks'],
+            #default = TRAIN_DEFAULT_SETTINGS['n_transformers_blocks'],
             help = 'Number of transformers blocks to stack in the attention component of the pooling_method. \
                 (Only for pooling_method = TransformerStackedAttentionPooling).',
             )
@@ -997,7 +997,7 @@ class ArgsParser:
         self.parser.add_argument(
             '--transformer_expansion_coef', 
             type = int, 
-            default = TRAIN_DEFAULT_SETTINGS['transformer_expansion_coef'], 
+            #default = TRAIN_DEFAULT_SETTINGS['transformer_expansion_coef'], 
             help = "Number you want to multiply by the size of the hidden layer of the transformer block's feed forward net. \
                 (Only for pooling_method = TransformerStackedAttentionPooling)."
             )
@@ -1005,7 +1005,7 @@ class ArgsParser:
         self.parser.add_argument(
             '--transformer_attention_type', 
             type = str, 
-            default = TRAIN_DEFAULT_SETTINGS['transformer_attention_type'], 
+            #default = TRAIN_DEFAULT_SETTINGS['transformer_attention_type'], 
             choices = ['SelfAttention', 'MultiHeadAttention'],
             help = 'Type of Attention to use in the attention component of the transformer block.\
                 (Only for pooling_method = TransformerStackedAttentionPooling).'

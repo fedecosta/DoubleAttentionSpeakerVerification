@@ -68,9 +68,6 @@ TRAIN_DEFAULT_SETTINGS = {
     'learning_rate' : 0.0001,
     'weight_decay' : 0.001,
     'verbose' : False,
-    'n_transformers_blocks' : 2,
-    'transformer_expansion_coef' : 2,
-    'transformer_attention_type' : 'MultiHeadAttention',
 }
 
 MODEL_EVALUATOR_DEFAULT_SETTINGS = {

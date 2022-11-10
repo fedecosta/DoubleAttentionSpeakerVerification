@@ -186,7 +186,7 @@ class SelfAttention(nn.Module):
         return output
 
 
-class MultiHeadAttention(nn.Module):
+class MultiHeadAttention2(nn.Module):
 
     """
         Sequence to sequence component, the input dimension is the same than the output dimension.
@@ -289,7 +289,7 @@ class TransformerBlock(nn.Module):
         if self.attention_type == "SelfAttention":
             self.attention_layer = SelfAttention()
         elif self.attention_type == "MultiHeadAttention":
-            self.attention_layer = MultiHeadAttention(self.emb_in, self.heads)
+            self.attention_layer = MultiHeadAttention2(self.emb_in, self.heads)
 
 
     def init_norm_layers(self):
@@ -554,7 +554,7 @@ class MultiHeadAttentionAttentionPooling(nn.Module):
 
     def init_attention_layer(self):
       
-      self.attention_layer = MultiHeadAttention(self.emb_out, self.heads)
+      self.attention_layer = MultiHeadAttention2(self.emb_out, self.heads)
 
 
     def init_pooling_layer(self):
