@@ -2,6 +2,7 @@ import torch
 from torch.nn import functional as F
 import numpy as np
 import datetime
+import psutil
 
 
 def Score(SC, th, rate):
@@ -137,6 +138,25 @@ def calculate_EER(clients_similarities, impostors_similarities):
 
     return EER
 
+
+def get_memory_info():
+
+    # CPU memory info
+    cpu_memory_info = dict(psutil.virtual_memory()._asdict())
+    cpu_total = cpu_memory_info["total"]
+    cpu_available = cpu_memory_info["available"]
+    cpu_available_pctg = cpu_available * 100 / cpu_total
+
+    # GPU memory info
+    if torch.cuda.is_available():
+        gpu_free, gpu_occupied = torch.cuda.mem_get_info()
+        gpu_free = gpu_free/1000000000
+    else:
+        gpu_free = None
+
+    return cpu_available_pctg, gpu_free
+
+    
 
 
 #def normalize_features(self, features):

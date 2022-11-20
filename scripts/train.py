@@ -12,7 +12,7 @@ from torchsummary import summary
 
 from data import Dataset, normalizeFeatures, featureReader
 from model import SpeakerClassifier
-from utils import get_number_of_speakers, generate_model_name, Accuracy, scoreCosineDistance, Score
+from utils import get_number_of_speakers, generate_model_name, Accuracy, scoreCosineDistance, Score, get_memory_info
 from settings import TRAIN_DEFAULT_SETTINGS
 
 # Set logging config
@@ -44,6 +44,7 @@ class Trainer:
 
         self.start_datetime = datetime.datetime.strftime(datetime.datetime.now(), '%y-%m-%d %H:%M:%S')
         self.set_device()
+        self.info_mem()
         self.set_random_seed()
         self.set_params(input_params)
         self.set_log_file_handler()
@@ -53,9 +54,18 @@ class Trainer:
         self.load_optimizer()
         self.initialize_training_variables()
         self.config_wandb()
+        self.info_mem()
 
 
     # Init methods
+
+
+    def info_mem(self, step = None):
+        cpu_available_pctg, gpu_free = get_memory_info()
+        if step is not None:
+            logger.info(f"Step {self.step}: CPU available {cpu_available_pctg:.2f}% - GPU free {gpu_free}")
+        else:
+            logger.info(f"CPU available {cpu_available_pctg:.2f}% - GPU free {gpu_free}")
 
 
     def set_params(self, input_params):
@@ -208,6 +218,10 @@ class Trainer:
             dataset, 
             **data_loader_parameters,
             )
+
+        del train_labels
+        del representative_sample
+        del dataset
 
         logger.info("Data and labels loaded.")
 
@@ -387,6 +401,11 @@ class Trainer:
         # 4 - Update the wandb config
         wandb.config.update(self.wandb_config)
 
+        del train_labels
+        del representative_sample
+        del features_dict
+        del dev_features_settings
+
 
     # Training methods
 
@@ -406,6 +425,7 @@ class Trainer:
 
         logger.info(f"Training evaluated.")
         logger.info(f"Accuracy on training set: {accuracy:.3f}")
+        self.info_mem(self.step)
 
 
     def extractInputFromFeature(self, sline):
@@ -501,6 +521,7 @@ class Trainer:
 
         logger.info(f"EER on validation set: {EER:.3f}")
         logger.info(f"Validation evaluated.")
+        self.info_mem(self.step)
 
 
     def evaluate(self, prediction, label):
@@ -592,7 +613,14 @@ class Trainer:
         # Log the artifact
         run.log_artifact(trained_model_artifact)
 
+        # Delete variables to free memory
+        del model_results
+        del training_variables
+        del checkpoint
+        del trained_model_artifact
+
         logger.info(f"Training and model information saved.")
+        self.info_mem(self.step)
 
 
     def eval_and_save_best_model(self, prediction, label):
@@ -631,6 +659,7 @@ class Trainer:
 
             logger.info(f"Consecutive validations without improvement: {self.validations_without_improvement}")
             logger.info('Evaluating and saving done.')
+            self.info_mem(self.step)
 
 
     def check_update_optimizer(self):
@@ -671,6 +700,7 @@ class Trainer:
             info_to_print = info_to_print + f"Best EER {self.best_model_valid_eval_metric:.3f}..."
 
             logger.info(info_to_print)
+            self.info_mem(self.step)
 
             
     def train_single_epoch(self, epoch):
@@ -732,6 +762,8 @@ class Trainer:
                 break
             
             self.step = self.step + 1
+
+            
 
         logger.info(f"-"*50)
         logger.info(f"Epoch {epoch} finished with:")
