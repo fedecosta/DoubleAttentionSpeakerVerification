@@ -1012,9 +1012,9 @@ class ArgsParser:
             )
 
         self.parser.add_argument(
-            '--drop_out', 
+            '--bottleneck_drop_out', 
             type = float, 
-            default = TRAIN_DEFAULT_SETTINGS['drop_out'], 
+            default = TRAIN_DEFAULT_SETTINGS['bottleneck_drop_out'], 
             help = 'Dropout probability to use in the final fully conected bottleneck.'
             )
 
