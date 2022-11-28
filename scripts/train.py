@@ -1012,6 +1012,13 @@ class ArgsParser:
             )
 
         self.parser.add_argument(
+            '--drop_out', 
+            type = float, 
+            default = TRAIN_DEFAULT_SETTINGS['drop_out'], 
+            help = 'Dropout probability to use in the final fully conected bottleneck.'
+            )
+
+        self.parser.add_argument(
             '--embedding_size', 
             type = int, 
             default = TRAIN_DEFAULT_SETTINGS['embedding_size'],
@@ -1040,6 +1047,14 @@ class ArgsParser:
             #default = TRAIN_DEFAULT_SETTINGS['transformer_attention_type'], 
             choices = ['SelfAttention', 'MultiHeadAttention'],
             help = 'Type of Attention to use in the attention component of the transformer block.\
+                (Only for pooling_method = TransformerStackedAttentionPooling).'
+            )
+        
+        self.parser.add_argument(
+            '--transformer_drop_out', 
+            type = float, 
+            #default = TRAIN_DEFAULT_SETTINGS['transformer_drop_out'], 
+            help = 'Dropout probability to use in the feed forward component of the transformer block.\
                 (Only for pooling_method = TransformerStackedAttentionPooling).'
             )
 

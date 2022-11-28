@@ -95,6 +95,7 @@ class SpeakerClassifier(nn.Module):
         self.fc3 = nn.Linear(parameters.embedding_size, parameters.embedding_size)
         self.b3 = nn.BatchNorm1d(parameters.embedding_size)
 
+        self.drop_out = nn.Dropout(parameters.drop_out_p)
         self.softmax = nn.Softmax(dim=1)
 
 
@@ -109,15 +110,18 @@ class SpeakerClassifier(nn.Module):
         embedding_0, alignment = self.poolingLayer(encoder_output)
 
         # TODO should we use relu and bn in every layer?
+        embedding_0 = self.drop_out(embedding_0)
         embedding_1 = self.fc1(embedding_0)
         embedding_1 = F.relu(embedding_1)
         embedding_1 = self.b1(embedding_1)
 
-        embedding_2 = self.fc2(embedding_1)
+        embedding_2 = self.drop_out(embedding_1)
+        embedding_2 = self.fc2(embedding_2)
         embedding_2 = F.relu(embedding_2)
         embedding_2 = self.b2(embedding_2)
 
-        embedding_3 = self.fc3(embedding_2)
+        embedding_3 = self.drop_out(embedding_2)
+        embedding_3 = self.fc3(embedding_3)
         embedding_3 = self.b3(embedding_3)
 
         inner_products, inner_products_m_s = self.am_softmax_layer(embedding_3, label)
@@ -128,15 +132,19 @@ class SpeakerClassifier(nn.Module):
         return probs, inner_products_m_s
 
 
-    # TODO not used in this class. where?
+    # TODO not used in this class. where? in model evaluator
     def get_embedding(self, input_tensor):
 
         # TODO should we use relu and bn in every layer?d
 
         encoder_output = self.front_end(input_tensor)
 
+        # TODO seems that alignment is not used anywhere
         embedding_0, alignment = self.poolingLayer(encoder_output)
 
+        # TODO should we use relu and bn in every layer?
+
+        # NO DROPOUT HERE
         embedding_1 = self.fc1(embedding_0)
         embedding_1 = F.relu(embedding_1)
         embedding_1 = self.b1(embedding_1)

@@ -61,6 +61,7 @@ TRAIN_DEFAULT_SETTINGS = {
     'pooling_method' : 'DoubleMHA',
     'heads_number' : 32,
     'mask_prob' : 0.3,
+    'drop_out' : 0.0,
     'embedding_size' : 400,
     'scaling_factor' : 30.0,
     'margin_factor' : 0.4,

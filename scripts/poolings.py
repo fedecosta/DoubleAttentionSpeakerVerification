@@ -269,7 +269,7 @@ class TransformerBlock(nn.Module):
         heads is the number of heads to use in the attention component, if Multi-Head Attention is used.
     """
 
-    def __init__(self, emb_in, expansion_coef, attention_type, heads = None):
+    def __init__(self, emb_in, expansion_coef, attention_type, drop_out_p, heads = None):
 
         super().__init__()
 
@@ -277,11 +277,14 @@ class TransformerBlock(nn.Module):
         self.emb_out = emb_in # we want the same dimension
         self.expansion_coef = expansion_coef
         self.attention_type = attention_type
+        self.drop_out_p = drop_out_p
         self.heads = heads
+        
 
         self.init_attention_layer()
         self.init_norm_layers()
         self.init_feed_forward_layer()
+        self.drop_out = nn.Dropout(drop_out_p)
 
 
     def init_attention_layer(self):
@@ -322,7 +325,7 @@ class TransformerBlock(nn.Module):
         normalized_1 = self.norm1(skip_connection_1)
 
         # Feed forward component
-        feed_forward = self.feed_forward_layer(normalized_1)
+        feed_forward = self.feed_forward_layer(self.drop_out(normalized_1))
         
         # Make the skip connection
         skip_connection_2 = feed_forward + normalized_1
@@ -348,7 +351,7 @@ class TransformerStacked(nn.Module):
         heads is the number of heads to use in the attention component, if Multi-Head Attention is used.
     """
   
-    def __init__(self, emb_in, n_blocks, expansion_coef, attention_type, heads = None):
+    def __init__(self, emb_in, n_blocks, expansion_coef, attention_type, drop_out_p, heads = None):
 
         super().__init__()
 
@@ -357,16 +360,17 @@ class TransformerStacked(nn.Module):
         self.n_blocks = n_blocks
         self.expansion_coef = expansion_coef
         self.attention_type = attention_type
+        self.drop_out_p = drop_out_p
         self.heads = heads
 
         self.init_transformer_blocks()
 
 
-    def init_transformer_block(self, emb_in, expansion_coef, attention_type, heads = None):
+    def init_transformer_block(self, emb_in, expansion_coef, attention_type, drop_out_p, heads = None):
 
         # Init one transformer block
 
-        transformer_block = TransformerBlock(emb_in, expansion_coef, attention_type, heads)
+        transformer_block = TransformerBlock(emb_in, expansion_coef, attention_type, drop_out_p, heads)
 
         return transformer_block
 
@@ -378,7 +382,7 @@ class TransformerStacked(nn.Module):
         for num_block in range(self.n_blocks):
 
             transformer_block_name = f"transformer_block_{num_block}"
-            transformer_block = self.init_transformer_block(self.emb_in, self.expansion_coef, self.attention_type, self.heads)
+            transformer_block = self.init_transformer_block(self.emb_in, self.expansion_coef, self.attention_type, self.drop_out_p, self.heads)
                 
             self.transformer_blocks.add_module(transformer_block_name, transformer_block)
 
@@ -593,7 +597,7 @@ class TransformerStackedAttentionPooling(nn.Module):
         heads is the number of heads to use in the attention component, if Multi-Head Attention is used.
     """
 
-    def __init__(self, emb_in, emb_out, n_blocks, expansion_coef, attention_type, heads):
+    def __init__(self, emb_in, emb_out, n_blocks, expansion_coef, attention_type, drop_out_p, heads):
 
         super().__init__()
 
@@ -602,6 +606,7 @@ class TransformerStackedAttentionPooling(nn.Module):
         self.n_blocks = n_blocks
         self.expansion_coef = expansion_coef
         self.attention_type = attention_type
+        self.drop_out_p = drop_out_p
         self.heads = heads
         self.init_linear_projection()
         self.init_attention_layer()
@@ -615,7 +620,7 @@ class TransformerStackedAttentionPooling(nn.Module):
 
     def init_attention_layer(self):
       
-      self.attention_layer = TransformerStacked(self.emb_out, self.n_blocks, self.expansion_coef, self.attention_type, self.heads)
+      self.attention_layer = TransformerStacked(self.emb_out, self.n_blocks, self.expansion_coef, self.attention_type, self.drop_out_p, self.heads)
 
 
     def init_pooling_layer(self):
