@@ -15,7 +15,7 @@ class SpeakerClassifier(nn.Module):
         self.device = device
         
         self.__initFrontEnd(parameters)        
-        self.__initPoolingLayers(parameters)
+        self.__initPoolingLayers(parameters, device = self.device)
         self.__initFullyConnectedBlock(parameters)
         
         self.am_softmax_layer = AMSoftmax(
@@ -39,7 +39,7 @@ class SpeakerClassifier(nn.Module):
                 )
             
 
-    def __initPoolingLayers(self, parameters):    
+    def __initPoolingLayers(self, parameters, device):    
 
         # Set the pooling component that will take the front-end features and summarize them in a context vector
 
@@ -49,30 +49,37 @@ class SpeakerClassifier(nn.Module):
         if self.pooling_method == 'Attention':
             self.poolingLayer = Attention(self.hidden_states_dimension)
         elif self.pooling_method == 'MHA':
-            self.poolingLayer = MultiHeadAttention(self.hidden_states_dimension, parameters.heads_number)
+            self.poolingLayer = MultiHeadAttention(self.hidden_states_dimension, parameters.pooling_heads_number)
         elif self.pooling_method == 'DoubleMHA':
-            self.poolingLayer = DoubleMHA(self.hidden_states_dimension, parameters.heads_number, mask_prob = parameters.mask_prob)
-            self.hidden_states_dimension = self.hidden_states_dimension // parameters.heads_number
+            self.poolingLayer = DoubleMHA(self.hidden_states_dimension, parameters.pooling_heads_number, mask_prob = parameters.pooling_mask_prob)
+            self.hidden_states_dimension = self.hidden_states_dimension // parameters.pooling_heads_number
         # New Pooling classes
         elif self.pooling_method == 'SelfAttentionAttentionPooling':
             self.poolingLayer = SelfAttentionAttentionPooling(
                 emb_in = self.hidden_states_dimension,
                 emb_out = parameters.embedding_size, # TODO this could be a different argparse parameter
+                positional_encoding = parameters.pooling_positional_encoding,
+                device = device,
                 )
         elif self.pooling_method == 'MultiHeadAttentionAttentionPooling':
             self.poolingLayer = MultiHeadAttentionAttentionPooling(
                 emb_in = self.hidden_states_dimension,
                 emb_out = parameters.embedding_size, # TODO this could be a different argparse parameter
-                heads = parameters.heads_number,
+                heads = parameters.pooling_heads_number,
+                positional_encoding = parameters.pooling_positional_encoding,
+                device = device,
                 )
         elif self.pooling_method == 'TransformerStackedAttentionPooling':
             self.poolingLayer = TransformerStackedAttentionPooling(
                 emb_in = self.hidden_states_dimension,
                 emb_out = parameters.embedding_size, # TODO this could be a different argparse parameter
-                n_blocks = parameters.n_transformers_blocks, 
+                n_blocks = parameters.transformer_n_blocks, 
                 expansion_coef = parameters.transformer_expansion_coef, 
                 attention_type = parameters.transformer_attention_type, 
-                heads = parameters.heads_number,
+                drop_out_p = parameters.transformer_drop_out, 
+                heads = parameters.pooling_heads_number,
+                positional_encoding = parameters.pooling_positional_encoding,
+                device = device,
                 )
 
 
@@ -95,7 +102,7 @@ class SpeakerClassifier(nn.Module):
         self.fc3 = nn.Linear(parameters.embedding_size, parameters.embedding_size)
         self.b3 = nn.BatchNorm1d(parameters.embedding_size)
 
-        self.drop_out = nn.Dropout(parameters.drop_out_p)
+        self.drop_out = nn.Dropout(parameters.bottleneck_drop_out)
         self.softmax = nn.Softmax(dim=1)
 
 

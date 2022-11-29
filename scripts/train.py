@@ -944,7 +944,7 @@ class ArgsParser:
             type = str, 
             default = TRAIN_DEFAULT_SETTINGS['normalization'], 
             choices = ['cmn', 'cmvn'],
-            help = 'Type of normalization applied to the features. \
+            help = 'Type of normalization applied to the features when evaluating in validation. \
                 It can be Cepstral Mean Normalization or Cepstral Mean and Variance Normalization',
             )
 
@@ -962,6 +962,13 @@ class ArgsParser:
             type = str, 
             default = TRAIN_DEFAULT_SETTINGS['model_name_prefix'], 
             help = 'Give the model a name prefix when saving it.'
+            )
+
+        self.parser.add_argument(
+            '--embedding_size', 
+            type = int, 
+            default = TRAIN_DEFAULT_SETTINGS['embedding_size'],
+            help = 'Size of the embedding that the system will generate.',
             )
 
         self.parser.add_argument(
@@ -998,38 +1005,38 @@ class ArgsParser:
             )
 
         self.parser.add_argument(
-            '--heads_number', 
+            '--pooling_heads_number', 
             type = int, 
-            default = TRAIN_DEFAULT_SETTINGS['heads_number'],
-            help = 'Number of heads for the pooling method (only for MHA based pooling_method options).',
+            #default = TRAIN_DEFAULT_SETTINGS['pooling_heads_number'],
+            help = 'Number of heads for the attention layer of the pooling component (only for MHA based pooling_method options).',
             )
 
         self.parser.add_argument(
-            '--mask_prob', 
+            '--pooling_mask_prob', 
             type = float, 
-            default = TRAIN_DEFAULT_SETTINGS['mask_prob'], 
-            help = 'Masking Drop Probability. Only used for pooling_method = Double MHA',
+            #default = TRAIN_DEFAULT_SETTINGS['pooling_mask_prob'], 
+            help = 'Masking head drop probability. Only used for pooling_method = Double MHA',
+            )
+
+        self.parser.add_argument(
+            '--pooling_positional_encoding', 
+            action = argparse.BooleanOptionalAction,
+            #default = TRAIN_DEFAULT_SETTINGS['pooling_positional_encoding'], 
+            help = 'Wether to use positional encoding in the attention layer of the pooling component.'
             )
 
         self.parser.add_argument(
             '--bottleneck_drop_out', 
             type = float, 
             default = TRAIN_DEFAULT_SETTINGS['bottleneck_drop_out'], 
-            help = 'Dropout probability to use in the final fully conected bottleneck.'
+            help = 'Dropout probability to use in each layer of the final fully connected bottleneck.'
             )
 
         self.parser.add_argument(
-            '--embedding_size', 
+            '--transformer_n_blocks', 
             type = int, 
-            default = TRAIN_DEFAULT_SETTINGS['embedding_size'],
-            help = 'Size of the embedding that the system will generate.',
-            )
-
-        self.parser.add_argument(
-            '--n_transformers_blocks', 
-            type = int, 
-            #default = TRAIN_DEFAULT_SETTINGS['n_transformers_blocks'],
-            help = 'Number of transformers blocks to stack in the attention component of the pooling_method. \
+            #default = TRAIN_DEFAULT_SETTINGS['transformer_n_blocks'],
+            help = 'Number of transformer blocks to stack in the attention component of the pooling_method. \
                 (Only for pooling_method = TransformerStackedAttentionPooling).',
             )
 
@@ -1059,6 +1066,7 @@ class ArgsParser:
             )
 
         # AMSoftmax Config
+
         self.parser.add_argument(
             '--scaling_factor', 
             type = float, 
@@ -1074,6 +1082,7 @@ class ArgsParser:
             )
 
         # Optimization arguments
+
         self.parser.add_argument(
             '--optimizer', 
             type = str, 

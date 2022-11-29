@@ -485,13 +485,16 @@ class SelfAttentionAttentionPooling(nn.Module):
         emb_out is the dimension of the final output vector (embedding).
     """
 
-    def __init__(self, emb_in, emb_out):
+    def __init__(self, emb_in, emb_out, positional_encoding, device):
 
         super().__init__()
 
         self.emb_in = emb_in
         self.emb_out = emb_out
+        self.positional_encoding = positional_encoding
+        self.device = device
         self.init_linear_projection()
+        self.init_positional_encoding()
         self.init_attention_layer()
         self.init_pooling_layer()
 
@@ -499,6 +502,17 @@ class SelfAttentionAttentionPooling(nn.Module):
     def init_linear_projection(self):
     
       self.projection = nn.Linear(self.emb_in, self.emb_out, bias=False)
+
+
+    def init_positional_encoding(self):
+
+        if self.positional_encoding:
+            self.positional_encoding_layer = PositionalEncoding(
+                d_model = self.emb_out, 
+                device = self.device,
+                p_drop_out = 0.0, 
+                max_len = 5000,
+                )
 
 
     def init_attention_layer(self):
@@ -517,6 +531,9 @@ class SelfAttentionAttentionPooling(nn.Module):
         assert e == self.emb_in, f'Input embedding dim ({e}) should match layer embedding dim ({self.emb_in})'
       
         x = self.projection(x)
+
+        if self.positional_encoding:
+            x = self.positional_encoding_layer(x)
 
         output = self.attention_layer(x)
 
@@ -539,14 +556,18 @@ class MultiHeadAttentionAttentionPooling(nn.Module):
         heads is the number of heads to use in the Multi-Head Attention component.
     """
 
-    def __init__(self, emb_in, emb_out, heads):
+    def __init__(self, emb_in, emb_out, heads, positional_encoding, device):
 
         super().__init__()
 
         self.emb_in = emb_in
         self.emb_out = emb_out
         self.heads = heads
+        self.positional_encoding = positional_encoding
+        self.device = device
+
         self.init_linear_projection()
+        self.init_positional_encoding()
         self.init_attention_layer()
         self.init_pooling_layer()
 
@@ -554,6 +575,17 @@ class MultiHeadAttentionAttentionPooling(nn.Module):
     def init_linear_projection(self):
     
       self.projection = nn.Linear(self.emb_in, self.emb_out, bias=False)
+
+
+    def init_positional_encoding(self):
+
+        if self.positional_encoding:
+            self.positional_encoding_layer = PositionalEncoding(
+                d_model = self.emb_out, 
+                device = self.device,
+                p_drop_out = 0.0, 
+                max_len = 5000,
+                )
 
 
     def init_attention_layer(self):
@@ -572,6 +604,9 @@ class MultiHeadAttentionAttentionPooling(nn.Module):
         assert e == self.emb_in, f'Input embedding dim ({e}) should match layer embedding dim ({self.emb_in})'
 
         x = self.projection(x)
+
+        if self.positional_encoding:
+            x = self.positional_encoding_layer(x)
 
         output = self.attention_layer(x)
 
@@ -597,7 +632,7 @@ class TransformerStackedAttentionPooling(nn.Module):
         heads is the number of heads to use in the attention component, if Multi-Head Attention is used.
     """
 
-    def __init__(self, emb_in, emb_out, n_blocks, expansion_coef, attention_type, drop_out_p, heads):
+    def __init__(self, emb_in, emb_out, n_blocks, expansion_coef, attention_type, drop_out_p, heads, positional_encoding, device):
 
         super().__init__()
 
@@ -608,7 +643,11 @@ class TransformerStackedAttentionPooling(nn.Module):
         self.attention_type = attention_type
         self.drop_out_p = drop_out_p
         self.heads = heads
+        self.positional_encoding = positional_encoding
+        self.device = device
+        
         self.init_linear_projection()
+        self.init_positional_encoding()
         self.init_attention_layer()
         self.init_pooling_layer()
 
@@ -616,6 +655,17 @@ class TransformerStackedAttentionPooling(nn.Module):
     def init_linear_projection(self):
     
       self.projection = nn.Linear(self.emb_in, self.emb_out, bias=False)
+
+
+    def init_positional_encoding(self):
+
+        if self.positional_encoding:
+            self.positional_encoding_layer = PositionalEncoding(
+                d_model = self.emb_out, 
+                device = self.device,
+                p_drop_out = 0.0, 
+                max_len = 5000,
+                )
 
 
     def init_attention_layer(self):
@@ -635,6 +685,9 @@ class TransformerStackedAttentionPooling(nn.Module):
 
         x = self.projection(x)
 
+        if self.positional_encoding:
+            x = self.positional_encoding_layer(x)
+
         output = self.attention_layer(x)
 
         output = self.pooling_layer(output)
@@ -645,4 +698,42 @@ class TransformerStackedAttentionPooling(nn.Module):
         return output, None
 
 
+class PositionalEncoding(nn.Module):
+    "Implement the PE function from http://nlp.seas.harvard.edu/annotated-transformer/#positional-encoding."
 
+    def __init__(self, d_model, device, p_drop_out = 0.0, max_len = 5000):
+        
+        super().__init__()
+
+        self.d_model = d_model
+        self.device = device
+        self.p_drop_out = p_drop_out
+        self.max_len = max_len
+        self.dropout = nn.Dropout(p = p_drop_out)
+        self.compute_pe_matrix(max_len = self.max_len, d_model = self.d_model)
+
+    def compute_pe_matrix(self, max_len, d_model):
+
+        # Compute the positional encodings once in log space.
+
+        self.pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len).unsqueeze(1)
+        div_term = torch.exp(
+            torch.arange(0, d_model, 2) * -(math.log(10000.0) / d_model)
+        )
+        self.pe[:, 0::2] = torch.sin(position * div_term)
+        self.pe[:, 1::2] = torch.cos(position * div_term)
+        self.pe = self.pe.unsqueeze(0)
+
+        # adds self.pe to the state_dict so that its included when serialized to disk
+        # self.register_buffer("positional_encoding", self.pe)
+
+    def forward(self, x):
+
+        # if the input has more positions than previously calculated in pe we enlarge pe
+        if x.size(1) > self.pe.size(0):
+            self.compute_pe_matrix(max_len = x.size(1) + 100, d_model = self.d_model)
+
+        x = x + self.pe[:, : x.size(1)].requires_grad_(False).to(device = self.device)
+        
+        return self.dropout(x)
