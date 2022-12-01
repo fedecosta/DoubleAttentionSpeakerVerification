@@ -8,6 +8,8 @@ PATHS_GENERATOR_DEFAULT_SETTINGS = {
 FEATURE_EXTRACTOR_DEFAULT_SETTINGS = {
     'audio_paths_file_folder' : './feature_extractor/',
     'audio_paths_file_name' : 'feature_extractor_paths.lst',
+    'prepend_directory' : '',
+    'dump_folder_name' : './datasets/v0/',
     'log_file_folder' : './logs',
     'log_file_name' : 'feature_extractor.log',
     'sampling_rate' : 16000,

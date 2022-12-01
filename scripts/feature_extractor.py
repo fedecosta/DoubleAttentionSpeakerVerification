@@ -121,6 +121,10 @@ class FeatureExtractor:
 
         self.count_input_lines()
 
+        # If not exists, create the dump folder
+        if not os.path.exists(self.params.dump_folder_name):
+            os.makedirs(self.params.dump_folder_name)
+
         with open(self.params.audio_paths_file_path, 'r') as file:
         
             logger.info(f"{self.total_lines} audios ready for feature extraction.")
@@ -129,16 +133,25 @@ class FeatureExtractor:
             progress_pctg_to_print = 0
             for line in file:
 
+                # remove end of line
                 audio_path = line.replace("\n", "")
+                # Prepend the optional folder directory
+                load_audio_path = os.path.join(self.params.prepend_directory, audio_path)
 
-                if self.params.verbose: logger.info(f"Processing file {audio_path}...")
+                if self.params.verbose: logger.info(f"Processing file {load_audio_path}...")
 
                 file_dump_path = '.'.join(line.split(".")[:-1]) # remove the file extension
                 file_dump_path = file_dump_path + ".pickle" # add the pickle extension
+                file_dump_path = os.path.join(self.params.dump_folder_name, file_dump_path)
+
+                # If not exists, create the dump folder (specific to that speaker and interview)
+                file_dump_folder = '/'.join(file_dump_path.split("/")[:-1])
+                if not os.path.exists(file_dump_folder):
+                    os.makedirs(file_dump_folder)
 
                 if (self.params.overwrite == True) or (self.params.overwrite == False and not os.path.exists(file_dump_path)):
                     
-                    log_mel_spectrogram = self.extract_features(audio_path)
+                    log_mel_spectrogram = self.extract_features(load_audio_path)
 
                     info_dict = {}
                     info_dict["features"] = log_mel_spectrogram
@@ -168,7 +181,6 @@ class ArgsParser:
     def __init__(self):
         self.initialize_parser()
 
-    
     def initialize_parser(self):
 
         self.parser = argparse.ArgumentParser(
@@ -176,7 +188,6 @@ class ArgsParser:
                 It searches audio files in a paths file and dumps the  \
                 extracted features in a .pickle file in the same directory.',
             )
-
 
     def add_parser_args(self):
 
@@ -192,6 +203,20 @@ class ArgsParser:
             type = str, 
             default = FEATURE_EXTRACTOR_DEFAULT_SETTINGS['audio_paths_file_name'],
             help = '.lst file name containing the audio files paths we want to extract features from.',
+            )
+
+        self.parser.add_argument(
+            '--prepend_directory',
+            type = str, 
+            default = FEATURE_EXTRACTOR_DEFAULT_SETTINGS['prepend_directory'],
+            help = 'Optional folder directory you want to prepend to each line of audio_paths_file_name.',
+            )
+
+        self.parser.add_argument(
+            '--dump_folder_name',
+            type = str, 
+            default = FEATURE_EXTRACTOR_DEFAULT_SETTINGS['dump_folder_name'],
+            help = 'Folder directory to dump the .pickle files.',
             )
 
         self.parser.add_argument(
