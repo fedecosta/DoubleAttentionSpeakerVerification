@@ -8,3 +8,7 @@ logs/
 wandb/
 *.chkpt
 *.pkl
+*.txt
+*.out
+*.log
+*.sh
