@@ -35,9 +35,8 @@ class LabelsGenerator:
         
         for (dir_path, dir_names, file_names) in os.walk(load_path):
             
-            
             # Directory should have some /id.../ part
-            # TODO fix this id part, it is too much specific
+            # HACK fix this id part, it is too much specific
             speaker_chunk = [chunk for chunk in dir_path.split("/") if chunk.startswith("id")]
         
             # Only consider directories with /id.../
@@ -55,6 +54,9 @@ class LabelsGenerator:
                     if file_name.split(".")[-1] == "pickle":     
                         # TODO maybe is better to write only the id.../....pickle part of the path           
                         file_path = os.path.join(dir_path, file_name.replace(".pickle", ""))
+                        # we want to keep only the data structure directory (speaker_id/interview_id/file), 
+                        # not the prepended folder directory
+                        file_path = file_path.replace(load_path, "")
                         speakers_dict[speaker_id]["files_paths"].add(file_path)
                 
                 # Add speaker_id to set and continue with the loop
