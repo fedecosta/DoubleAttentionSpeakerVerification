@@ -190,16 +190,59 @@ class Trainer:
         logger.info(f'Random crop size calculated: {self.params.random_crop_frames} frames (eq to {self.params.random_crop_secs} seconds).')
         
 
-    def load_data(self):
-            
-        logger.info(f'Loading data and labels from {self.params.train_labels_path}')
-        
+    def format_train_labels(self):
+
         # Read the paths of the train audios and their labels
         with open(self.params.train_labels_path, 'r') as data_labels_file:
             train_labels = data_labels_file.readlines()
 
+        # If train labels are of the form /speaker/interview/file we need to remove the first "/" to join paths
+        train_labels = [train_label[1:] for train_label in train_labels if train_label[0] == "/"]
+        
+        # We prepend train_data_dir to the paths
+        train_labels = [os.path.join(self.params.train_data_dir, train_label) for train_label in train_labels]
+
+        self.train_labels = train_labels
+
+
+    def format_valid_labels(self, labels):
+
+        # Read the paths of the train audios and their labels
+        with open(self.params.valid_labels_path, 'r') as data_labels_file:
+            valid_labels = data_labels_file.readlines()
+
+        # If valid labels are of the form /speaker/interview/file /speaker/interview/file we need to remove the first "/" of each case to join paths
+        final_valid_labels = []
+        for valid_label in valid_labels:
+            speaker_1 = valid_label.split(" ")[0]
+            speaker_2 = valid_label.split(" ")[1]
+            if speaker_1[0] == "/":
+                speaker_1 = speaker_1[1:]
+            if speaker_2[0] == "/":
+                speaker_2 = speaker_2[1:]
+            speaker_1 = os.path.join(self.params.valid_data_dir, speaker_1)
+            speaker_2 = os.path.join(self.params.valid_data_dir, speaker_2)
+            
+            final_valid_labels.append(f"{speaker_1} {speaker_2}")
+    
+        return final_valid_labels
+
+
+    def format_labels(self):
+
+        self.format_train_labels()
+        with open(self.params.valid_clients,'r') as clients_in, open(self.params.valid_impostors,'r') as impostors_in:
+            self.valid_clients_labels = self.format_valid_labels(clients_in)
+            self.valid_impostors_labels = self.format_valid_labels(impostors_in)
+        
+
+    def load_data(self):
+            
+        logger.info(f'Loading data and labels from {self.params.train_labels_path}')
+
         # Get one sample to calculate the random crop size in frames for all the dataset
         representative_sample = train_labels[0]
+        logger.info(f'representative_sample {representative_sample}')
         pickle_path = representative_sample.replace('\n', '').split(' ')[0] + ".pickle"
         self.set_random_crop_size(pickle_path)
 
@@ -378,6 +421,12 @@ class Trainer:
         # Read the paths of the train audios and their labels
         with open(self.params.train_labels_path, 'r') as data_labels_file:
             train_labels = data_labels_file.readlines() 
+
+        # If train labels are of the form /speaker/interview/file we need to remove the first "/" to join paths
+        train_labels = [train_label[1:] for train_label in train_labels if train_label[0] == "/"]
+        
+        # We prepend train_data_dir to the paths
+        train_labels = [os.path.join(self.params.train_data_dir, train_label) for train_label in train_labels]
 
         # Get one sample to get the feature extraction configuration for all the dataset
         representative_sample = train_labels[0]
@@ -700,7 +749,9 @@ class Trainer:
             info_to_print = info_to_print + f"Best EER {self.best_model_valid_eval_metric:.3f}..."
 
             logger.info(info_to_print)
-            self.info_mem(self.step)
+            
+            # Uncomment for memory usage info 
+            #self.info_mem(self.step)
 
             
     def train_single_epoch(self, epoch):
