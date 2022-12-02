@@ -148,12 +148,15 @@ class Dataset(data.Dataset):
 
 class TestDataset(data.Dataset):
 
-    def __init__(self, train_parameters, input_parameters):
+    def __init__(self, clients_utterances_paths, impostors_utterances_paths, train_parameters, input_parameters):
         'Initialization'
 
+        self.clients_utterances_paths = clients_utterances_paths
+        self.impostors_utterances_paths = impostors_utterances_paths
         self.parameters = train_parameters
         self.input_parameters = input_parameters
-        self.load_utterances_paths()
+        self.format_input_paths()
+        #self.load_utterances_paths()
         self.num_samples = len(self.formatted_utterances_paths)
 
 
@@ -282,8 +285,10 @@ class TestDataset(data.Dataset):
         # Each line of the dataset is like: speaker_1_path speaker_2_path label \n
         utterance_tuple = self.formatted_utterances_paths[index].strip().replace('\n', '').split(' ')
 
-        speaker_1_utterance_path = self.generate_path(self.input_parameters.data_dir, utterance_tuple[0])
-        speaker_2_utterance_path = self.generate_path(self.input_parameters.data_dir, utterance_tuple[1])
+        #speaker_1_utterance_path = self.generate_path(self.input_parameters.data_dir, utterance_tuple[0])
+        #speaker_2_utterance_path = self.generate_path(self.input_parameters.data_dir, utterance_tuple[1])
+        speaker_1_utterance_path = utterance_tuple[0]
+        speaker_2_utterance_path = utterance_tuple[1]
 
         utterance_label = int(utterance_tuple[2])
         speaker_1_features = self.get_feature_vector(speaker_1_utterance_path)

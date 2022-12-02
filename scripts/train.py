@@ -44,7 +44,7 @@ class Trainer:
 
         self.start_datetime = datetime.datetime.strftime(datetime.datetime.now(), '%y-%m-%d %H:%M:%S')
         self.set_device()
-        self.info_mem()
+        #self.info_mem()
         self.set_random_seed()
         self.set_params(input_params)
         self.set_log_file_handler()
@@ -54,7 +54,7 @@ class Trainer:
         self.load_optimizer()
         self.initialize_training_variables()
         self.config_wandb()
-        self.info_mem()
+        #self.info_mem()
 
 
     # Init methods
@@ -197,12 +197,14 @@ class Trainer:
             train_labels = data_labels_file.readlines()
 
         # If train labels are of the form /speaker/interview/file we need to remove the first "/" to join paths
-        train_labels = [train_label[1:] for train_label in train_labels if train_label[0] == "/"]
+        self.train_labels = []
+        for train_label in train_labels:
+            if train_label[0] == "/":
+                train_label = train_label[1:]
+            self.train_labels.append(train_label)
         
         # We prepend train_data_dir to the paths
-        train_labels = [os.path.join(self.params.train_data_dir, train_label) for train_label in train_labels]
-
-        self.train_labels = train_labels
+        self.train_labels = [os.path.join(self.params.train_data_dir, train_label) for train_label in self.train_labels]
 
 
     def format_valid_labels(self, labels_path):
@@ -243,7 +245,6 @@ class Trainer:
 
         # Get one sample to calculate the random crop size in frames for all the dataset
         representative_sample = self.train_labels[0]
-        logger.info(f'representative_sample {representative_sample}')
         pickle_path = representative_sample.replace('\n', '').split(' ')[0]
         self.set_random_crop_size(pickle_path)
 
@@ -463,7 +464,7 @@ class Trainer:
 
         logger.info(f"Training evaluated.")
         logger.info(f"Accuracy on training set: {accuracy:.3f}")
-        self.info_mem(self.step)
+        #self.info_mem(self.step)
 
 
     def extractInputFromFeature(self, sline):
@@ -555,7 +556,7 @@ class Trainer:
 
         logger.info(f"EER on validation set: {EER:.3f}")
         logger.info(f"Validation evaluated.")
-        self.info_mem(self.step)
+        #self.info_mem(self.step)
 
 
     def evaluate(self, prediction, label):
@@ -654,7 +655,7 @@ class Trainer:
         del trained_model_artifact
 
         logger.info(f"Training and model information saved.")
-        self.info_mem(self.step)
+        #self.info_mem(self.step)
 
 
     def eval_and_save_best_model(self, prediction, label):
@@ -693,7 +694,7 @@ class Trainer:
 
             logger.info(f"Consecutive validations without improvement: {self.validations_without_improvement}")
             logger.info('Evaluating and saving done.')
-            self.info_mem(self.step)
+            #self.info_mem(self.step)
 
 
     def check_update_optimizer(self):

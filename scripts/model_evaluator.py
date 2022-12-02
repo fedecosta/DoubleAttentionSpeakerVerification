@@ -147,6 +147,45 @@ class ModelEvaluator:
             self.net = nn.DataParallel(self.net)
 
 
+    def format_labels(self, labels_path):
+
+        # Read the paths of the train audios and their labels
+        with open(labels_path, 'r') as data_labels_file:
+            test_labels = data_labels_file.readlines()
+
+        # If labels are of the form /speaker/interview/file /speaker/interview/file we need to remove the first "/" of each case to join paths
+        final_test_labels = []
+        for test_label in test_labels:
+
+            speaker_1 = test_label.split(" ")[0].strip()
+            speaker_2 = test_label.split(" ")[1].strip()
+
+            if speaker_1[0] == "/":
+                speaker_1 = speaker_1[1:]
+            if speaker_2[0] == "/":
+                speaker_2 = speaker_2[1:]
+            
+            data_founded = False
+            for dir in self.input_params.data_dir:
+                if os.path.exists(os.path.join(dir, speaker_1)):
+                    speaker_1 = os.path.join(dir, speaker_1)
+                    data_founded = True
+                    break
+            assert data_founded, f"{speaker_1} not founded."
+
+            data_founded = False
+            for dir in self.input_params.data_dir:
+                if os.path.exists(os.path.join(dir, speaker_2)):
+                    speaker_2 = os.path.join(dir, speaker_2)
+                    data_founded = True
+                    break
+            assert data_founded, f"{speaker_2} not founded."
+            
+            final_test_labels.append(f"{speaker_1} {speaker_2}")
+    
+        return final_test_labels
+
+
     def set_random_crop_size(self, pickle_path):
 
         logger.info(f'Defining the random crop size in frames from a sample...')
@@ -217,22 +256,23 @@ class ModelEvaluator:
             
         logger.info(f'Loading data from {self.input_params.test_clients} and {self.input_params.test_impostors}')
 
+        self.clients_labels = self.format_labels(self.input_params.test_clients)
+        self.impostors_labels = self.format_labels(self.input_params.test_impostors)
+
         if self.input_params.evaluation_type == "random_crop":
 
             # Get one sample to calculate the random crop size in frames for all the dataset
-            with open(self.input_params.test_clients, 'r') as clients_file:
-                clients_utterances_paths = clients_file.readlines()
-            representative_sample = clients_utterances_paths[0]
-            partial_pickle_path = representative_sample.replace('\n', '').split(' ')[0] + ".pickle"
-            for dir in self.input_params.data_dir:
-                complete_pickle_path = os.path.join(dir, partial_pickle_path)
-                if os.path.exists(complete_pickle_path):
-                    break
-            self.set_random_crop_size(complete_pickle_path)
-
+            representative_sample = self.clients_labels[0]
+            pickle_path = representative_sample.replace('\n', '').split(' ')[0]
+            self.set_random_crop_size(pickle_path)
 
         # Instanciate a Dataset class
-        dataset = TestDataset(train_parameters = self.params, input_parameters = self.input_params)
+        dataset = TestDataset(
+            clients_utterances_paths = self.clients_labels,
+            impostors_utterances_paths = self.impostors_labels,
+            train_parameters = self.params, 
+            input_parameters = self.input_params,
+            )
 
         # Instanciate a DataLoader class
         self.evaluating_generator = DataLoader(

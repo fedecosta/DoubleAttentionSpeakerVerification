@@ -39,10 +39,10 @@ LABELS_GENERATOR_DEFAULT_SETTINGS = {
 
 TRAIN_DEFAULT_SETTINGS = {
     'train_labels_path' : './labels/train/train_labels.ndx',
-    'train_data_dir' : '',
+    'train_data_dir' : './datasets/v0',
     'valid_clients_path' : './labels/valid/clients.ndx',
     'valid_impostors_path' : './labels/valid/impostors.ndx',
-    'valid_data_dir' : '',
+    'valid_data_dir' : './datasets/v0',
     'model_output_folder' : './models/',
     'log_file_folder' : './logs',
     'max_epochs' : 100,
