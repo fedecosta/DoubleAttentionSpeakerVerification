@@ -205,10 +205,10 @@ class Trainer:
         self.train_labels = train_labels
 
 
-    def format_valid_labels(self, labels):
+    def format_valid_labels(self, labels_path):
 
         # Read the paths of the train audios and their labels
-        with open(self.params.valid_labels_path, 'r') as data_labels_file:
+        with open(labels_path, 'r') as data_labels_file:
             valid_labels = data_labels_file.readlines()
 
         # If valid labels are of the form /speaker/interview/file /speaker/interview/file we need to remove the first "/" of each case to join paths
@@ -231,23 +231,24 @@ class Trainer:
     def format_labels(self):
 
         self.format_train_labels()
-        with open(self.params.valid_clients,'r') as clients_in, open(self.params.valid_impostors,'r') as impostors_in:
-            self.valid_clients_labels = self.format_valid_labels(clients_in)
-            self.valid_impostors_labels = self.format_valid_labels(impostors_in)
+        self.valid_clients_labels = self.format_valid_labels(self.params.valid_clients_path)
+        self.valid_impostors_labels = self.format_valid_labels(self.params.valid_impostors_path)
         
 
     def load_data(self):
             
         logger.info(f'Loading data and labels from {self.params.train_labels_path}')
 
+        self.format_labels()
+
         # Get one sample to calculate the random crop size in frames for all the dataset
-        representative_sample = train_labels[0]
+        representative_sample = self.train_labels[0]
         logger.info(f'representative_sample {representative_sample}')
-        pickle_path = representative_sample.replace('\n', '').split(' ')[0] + ".pickle"
+        pickle_path = representative_sample.replace('\n', '').split(' ')[0]
         self.set_random_crop_size(pickle_path)
 
         # Instanciate a Dataset class
-        dataset = Dataset(train_labels, self.params)
+        dataset = Dataset(self.train_labels, self.params)
         
         # Load DataLoader params
         data_loader_parameters = {
@@ -262,7 +263,6 @@ class Trainer:
             **data_loader_parameters,
             )
 
-        del train_labels
         del representative_sample
         del dataset
 
@@ -418,19 +418,9 @@ class Trainer:
 
         # 2 - Save the feature extraction configuration params
 
-        # Read the paths of the train audios and their labels
-        with open(self.params.train_labels_path, 'r') as data_labels_file:
-            train_labels = data_labels_file.readlines() 
-
-        # If train labels are of the form /speaker/interview/file we need to remove the first "/" to join paths
-        train_labels = [train_label[1:] for train_label in train_labels if train_label[0] == "/"]
-        
-        # We prepend train_data_dir to the paths
-        train_labels = [os.path.join(self.params.train_data_dir, train_label) for train_label in train_labels]
-
         # Get one sample to get the feature extraction configuration for all the dataset
-        representative_sample = train_labels[0]
-        pickle_path = representative_sample.replace('\n', '').split(' ')[0] + ".pickle"
+        representative_sample = self.train_labels[0]
+        pickle_path = representative_sample.replace('\n', '').split(' ')[0]
 
         # Load the file
         with open(pickle_path, 'rb') as pickle_file:
@@ -450,7 +440,6 @@ class Trainer:
         # 4 - Update the wandb config
         wandb.config.update(self.wandb_config)
 
-        del train_labels
         del representative_sample
         del features_dict
         del dev_features_settings
@@ -482,15 +471,13 @@ class Trainer:
         logger.debug("Using extractInputFromFeature")
 
         features1 = normalizeFeatures(
-            featureReader(
-                self.params.valid_data_dir + '/' + sline[0] + '.pickle'), 
-                normalization=self.params.normalization,
-                )
+            featureReader(sline[0]), 
+            normalization = self.params.normalization,
+            )
         features2 = normalizeFeatures(
-            featureReader(
-                self.params.valid_data_dir + '/' + sline[1] + '.pickle'), 
-                normalization=self.params.normalization,
-                )
+            featureReader(sline[1]), 
+            normalization = self.params.normalization,
+            )
 
         input1 = torch.FloatTensor(features1).to(self.device)
         input2 = torch.FloatTensor(features2).to(self.device)
@@ -555,11 +542,9 @@ class Trainer:
             # Switch torch to evaluation mode
             self.net.eval()
 
-            # EER Validation
-            with open(self.params.valid_clients,'r') as clients_in, open(self.params.valid_impostors,'r') as impostors_in:
-                # score clients
-                CL = self.extract_scores(clients_in)
-                IM = self.extract_scores(impostors_in)
+            # EER Validation score clients
+            CL = self.extract_scores(self.valid_clients_labels)
+            IM = self.extract_scores(self.valid_impostors_labels)
             
             # Compute EER
             EER = self.calculate_EER(CL, IM)
@@ -878,16 +863,16 @@ class ArgsParser:
             )
         
         self.parser.add_argument(
-            '--valid_clients', 
+            '--valid_clients_path', 
             type = str, 
-            default = TRAIN_DEFAULT_SETTINGS['valid_clients'],
+            default = TRAIN_DEFAULT_SETTINGS['valid_clients_path'],
             help = 'Path of the file containing the validation clients pairs paths.',
             )
 
         self.parser.add_argument(
-            '--valid_impostors', 
+            '--valid_impostors_path', 
             type = str, 
-            default = TRAIN_DEFAULT_SETTINGS['valid_impostors'],
+            default = TRAIN_DEFAULT_SETTINGS['valid_impostors_path'],
             help = 'Path of the file containing the validation impostors pairs paths.',
             )
 
