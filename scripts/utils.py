@@ -79,7 +79,10 @@ def get_number_of_speakers(labels_file_path):
     speakers_set = set()
     with open(labels_file_path, 'r') as f:
         for line in f.readlines():
-            speaker_label = line.split()[-2]
+            speaker_chunk = [chunk for chunk in line.split("/") if chunk.startswith("id")]
+            # Only consider directories with /id.../
+            if len(speaker_chunk) > 0: 
+                speaker_label = speaker_chunk[0]
             speakers_set.add(speaker_label)
 
     return len(speakers_set)
