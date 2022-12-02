@@ -110,7 +110,7 @@ class Dataset(data.Dataset):
     def get_feature_vector(self, utterance_path):
 
         # Load the spectrogram saved in pickle format
-        with open(utterance_path + '.pickle', 'rb') as pickle_file:
+        with open(utterance_path, 'rb') as pickle_file:
             features_dict = pickle.load(pickle_file)
 
         features = features_dict["features"]
@@ -137,7 +137,7 @@ class Dataset(data.Dataset):
         # TODO seems that -1 is not necessary?
         utterance_tuple = self.utterances_paths[index].strip().split(' ')
 
-        utterance_path = os.path.join(self.parameters.train_data_dir, utterance_tuple[0])
+        utterance_path = utterance_tuple[0]
         utterance_label = int(utterance_tuple[1])
 
         features = self.get_feature_vector(utterance_path)
