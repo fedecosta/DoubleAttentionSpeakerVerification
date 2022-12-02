@@ -3,6 +3,7 @@ import os
 import librosa
 import numpy as np
 import pickle
+import datetime
 
 from settings import FEATURE_EXTRACTOR_DEFAULT_SETTINGS
 
@@ -24,6 +25,10 @@ logger_stream_handler.setFormatter(logger_formatter)
 # Add handlers
 logger.addHandler(logger_stream_handler)
 
+# Init a wandb project
+import wandb
+run = wandb.init(project = "speaker_verification", job_type = "dataset")
+
 # In this particular case we ignore warnings of loading a .m4a audio
 # Not a good practice
 import warnings
@@ -36,8 +41,23 @@ class FeatureExtractor:
 
     def __init__(self, params):
         self.params = params
-        self.params.audio_paths_file_path = os.path.join(self.params.audio_paths_file_folder, self.params.audio_paths_file_name)
+        self.set_other_params()
         self.set_log_file_handler()
+        self.config_wandb()
+
+
+    def set_other_params(self):
+
+        self.start_datetime = datetime.datetime.strftime(datetime.datetime.now(), '%y-%m-%d %H:%M:%S')
+        self.start_datetime = self.start_datetime.replace("-", "_").replace(" ", "_").replace(":", "_")
+
+        self.dataset_id = f"{self.start_datetime}_{wandb.run.id}_{wandb.run.name}"
+        self.params.dump_folder_name = os.path.join(self.params.dump_folder_name, self.dataset_id)
+
+        self.params.audio_paths_file_path = os.path.join(
+            self.params.audio_paths_file_folder, 
+            self.params.audio_paths_file_name,
+            )
 
 
     def set_log_file_handler(self):
@@ -51,6 +71,15 @@ class FeatureExtractor:
         logger_file_handler.setFormatter(logger_formatter)
 
         logger.addHandler(logger_file_handler)
+
+
+    def config_wandb(self):
+
+        # 1 - Save the params
+        self.wandb_config = vars(self.params)
+
+        # 2 - Update the wandb config
+        wandb.config.update(self.wandb_config)
 
 
     def count_input_lines(self):
@@ -117,9 +146,7 @@ class FeatureExtractor:
         return log_mel_spectrogram
 
 
-    def main(self):
-
-        self.count_input_lines()
+    def extract_all_features(self):
 
         # If not exists, create the dump folder
         if not os.path.exists(self.params.dump_folder_name):
@@ -176,6 +203,32 @@ class FeatureExtractor:
             logger.info(f"All audios processed!")
 
 
+    def save_artifact(self):
+
+        # Save dataset as a wandb artifact
+
+        # Define the artifact
+        dataset_artifact = wandb.Artifact(
+            name = self.dataset_id,
+            type = "dataset",
+            description = "dataset of spectrograms",
+            metadata = self.wandb_config,
+        )
+
+        # Add folder directory
+        dataset_artifact.add_dir(self.params.dump_folder_name)
+
+        # Log the artifact
+        run.log_artifact(dataset_artifact)
+
+
+    def main(self):
+
+        self.count_input_lines()
+        self.extract_all_features()
+        self.save_artifact()
+
+               
 class ArgsParser:
 
     def __init__(self):
