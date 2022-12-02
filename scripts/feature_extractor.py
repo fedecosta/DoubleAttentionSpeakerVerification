@@ -5,6 +5,7 @@ import numpy as np
 import pickle
 import datetime
 
+from utils import get_number_of_speakers
 from settings import FEATURE_EXTRACTOR_DEFAULT_SETTINGS
 
 # Set logging config
@@ -27,7 +28,7 @@ logger.addHandler(logger_stream_handler)
 
 # Init a wandb project
 import wandb
-run = wandb.init(project = "speaker_verification", job_type = "dataset")
+run = wandb.init(project = "speaker_verification_datasets", job_type = "dataset")
 
 # In this particular case we ignore warnings of loading a .m4a audio
 # Not a good practice
@@ -43,7 +44,6 @@ class FeatureExtractor:
         self.params = params
         self.set_other_params()
         self.set_log_file_handler()
-        self.config_wandb()
 
 
     def set_other_params(self):
@@ -82,14 +82,19 @@ class FeatureExtractor:
         wandb.config.update(self.wandb_config)
 
 
-    def count_input_lines(self):
-        
-        # Doing this to be able to print progress of processing files
+    def get_dataset_statistics(self):
+
+        # num speakers
+        self.params.number_speakers = get_number_of_speakers(self.params.audio_paths_file_path)
+
+        # num files
         with open(self.params.audio_paths_file_path, 'r') as file:
-            self.total_lines = sum(1 for line in list(file))
+            self.params.num_files = sum(1 for line in list(file))
             file.close()
 
-
+        self.params.total_duration_hours = 0
+        
+        
     def generate_log_mel_spectrogram(self, samples, sampling_rate):
         
         # Pre-emphasis
@@ -128,6 +133,9 @@ class FeatureExtractor:
 
     def extract_features(self, audio_path):
 
+        # Get the audio duration for dataset statistics
+        self.params.total_duration_hours = self.params.total_duration_hours + librosa.get_duration(filename = audio_path) / 3600
+
         # Load the audio
         samples, sampling_rate = librosa.load(
             f'{audio_path}',
@@ -154,7 +162,7 @@ class FeatureExtractor:
 
         with open(self.params.audio_paths_file_path, 'r') as file:
         
-            logger.info(f"{self.total_lines} audios ready for feature extraction.")
+            logger.info(f"{self.params.num_files} audios ready for feature extraction.")
 
             line_num = 0
             progress_pctg_to_print = 0
@@ -190,7 +198,7 @@ class FeatureExtractor:
 
                     if self.params.verbose: logger.info(f"File processed. Dumpled pickle in {file_dump_path}")
                     
-                progress_pctg = line_num / self.total_lines * 100
+                progress_pctg = line_num / self.params.num_files * 100
                 if progress_pctg >=  progress_pctg_to_print:
                     logger.info(f"{progress_pctg:.0f}% audios processed...")
                     progress_pctg_to_print = progress_pctg_to_print + 1
@@ -206,6 +214,9 @@ class FeatureExtractor:
     def save_artifact(self):
 
         # Save dataset as a wandb artifact
+
+        # Update and save config parameters
+        self.config_wandb()
 
         # Define the artifact
         dataset_artifact = wandb.Artifact(
@@ -224,7 +235,7 @@ class FeatureExtractor:
 
     def main(self):
 
-        self.count_input_lines()
+        self.get_dataset_statistics()
         self.extract_all_features()
         self.save_artifact()
 

@@ -35,7 +35,7 @@ logger.addHandler(logger_stream_handler)
 
 # Init a wandb project
 import wandb
-run = wandb.init(project = "speaker_verification", job_type = "training")
+run = wandb.init(project = "speaker_verification_models", job_type = "training")
 
 
 class Trainer:
