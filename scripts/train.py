@@ -824,9 +824,30 @@ class Trainer:
         logger.info('Training finished!')
     
 
+    def delete_version_artifacts(self):
+
+        # We want to keep only the latest checkpoint because of wandb memory storage limit
+
+        api = wandb.Api()
+        actual_run = api.run(f"{run.entity}/{run.project}/{run.id}")
+
+        for artifact_version in actual_run.logged_artifacts():
+            
+            if 'latest' in artifact_version.aliases:
+                latest_version = True
+            else:
+                latest_version = False
+
+            if latest_version == False:
+                logger.info(f'Deleting not latest artifact {artifact_version.name} from wandb...')
+                artifact_version.delete(delete_aliases=True)
+                logger.info(f'Deleted.')
+
+
     def main(self):
 
         self.train(self.starting_epoch, self.params.max_epochs)
+        self.delete_version_artifacts()
 
 
 class ArgsParser:
