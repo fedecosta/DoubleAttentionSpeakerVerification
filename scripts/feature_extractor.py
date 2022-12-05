@@ -53,6 +53,7 @@ class FeatureExtractor:
 
         self.dataset_id = f"{self.start_datetime}_{wandb.run.id}_{wandb.run.name}"
         self.params.dump_folder_name = os.path.join(self.params.dump_folder_name, self.dataset_id)
+        self.params.log_file_name = f"{self.dataset_id}_feature_extractor.log"
 
         self.params.audio_paths_file_path = os.path.join(
             self.params.audio_paths_file_folder, 
@@ -201,6 +202,10 @@ class FeatureExtractor:
                 progress_pctg = line_num / self.params.num_files * 100
                 if progress_pctg >=  progress_pctg_to_print:
                     logger.info(f"{progress_pctg:.0f}% audios processed...")
+                    wandb.log(
+                        {"progress_pctg" : progress_pctg,}, 
+                        step = line_num,
+                        )
                     progress_pctg_to_print = progress_pctg_to_print + 1
                 
                 # A flush print have some issues with large datasets
@@ -290,12 +295,12 @@ class ArgsParser:
             help = 'Name of folder that will contain the log file.',
             )
         
-        self.parser.add_argument(
-            '--log_file_name',
-            type = str, 
-            default = FEATURE_EXTRACTOR_DEFAULT_SETTINGS['log_file_name'],
-            help = 'Name of the log file.',
-            )
+        #self.parser.add_argument(
+        #    '--log_file_name',
+        #    type = str, 
+        #    default = FEATURE_EXTRACTOR_DEFAULT_SETTINGS['log_file_name'],
+        #    help = 'Name of the log file.',
+        #    )
 
         self.parser.add_argument(
             "--sampling_rate", "-sr", 
