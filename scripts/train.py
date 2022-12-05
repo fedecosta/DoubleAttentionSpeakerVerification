@@ -826,10 +826,15 @@ class Trainer:
 
     def delete_version_artifacts(self):
 
+        logger.info(f'Starting to delete not latest checkpoint version artifacts...')
+
         # We want to keep only the latest checkpoint because of wandb memory storage limit
 
         api = wandb.Api()
         actual_run = api.run(f"{run.entity}/{run.project}/{run.id}")
+        
+        # We need to finish the run and let wandb upload all files
+        run.finish()
 
         for artifact_version in actual_run.logged_artifacts():
             
@@ -842,6 +847,8 @@ class Trainer:
                 logger.info(f'Deleting not latest artifact {artifact_version.name} from wandb...')
                 artifact_version.delete(delete_aliases=True)
                 logger.info(f'Deleted.')
+
+        logger.info(f'All not latest artifacts deleted.')
 
 
     def main(self):
