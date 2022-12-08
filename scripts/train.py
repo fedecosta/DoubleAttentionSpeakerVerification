@@ -998,6 +998,13 @@ class ArgsParser:
         # Data Parameters
 
         self.parser.add_argument(
+            '--n_mels', 
+            type = int, 
+            default = TRAIN_DEFAULT_SETTINGS['n_mels'], 
+            help = 'Spectrograms mel bands.'
+            )
+
+        self.parser.add_argument(
             '--random_crop_secs', 
             type = float, 
             default = TRAIN_DEFAULT_SETTINGS['random_crop_secs'], 
@@ -1040,8 +1047,9 @@ class ArgsParser:
             '--front_end', 
             type = str, 
             default = TRAIN_DEFAULT_SETTINGS['front_end'],
-            choices = ['VGGNL'], 
-            help = 'Type of Front-end used. VGGNL for a N-block VGG architecture.'
+            choices = ['VGGNL', 'PatchsGenerator'], 
+            help = 'Type of Front-end used. \
+                VGGNL for a N-block VGG architecture, PatchsGenerator for Visual Transformer architecture.'
             )
             
         self.parser.add_argument(
@@ -1062,6 +1070,13 @@ class ArgsParser:
             )
 
         self.parser.add_argument(
+            '--patchs_generator_patch_width', 
+            type = int,
+            help = 'Width of each patch token to use with at the PatchsGenerator front-end. \
+                (Only used when front_end = PatchsGenerator.',
+            )
+
+        self.parser.add_argument(
             '--pooling_method', 
             type = str, 
             default = TRAIN_DEFAULT_SETTINGS['pooling_method'], 
@@ -1070,10 +1085,18 @@ class ArgsParser:
             )
 
         self.parser.add_argument(
+            '--pooling_output_size', 
+            type = int, 
+            default = TRAIN_DEFAULT_SETTINGS['pooling_output_size'], 
+            help = 'Each output vector of the pooling component will have 1 x pooling_output_size dimension.',
+            )
+
+        self.parser.add_argument(
             '--pooling_heads_number', 
             type = int, 
             #default = TRAIN_DEFAULT_SETTINGS['pooling_heads_number'],
-            help = 'Number of heads for the attention layer of the pooling component (only for MHA based pooling_method options).',
+            help = 'Number of heads for the attention layer of the pooling component \
+                (only for MHA based pooling_method options).',
             )
 
         self.parser.add_argument(
@@ -1088,13 +1111,6 @@ class ArgsParser:
             action = argparse.BooleanOptionalAction,
             #default = TRAIN_DEFAULT_SETTINGS['pooling_positional_encoding'], 
             help = 'Wether to use positional encoding in the attention layer of the pooling component.'
-            )
-
-        self.parser.add_argument(
-            '--bottleneck_drop_out', 
-            type = float, 
-            default = TRAIN_DEFAULT_SETTINGS['bottleneck_drop_out'], 
-            help = 'Dropout probability to use in each layer of the final fully connected bottleneck.'
             )
 
         self.parser.add_argument(
@@ -1128,6 +1144,13 @@ class ArgsParser:
             #default = TRAIN_DEFAULT_SETTINGS['transformer_drop_out'], 
             help = 'Dropout probability to use in the feed forward component of the transformer block.\
                 (Only for pooling_method = TransformerStackedAttentionPooling).'
+            )
+
+        self.parser.add_argument(
+            '--bottleneck_drop_out', 
+            type = float, 
+            default = TRAIN_DEFAULT_SETTINGS['bottleneck_drop_out'], 
+            help = 'Dropout probability to use in each layer of the final fully connected bottleneck.'
             )
 
         # AMSoftmax Config
