@@ -970,7 +970,7 @@ class ArgsParser:
             '--update_optimizer_every', 
             type = int, 
             default = TRAIN_DEFAULT_SETTINGS['update_optimizer_every'],
-            help = "Some optimizer parameters will be updated every update_optimizer_every consectuive validations without improvement. \
+            help = "Some optimizer parameters will be updated every update_optimizer_every consecutive validations without improvement. \
                 Set to 0 if you don't want to execute this utility.",
             )
 
