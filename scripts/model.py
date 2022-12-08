@@ -3,15 +3,14 @@ from torch import nn
 from torch.nn import functional as F
 from poolings import Attention, MultiHeadAttention, DoubleMHA
 from poolings import SelfAttentionAttentionPooling, MultiHeadAttentionAttentionPooling, TransformerStackedAttentionPooling
-from CNNs import VGGNL
+from front_end import VGGNL, PatchsGenerator
 from loss import AMSoftmax
 
 class SpeakerClassifier(nn.Module):
 
     def __init__(self, parameters, device):
         super().__init__()
-       
-        parameters.feature_size = 80 # FIX hardcoded 80 for mel bands. Read the number of mel bands from the input spectrogram 
+     
         self.device = device
         
         self.__initFrontEnd(parameters)        
@@ -35,9 +34,15 @@ class SpeakerClassifier(nn.Module):
                 
             # Calculate the size of the hidden state vectors (output of the front-end)
             self.hidden_states_dimension = self.front_end.get_hidden_states_dimension(
-                parameters.feature_size, 
+                parameters.n_mels, 
                 )
-            
+
+        if parameters.front_end == 'PatchsGenerator':
+
+            self.front_end = PatchsGenerator(parameters.patchs_generator_patch_width)
+
+            self.hidden_states_dimension = int(parameters.n_mels * parameters.patchs_generator_patch_width)
+  
 
     def __initPoolingLayers(self, parameters, device):    
 
@@ -57,14 +62,14 @@ class SpeakerClassifier(nn.Module):
         elif self.pooling_method == 'SelfAttentionAttentionPooling':
             self.poolingLayer = SelfAttentionAttentionPooling(
                 emb_in = self.hidden_states_dimension,
-                emb_out = parameters.embedding_size, # TODO this could be a different argparse parameter
+                emb_out = parameters.pooling_output_size,
                 positional_encoding = parameters.pooling_positional_encoding,
                 device = device,
                 )
         elif self.pooling_method == 'MultiHeadAttentionAttentionPooling':
             self.poolingLayer = MultiHeadAttentionAttentionPooling(
                 emb_in = self.hidden_states_dimension,
-                emb_out = parameters.embedding_size, # TODO this could be a different argparse parameter
+                emb_out = parameters.pooling_output_size,
                 heads = parameters.pooling_heads_number,
                 positional_encoding = parameters.pooling_positional_encoding,
                 device = device,
@@ -72,7 +77,7 @@ class SpeakerClassifier(nn.Module):
         elif self.pooling_method == 'TransformerStackedAttentionPooling':
             self.poolingLayer = TransformerStackedAttentionPooling(
                 emb_in = self.hidden_states_dimension,
-                emb_out = parameters.embedding_size, # TODO this could be a different argparse parameter
+                emb_out = parameters.pooling_output_size,
                 n_blocks = parameters.transformer_n_blocks, 
                 expansion_coef = parameters.transformer_expansion_coef, 
                 attention_type = parameters.transformer_attention_type, 
@@ -93,7 +98,7 @@ class SpeakerClassifier(nn.Module):
 
         if self.pooling_method in ('SelfAttentionAttentionPooling', 'MultiHeadAttentionAttentionPooling', 'TransformerStackedAttentionPooling'):
             # New Pooling classes output size is different from old poolings
-            self.fc1 = nn.Linear(parameters.embedding_size, parameters.embedding_size)
+            self.fc1 = nn.Linear(parameters.pooling_output_size, parameters.embedding_size)
         else:
             self.fc1 = nn.Linear(self.hidden_states_dimension, parameters.embedding_size)
         self.b1 = nn.BatchNorm1d(parameters.embedding_size)
