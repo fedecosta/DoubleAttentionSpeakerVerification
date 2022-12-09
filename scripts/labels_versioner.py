@@ -5,7 +5,7 @@ import numpy as np
 import pickle
 import datetime
 
-from utils import get_number_of_speakers
+from utils import get_memory_info
 
 # Set logging config
 import logging
@@ -73,7 +73,12 @@ class LabelsVersioner:
 
         logger.addHandler(logger_file_handler)
 
-    
+
+    def info_mem(self):
+        cpu_available_pctg, gpu_free = get_memory_info()
+        logger.info(f"CPU available {cpu_available_pctg:.2f}% - GPU free {gpu_free}")
+
+
     def load_labels(self):
 
         logger.info(f"Loading labels from {self.params.labels_file_path}...")
@@ -113,11 +118,15 @@ class LabelsVersioner:
 
         return complete_audio_file_path
 
+
     def get_audio_paths(self):
 
-        self.audio_paths = []
+        logger.info(f"Getting audio paths...")
 
-        for label in self.labels:
+        self.audio_paths = []
+        total_labels = len(self.labels)
+        progress_pctg_to_print = 0
+        for index, label in enumerate(self.labels):
             
             label = label.replace('\n', '')
             label_chunks = label.split(' ')
@@ -143,28 +152,64 @@ class LabelsVersioner:
             else:
 
                 assert False, f"{label} has a not expected structure."
+            
+            progress_pctg = index / total_labels * 100
+            if progress_pctg >=  progress_pctg_to_print:
+                logger.info(f"{progress_pctg:.0f}% paths processed...")
+                progress_pctg_to_print = progress_pctg_to_print + 1
+                self.info_mem()
 
 
-    def get_dataset_statistics(self):
+    def get_dataset_statistics(self, get_num_files = True, get_num_speakers = True, get_duration = True):
 
-        # num speakers
-        speakers_set = set()
-        for audio_path in self.audio_paths:
-            speaker_chunk = [chunk for chunk in audio_path.split("/") if chunk.startswith("id")]
-            # Only consider directories with /id.../
-            if len(speaker_chunk) > 0: 
-                speaker_label = speaker_chunk[0]
-                speakers_set.add(speaker_label)
-        self.params.number_of_speakers = len(speakers_set)
+        logger.info(f"Getting labels statistics...")
 
         # num files
-        self.params.num_files = len(self.audio_paths)
+        if get_num_files:
+            self.params.num_files = len(self.audio_paths)
+
+            logger.info(f"Number of files: {self.params.num_files}")
+
+        
+        # num speakers
+        if get_num_speakers:
+            logger.info(f"Calculating number of speakers...")
+            progress_pctg_to_print = 0
+            speakers_set = set()
+            for index, audio_path in enumerate(self.audio_paths):
+                speaker_chunk = [chunk for chunk in audio_path.split("/") if chunk.startswith("id")]
+                # Only consider directories with /id.../
+                if len(speaker_chunk) > 0: 
+                    speaker_label = speaker_chunk[0]
+                    speakers_set.add(speaker_label)
+
+                progress_pctg = index / self.params.num_files * 100
+                if progress_pctg >=  progress_pctg_to_print:
+                    logger.info(f"{progress_pctg:.0f}% audios processed...")
+                    progress_pctg_to_print = progress_pctg_to_print + 1
+                    self.info_mem()
+
+            self.params.number_of_speakers = len(speakers_set)
+
+            logger.info(f"Number of speakers: {self.params.number_of_speakers}")
 
         # audio duration in hours
-        self.params.total_duration_hours = 0
-        for audio_path in self.audio_paths:
-            audio_duration = librosa.get_duration(filename = audio_path) / 3600
-            self.params.total_duration_hours = self.params.total_duration_hours + audio_duration
+        if get_duration:
+            logger.info(f"Estimating duration of audios...")
+            self.params.total_duration_hours = 0
+            progress_pctg_to_print = 0
+            for index, audio_path in enumerate(self.audio_paths):
+                
+                audio_duration = librosa.get_duration(filename = audio_path) / 3600
+                self.params.total_duration_hours = self.params.total_duration_hours + audio_duration
+
+                progress_pctg = index / self.params.num_files * 100
+                if progress_pctg >=  progress_pctg_to_print:
+                    logger.info(f"{progress_pctg:.0f}% audios processed...")
+                    progress_pctg_to_print = progress_pctg_to_print + 1
+                    self.info_mem()
+
+            logger.info(f"Total duration of audios (in hours): {self.params.total_duration_hours}")
 
             
     def get_labels_info(self):
@@ -172,7 +217,11 @@ class LabelsVersioner:
         logger.info(f"Getting labels overall info...")
 
         self.get_audio_paths()
-        self.get_dataset_statistics()
+        self.get_dataset_statistics(
+            get_num_files = True, 
+            get_num_speakers = True, 
+            get_duration = self.params.get_duration,
+            )
 
         logger.info(f"Done.")
 
@@ -280,6 +329,14 @@ class ArgsParser:
             '--log_file_folder',
             type = str, 
             help = 'Name of folder that will contain the log file.',
+            )
+
+        self.parser.add_argument(
+            '--get_duration',
+            action = argparse.BooleanOptionalAction,
+            default = True,
+            help = 'Calculate duration (in hours) of the labels.\
+                (Can be very time consuming).',
             )
 
 
