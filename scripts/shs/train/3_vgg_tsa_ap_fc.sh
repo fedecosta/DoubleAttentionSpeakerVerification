@@ -26,7 +26,7 @@ python scripts/train.py \
 	--pooling_output_size 400 \
 	--pooling_heads_number 0 \
 	--no-pooling_positional_encoding \
-	--transformer_n_blocks 1 \
+	--transformer_n_blocks 2 \
 	--transformer_expansion_coef 2 \
 	--transformer_attention_type 'SelfAttention' \
 	--transformer_drop_out 0.0 \
