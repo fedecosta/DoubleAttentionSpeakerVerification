@@ -164,6 +164,10 @@ class ModelEvaluator:
                 speaker_1 = speaker_1[1:]
             if speaker_2[0] == "/":
                 speaker_2 = speaker_2[1:]
+
+            # Add the pickle extension
+            speaker_1 = f"{speaker_1}.pickle"
+            speaker_2 = f"{speaker_2}.pickle"
             
             data_founded = False
             for dir in self.input_params.data_dir:
