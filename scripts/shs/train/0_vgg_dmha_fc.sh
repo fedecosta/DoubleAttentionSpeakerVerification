@@ -2,7 +2,7 @@
 #SBATCH --output=logs/sbatch_output/slurm-%j.out
 #SBATCH -p veu             # Partition to submit to
 #SBATCH -c1
-#SBATCH --mem=64G      # Max CPU Memory
+#SBATCH --mem=128G      # Max CPU Memory
 #SBATCH --gres=gpu:4
 #SBATCH --job-name=train_vgg_dmha_fc
 python scripts/train.py \
@@ -25,4 +25,7 @@ python scripts/train.py \
 	--pooling_method 'DoubleMHA' \
 	--pooling_heads_number 32 \
 	--pooling_mask_prob 0.3 \
+	--load_checkpoint \
+	--checkpoint_file_folder './models/22_12_09_15_59_57_vgg_dmha_fc_VGGNL_DoubleMHA_1wh0hn4q/' \
+	--checkpoint_file_name '22_12_09_15_59_57_vgg_dmha_fc_VGGNL_DoubleMHA_1wh0hn4q.chkpt' \
 	> logs/console_output/train/0_vgg_dmha_fc.log 2>&1

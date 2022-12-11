@@ -44,7 +44,6 @@ class Trainer:
 
         self.start_datetime = datetime.datetime.strftime(datetime.datetime.now(), '%y-%m-%d %H:%M:%S')
         self.set_device()
-        #self.info_mem()
         self.set_random_seed()
         self.set_params(input_params)
         self.set_log_file_handler()
@@ -54,7 +53,6 @@ class Trainer:
         self.load_optimizer()
         self.initialize_training_variables()
         self.config_wandb()
-        #self.info_mem()
 
 
     # Init methods

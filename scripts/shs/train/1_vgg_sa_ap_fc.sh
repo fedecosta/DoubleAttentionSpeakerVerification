@@ -2,7 +2,7 @@
 #SBATCH --output=logs/sbatch_output/slurm-%j.out
 #SBATCH -p veu             # Partition to submit to
 #SBATCH -c1
-#SBATCH --mem=64G      # Max CPU Memory
+#SBATCH --mem=128G      # Max CPU Memory
 #SBATCH --gres=gpu:4
 #SBATCH --job-name=train_vgg_sa_ap_fc
 python scripts/train.py \

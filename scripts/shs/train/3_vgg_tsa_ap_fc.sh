@@ -2,7 +2,7 @@
 #SBATCH --output=logs/sbatch_output/slurm-%j.out
 #SBATCH -p veu             # Partition to submit to
 #SBATCH -c1
-#SBATCH --mem=64G      # Max CPU Memory
+#SBATCH --mem=128G      # Max CPU Memory
 #SBATCH --gres=gpu:4
 #SBATCH --job-name=train_vgg_tsa_ap_fc
 python scripts/train.py \
@@ -31,4 +31,7 @@ python scripts/train.py \
 	--transformer_attention_type 'SelfAttention' \
 	--transformer_drop_out 0.0 \
 	--bottleneck_drop_out 0.0 \
+	--load_checkpoint \
+	--checkpoint_file_folder './models/22_12_09_15_59_57_vgg_tsa_ap_fc_VGGNL_TransformerStackedAttentionPooling_24ruq1rq' \
+	--checkpoint_file_name '22_12_09_15_59_57_vgg_tsa_ap_fc_VGGNL_TransformerStackedAttentionPooling_24ruq1rq.chkpt' \
 	> logs/console_output/train/3_vgg_tsa_ap_fc.log 2>&1
