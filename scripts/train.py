@@ -779,26 +779,27 @@ class Trainer:
             self.check_early_stopping()
             self.check_print_training_info()
 
-            wandb.log(
-                {
-                    "epoch" : self.epoch,
-                    "batch_number" : self.batch_number,
-                    "loss": self.train_loss,
-                    "train_eval_metric" : self.train_eval_metric,
-                    "valid_eval_metric" : self.valid_eval_metric,
-                    'best_model_train_loss' : self.best_model_train_loss,
-                    'best_model_train_eval_metric' : self.best_model_train_eval_metric,
-                    'best_model_valid_eval_metric' : self.best_model_valid_eval_metric,
-                },
-                step = self.step
-                )
+            try:
+                wandb.log(
+                    {
+                        "epoch" : self.epoch,
+                        "batch_number" : self.batch_number,
+                        "loss": self.train_loss,
+                        "train_eval_metric" : self.train_eval_metric,
+                        "valid_eval_metric" : self.valid_eval_metric,
+                        'best_model_train_loss' : self.best_model_train_loss,
+                        'best_model_train_eval_metric' : self.best_model_train_eval_metric,
+                        'best_model_valid_eval_metric' : self.best_model_valid_eval_metric,
+                    },
+                    step = self.step
+                    )
+            except Exception as e:
+                logger.error('Failed at wandb.log: '+ str(e))
 
             if self.early_stopping_flag == True: 
                 break
             
             self.step = self.step + 1
-
-            
 
         logger.info(f"-"*50)
         logger.info(f"Epoch {epoch} finished with:")
