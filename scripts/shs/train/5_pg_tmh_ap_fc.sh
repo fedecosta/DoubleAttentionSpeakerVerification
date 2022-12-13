@@ -27,10 +27,10 @@ python scripts/train.py \
 	--pooling_method 'TransformerStackedAttentionPooling' \
 	--pooling_output_size 40 \
 	--pooling_heads_number 16 \
-	--no-pooling_positional_encoding \
+	--pooling_positional_encoding \
 	--transformer_n_blocks 4 \
 	--transformer_expansion_coef 4 \
 	--transformer_attention_type 'MultiHeadAttention' \
 	--transformer_drop_out 0.0 \
 	--bottleneck_drop_out 0.0 \
-	> logs/console_output/train/5_pg_tmh_ap_fc_1.log 2>&1
+	> logs/console_output/train/5_pg_tmh_ap_fc_2.log 2>&1
