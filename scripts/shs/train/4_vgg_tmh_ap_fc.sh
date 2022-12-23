@@ -17,7 +17,7 @@ python scripts/train.py \
 	--batch_size 128 \
 	--eval_and_save_best_model_every 6000 \
 	--print_training_info_every 100 \
-	--early_stopping 35 \
+	--early_stopping 0 \
 	--update_optimizer_every 0 \
 	--normalization 'cmn' \
 	--model_name_prefix 'vgg_tmh_ap_fc' \
@@ -27,9 +27,10 @@ python scripts/train.py \
 	--pooling_output_size 400 \
 	--pooling_heads_number 6 \
 	--no-pooling_positional_encoding \
-	--transformer_n_blocks 1 \
-	--transformer_expansion_coef 2 \
+	--transformer_n_blocks 2 \
+	--transformer_expansion_coef 4 \
 	--transformer_attention_type 'MultiHeadAttention' \
-	--transformer_drop_out 0.0 \
+	--transformer_drop_out 0.1 \
 	--bottleneck_drop_out 0.0 \
-	> logs/console_output/train/4_vgg_tmh_ap_fc.log 2>&1
+	> logs/console_output/train/4_vgg_tmh_ap_fc_2.log 2>&1
+	

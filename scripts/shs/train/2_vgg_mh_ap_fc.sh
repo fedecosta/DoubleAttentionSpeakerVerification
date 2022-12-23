@@ -3,7 +3,7 @@
 #SBATCH -e logs/sbatch/errors/slurm-%j.err
 #SBATCH -p veu             # Partition to submit to
 #SBATCH -c1
-#SBATCH --mem=32G      # Max CPU Memory
+#SBATCH --mem=64G      # Max CPU Memory
 #SBATCH --gres=gpu:4
 #SBATCH --job-name=train_vgg_mh_ap_fc
 python scripts/train.py \
@@ -28,4 +28,7 @@ python scripts/train.py \
 	--pooling_heads_number 8 \
 	--no-pooling_positional_encoding \
 	--bottleneck_drop_out 0.0 \
+	--load_checkpoint \
+	--checkpoint_file_folder './models/22_12_14_09_43_54_vgg_mh_ap_fc_VGGNL_MultiHeadAttentionAttentionPooling_3w221a99/' \
+	--checkpoint_file_name '22_12_14_09_43_54_vgg_mh_ap_fc_VGGNL_MultiHeadAttentionAttentionPooling_3w221a99.chkpt' \
 	> logs/console_output/train/2_vgg_mh_ap_fc.log 2>&1

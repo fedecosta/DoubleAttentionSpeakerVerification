@@ -32,4 +32,7 @@ python scripts/train.py \
 	--transformer_attention_type 'SelfAttention' \
 	--transformer_drop_out 0.0 \
 	--bottleneck_drop_out 0.0 \
+	--load_checkpoint \
+	--checkpoint_file_folder './models/22_12_13_15_57_10_vgg_tsa_ap_fc_VGGNL_TransformerStackedAttentionPooling_36s20lkv/' \
+	--checkpoint_file_name '22_12_13_15_57_10_vgg_tsa_ap_fc_VGGNL_TransformerStackedAttentionPooling_36s20lkv.chkpt' \
 	> logs/console_output/train/3_vgg_tsa_ap_fc.log 2>&1
