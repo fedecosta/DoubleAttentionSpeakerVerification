@@ -6,8 +6,9 @@
 #SBATCH --job-name=labels_versioner
 python scripts/labels_versioner.py \
 	--labels_file_folder './labels/test/voxceleb1_e_protocol/' \
-	--labels_file_name 'clients.ndx' \
+	--labels_file_name 'impostors.ndx' \
 	--prepend_directory '/home/usuaris/veussd/DATABASES/VoxCeleb/VoxCeleb1/dev/' \
 	--prepend_directory '/home/usuaris/veussd/DATABASES/VoxCeleb/VoxCeleb1/test/' \
 	--dump_folder_name './labels/test/voxceleb1_e_protocol/' \
-	--log_file_folder './logs/labels_versioner/'
+	--log_file_folder './logs/labels_versioner/' \
+	> logs/console_output/labels_versioner/test.log 2>&1
