@@ -3,8 +3,27 @@ import os
 import warnings
 import random
 import itertools
+import pandas as pd
 
 from settings import LABELS_GENERATOR_DEFAULT_SETTINGS
+
+# Set logging config
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger_formatter = logging.Formatter(
+    fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt = '%y-%m-%d %H:%M:%S',
+    )
+
+# Set a logging stream handler
+logger_stream_handler = logging.StreamHandler()
+logger_stream_handler.setLevel(logging.INFO)
+logger_stream_handler.setFormatter(logger_formatter)
+
+# Add handlers
+logger.addHandler(logger_stream_handler)
 
 # TODO add the usage instructions in README.md
 
@@ -14,21 +33,77 @@ class LabelsGenerator:
     def __init__(self, params):
         self.params = params
         self.set_random_seed()
+        self.set_log_file_handler()
+        self.load_metada()
 
 
     def set_random_seed(self):
 
-        print("Setting random seed...")
+        logger.info("Setting random seed...")
 
         # Set the seed for experimental reproduction
         random.seed(1234)
 
-        print("Random seed setted.")
+        logger.info("Random seed setted.")
+
+
+    def set_log_file_handler(self):
+
+        # Set a logging file handler
+
+        if not os.path.exists(self.params.log_file_folder):
+            os.makedirs(self.params.log_file_folder)
+        
+        logger_file_name = self.params.log_file_name
+        logger_file_path = os.path.join(self.params.log_file_folder, logger_file_name)
+        logger_file_handler = logging.FileHandler(logger_file_path, mode = 'w')
+        logger_file_handler.setLevel(logging.INFO) # TODO set the file handler level as a input param
+        logger_file_handler.setFormatter(logger_formatter)
+
+        logger.addHandler(logger_file_handler) 
+
+
+    def load_metada(self):
+
+        if self.params.hard_validation:
+
+            logger.info("Loading metadata...")
+
+            self.metadata_df = pd.read_csv(self.params.metadata_file_path, sep = ",")
+
+            mandatory_columns = ["id", "gender", "nationality"]
+            for col in mandatory_columns:
+                if col not in self.metadata_df.columns:
+                    self.metadata_df[col] = "null_value"
+            
+            self.metadata_df = self.metadata_df[mandatory_columns]
+            
+            self.metadata_df["id"].fillna("null_value", inplace = True)
+            self.metadata_df["gender"].fillna("null_value", inplace = True)
+            self.metadata_df["nationality"].fillna("null_value", inplace = True)
+            
+            id_nulls = (self.metadata_df["id"] == "null_value").sum()
+            gender_nulls = (self.metadata_df["gender"] == "null_value").sum()
+            nationality_nulls = (self.metadata_df["nationality"] == "null_value").sum()
+            logger.info(f"{id_nulls} id nulls")
+            logger.info(f"{gender_nulls} gender nulls")
+            logger.info(f"{nationality_nulls} nationality nulls")
+
+            self.metadata_df["id"] = self.metadata_df["id"].str.strip()
+            self.metadata_df["gender"] = self.metadata_df["gender"].str.strip()
+            self.metadata_df["nationality"] = self.metadata_df["nationality"].str.strip()
+            self.metadata_df["id"] = self.metadata_df["id"].str.lower()
+            self.metadata_df["gender"] = self.metadata_df["gender"].str.lower()
+            self.metadata_df["nationality"] = self.metadata_df["nationality"].str.lower()
+
+            logger.info(f"Metadata has {self.metadata_df['id'].nunique()} unique speakers.")
+
+            logger.info("Metadata loaded.")
 
 
     def generate_speakers_dict(self, load_path):
 
-        print("Loading dev data...")
+        logger.info("Loading dev data...")
     
         speakers_set = set()
         speakers_dict = {}
@@ -59,6 +134,22 @@ class LabelsGenerator:
                         # not the prepended folder directory
                         file_path = file_path.replace(load_path, "")
                         speakers_dict[speaker_id]["files_paths"].add(file_path)
+
+                # Add gender
+                if self.params.hard_validation:
+                    gender = self.metadata_df[self.metadata_df["id"] == speaker_id.lower().strip()]["gender"].iloc[0]
+                    if gender is None: gender = "null_value"
+                else:
+                    gender = "null_value"
+                speakers_dict[speaker_id]["gender"] = gender
+
+                # Add nationality
+                if self.params.hard_validation:
+                    nationality = self.metadata_df[self.metadata_df["id"] == speaker_id.lower().strip()]["nationality"].iloc[0]
+                    if nationality is None: nationality = "null_value"
+                else:
+                    nationality = "null_value"
+                speakers_dict[speaker_id]["nationality"] = nationality
                 
                 # Add speaker_id to set and continue with the loop
                 speakers_set.add(speaker_id)
@@ -67,14 +158,29 @@ class LabelsGenerator:
             if len(speaker_chunk) > 1:
                 warnings.warn(f"Ambiguous directory path: {dir_path}. Taking {speaker_id} as id.")
                 
-        print("Dev data loaded.")
+        if self.params.hard_validation:
+
+            null_gender = 0
+            for value in speakers_dict.values():
+                is_null = int((value["gender"] is None) or (value["gender"] == "null_value"))
+                null_gender = null_gender + is_null
+
+            null_nationality = 0
+            for value in speakers_dict.values():
+                is_null = int((value["nationality"] is None) or (value["nationality"] == "null_value"))
+                null_nationality = null_nationality + is_null
+
+        logger.info("Dev data loaded.")
+        logger.info(f"Total number of speakers: {len(speakers_set)}")
+        if self.params.hard_validation: logger.info(f"Speakers with null gender: {null_gender} ({null_gender / len(speakers_set) * 100}%)")
+        if self.params.hard_validation: logger.info(f"Speakers with null nationality: {null_nationality} ({null_nationality / len(speakers_set) * 100}%)")
         
         return speakers_dict
 
 
     def train_valid_split_dict(self, speakers_dict, train_speakers_pctg, random_split = True):
 
-        print(f"Spliting data into train and valid...")
+        logger.info(f"Spliting data into train and valid...")
         
         # We are going to split speakers_dict in train and valid using speaker_id's
         # ie, all audios of the same speaker goes to same split.
@@ -126,17 +232,17 @@ class LabelsGenerator:
         train_files_pctg = train_files_num * 100 / total_files_num
         valid_files_pctg = valid_files_num * 100 / total_files_num
         
-        print(f"{train_speakers_num} speakers ({train_speakers_pctg:.1f}%) with a total of {train_files_num} files ({train_files_pctg:.1f}%) in training split.")
-        print(f"{valid_speakers_num} speakers ({valid_speakers_pctg:.1f}%) with a total of {valid_files_num} files ({valid_files_pctg:.1f}%) in validation split.")
+        logger.info(f"{train_speakers_num} speakers ({train_speakers_pctg:.1f}%) with a total of {train_files_num} files ({train_files_pctg:.1f}%) in training split.")
+        logger.info(f"{valid_speakers_num} speakers ({valid_speakers_pctg:.1f}%) with a total of {valid_files_num} files ({valid_files_pctg:.1f}%) in validation split.")
         
-        print(f"Data splited.")
+        logger.info(f"Data splited.")
         
         return train_speakers_dict, valid_speakers_dict
     
     
     def generate_training_labels_file(self, dump_file_folder, dump_file_name, speakers_dict):
     
-        print(f"Generating training labels...")
+        logger.info(f"Generating training labels...")
         
         if not os.path.exists(dump_file_folder):
             os.makedirs(dump_file_folder)
@@ -151,7 +257,7 @@ class LabelsGenerator:
                     f.write('\n')
             f.close()
 
-        print(f"Training labels generated.")
+        logger.info(f"Training labels generated.")
 
     
     def generate_clients_labels_file(
@@ -161,7 +267,9 @@ class LabelsGenerator:
         clients_lines_max,
         ):
 
-        print(f"Generating valid clients trials...")
+        # TODO review the logic of creating clients randomly. As a first iteration it is ok.
+
+        logger.info(f"Generating valid clients trials...")
 
         lines_to_write = []
 
@@ -175,14 +283,17 @@ class LabelsGenerator:
             speaker_1_file_1 = random.choice(speaker_1_files)
             speaker_1_file_2 = random.choice(speaker_1_files)
 
-            line_to_write = f"{speaker_1_file_1} {speaker_1_file_2}"
+            ordered_files = [speaker_1_file_1, speaker_1_file_2]
+            ordered_files.sort()
+
+            line_to_write = f"{ordered_files[0]} {ordered_files[1]}"
 
             lines_to_write.append(line_to_write)
 
         # Remove duplicated trials
         lines_to_write = list(set(lines_to_write))
 
-        print(f"{len(lines_to_write)} lines to write for clients.")
+        logger.info(f"{len(lines_to_write)} lines to write for clients.")
 
         if not os.path.exists(clients_dump_file_folder):
             os.makedirs(clients_dump_file_folder)
@@ -193,7 +304,7 @@ class LabelsGenerator:
                 f.write('\n')
             f.close()
 
-        print(f"Valid clients trials generated.")
+        logger.info(f"Valid clients trials generated.")
 
 
     def generate_impostors_labels_file(
@@ -203,16 +314,29 @@ class LabelsGenerator:
         impostors_lines_max,
         ):
 
-        print(f"Generating valid impostors trials...")
+        logger.info(f"Generating valid impostors trials...")
 
         lines_to_write = []
+
+        # HACK Minimun effort way to choose speakers of the same gender. 
+        # Won't work with nationalities
+        if self.params.hard_validation:
+            speakers_list_f = [speaker for speaker in speakers_dict.keys() if speakers_dict[speaker]["gender"] == "f"]
+            speakers_list_m = [speaker for speaker in speakers_dict.keys() if speakers_dict[speaker]["gender"] == "m"]
+            speakers_lists_gender = {"f" : speakers_list_f, "m": speakers_list_m}
 
         for _ in range(impostors_lines_max):
 
             # Choose a speaker randomly
             speaker_1 = random.choice(list(speakers_dict.keys()))
-            remain_speakers_list = list(speakers_dict.keys())
+            
+            if self.params.hard_validation:
+                speaker_1_gender = speakers_dict[speaker_1]["gender"]
+                remain_speakers_list = speakers_lists_gender[speaker_1_gender].copy()
+            else:
+                remain_speakers_list = list(speakers_dict.keys())
             remain_speakers_list.remove(speaker_1)
+
             speaker_2 = random.choice(remain_speakers_list)
 
             speaker_1_dict = speakers_dict[speaker_1]
@@ -223,14 +347,17 @@ class LabelsGenerator:
             speaker_2_files = list(speaker_2_dict["files_paths"])
             speaker_2_file_1 = random.choice(speaker_2_files)
 
-            line_to_write = f"{speaker_1_file_1} {speaker_2_file_1}"
+            ordered_files = [speaker_1_file_1, speaker_2_file_1]
+            ordered_files.sort()
+
+            line_to_write = f"{ordered_files[0]} {ordered_files[1]}"
 
             lines_to_write.append(line_to_write)
 
         # Remove duplicated trials
         lines_to_write = list(set(lines_to_write))
         
-        print(f"{len(lines_to_write)} lines to write for impostors.")
+        logger.info(f"{len(lines_to_write)} lines to write for impostors.")
 
         if not os.path.exists(impostors_dump_file_folder):
             os.makedirs(impostors_dump_file_folder)
@@ -241,72 +368,9 @@ class LabelsGenerator:
                 f.write('\n')
             f.close()
 
-        print(f"Valid impostors trials generated.")
+        logger.info(f"Valid impostors trials generated.")
 
 
-    def generate_clients_impostors_files(
-        self,
-        impostors_dump_file_folder, impostors_dump_file_name,
-        clients_dump_file_folder, clients_dump_file_name,
-        speakers_dict, 
-        clients_lines_max = None, impostors_lines_max = None):
-        
-        print(f"Generating valid clients and impostors trials...")
-        
-        clients_lines_to_write = []
-        impostors_lines_to_write = []
-
-        distinct_speakers = list(speakers_dict.keys())
-
-        one_speaker_combinations = [(speaker, speaker) for speaker in distinct_speakers]
-        two_speaker_combinations = list(itertools.combinations(distinct_speakers, 2))  
-        speaker_combinations = one_speaker_combinations + two_speaker_combinations
-
-        for speaker_1, speaker_2 in speaker_combinations:
-
-            speaker_1_files = speakers_dict[speaker_1]["files_paths"]
-            speaker_2_files = speakers_dict[speaker_2]["files_paths"]
-
-            if speaker_1 == speaker_2:
-                files_combinations = list(itertools.combinations(speaker_1_files, 2))
-                for file_1, file_2 in files_combinations:
-                    line_to_write = file_1 + " " + file_2
-                    clients_lines_to_write.append(line_to_write)
-            else:
-                files_combinations = list(itertools.product(speaker_1_files, speaker_2_files))
-                for file_1, file_2 in files_combinations:
-                    line_to_write = file_1 + " " + file_2
-                    impostors_lines_to_write.append(line_to_write)
-
-        if clients_lines_max is not None:
-            clients_lines_to_write = random.sample(clients_lines_to_write, clients_lines_max)
-        if impostors_lines_max is not None:
-            impostors_lines_to_write = random.sample(impostors_lines_to_write, impostors_lines_max)
-        
-        print(f"{len(clients_lines_to_write)} lines to write for clients.")
-        print(f"{len(impostors_lines_to_write)} lines to write for impostors.")
-        
-        if not os.path.exists(clients_dump_file_folder):
-            os.makedirs(clients_dump_file_folder)
-        clients_dump_path = os.path.join(clients_dump_file_folder, clients_dump_file_name)
-        with open(clients_dump_path, 'w') as f:
-            for line_to_write in clients_lines_to_write: 
-                f.write(line_to_write)
-                f.write('\n')
-            f.close()
-
-        if not os.path.exists(impostors_dump_file_folder):
-            os.makedirs(impostors_dump_file_folder)
-        impostors_dump_path = os.path.join(impostors_dump_file_folder, impostors_dump_file_name)
-        with open(impostors_dump_path, 'w') as f:
-            for line_to_write in impostors_lines_to_write: 
-                f.write(line_to_write)
-                f.write('\n')
-            f.close()
-
-        print(f"Valid clients and impostors trials generated.")
-
-    
     def main(self):
 
         self.dev_speakers_dict = self.generate_speakers_dict(
@@ -314,7 +378,7 @@ class LabelsGenerator:
         )
 
         self.num_speakers = len(self.dev_speakers_dict)
-        print(f"Total number of distinct speakers loaded: {self.num_speakers}")
+        logger.info(f"Total number of distinct speakers loaded: {self.num_speakers}")
 
         self.train_speakers_dict, self.valid_speakers_dict = self.train_valid_split_dict(
             self.dev_speakers_dict, 
@@ -440,6 +504,33 @@ class ArgsParser:
             type = int,
             default = LABELS_GENERATOR_DEFAULT_SETTINGS['impostors_lines_max'],
             help = 'Max number of impostors labels generated.',
+            )
+
+        self.parser.add_argument(
+            '--metadata_file_path', 
+            type = str, 
+            help = '.csv file containg speakers metadata such as gender or nationality.\
+                This file must be comma separated and have id, gender, and/or nationality columns.',
+            )
+
+        self.parser.add_argument(
+            '--hard_validation', 
+            action = argparse.BooleanOptionalAction,
+            help = 'If True, valid impostors labels are generated using same gender and nationality if possible.',
+            )
+
+        self.parser.add_argument(
+            '--log_file_folder',
+            type = str, 
+            default = './logs/labels_generator/',
+            help = 'Name of folder that will contain the log file.',
+            )
+        
+        self.parser.add_argument(
+            '--log_file_name',
+            type = str, 
+            default = 'logs.log',
+            help = 'Name of the log file.',
             )
 
         self.parser.add_argument(
