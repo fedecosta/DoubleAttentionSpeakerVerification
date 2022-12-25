@@ -165,6 +165,12 @@ class ModelEvaluator:
             if speaker_2[0] == "/":
                 speaker_2 = speaker_2[1:]
 
+            # remove the file extension, if has
+            if len(speaker_1.split(".")) > 1:
+                speaker_1 = '.'.join(speaker_1.split(".")[:-1]) 
+            if len(speaker_2.split(".")) > 1:
+                speaker_2 = '.'.join(speaker_2.split(".")[:-1]) 
+            
             # Add the pickle extension
             speaker_1 = f"{speaker_1}.pickle"
             speaker_2 = f"{speaker_2}.pickle"

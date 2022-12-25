@@ -144,7 +144,7 @@ class SpeakerClassifier(nn.Module):
         return probs, inner_products_m_s
 
 
-    # TODO not used in this class. where? in model evaluator
+    # This method is used at test (or valid) time
     def get_embedding(self, input_tensor):
 
         # TODO should we use relu and bn in every layer?d
