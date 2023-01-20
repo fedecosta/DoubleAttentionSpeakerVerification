@@ -316,7 +316,8 @@ class ArgsParser:
             '--prepend_directory',
             action = 'append',
             type = str, 
-            help = 'Optional folder(s) directory you want to prepend to each line of the labels file.',
+            help = 'Optional folder(s) directory you want to prepend to each line of the labels file when calculating audio information. \
+                This directory is not prepended to the dumped file.',
             )
 
         self.parser.add_argument(

@@ -10,6 +10,4 @@ tests/
 wandb/
 *.chkpt
 *.pkl
-*.txt
 *.out
-*.log
