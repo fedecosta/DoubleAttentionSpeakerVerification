@@ -626,36 +626,12 @@ class Trainer:
         torch.save(checkpoint, checkpoint_path)
         logger.info(f"Done.")
 
-        # 3 - Save checkpoint as a wandb artifact
-
-        # Add checkpoint data to wandb config
-        #self.wandb_config["model_results"] = model_results
-        #self.wandb_config["training_variables"] = training_variables
-        #wandb.config.update(self.wandb_config)
-
-        # Define the artifact
-        if False:
-            trained_model_artifact = wandb.Artifact(
-                name = self.params.model_name,
-                type = "trained_model",
-                description = self.params.model_name_prefix, # TODO set as an argparse input param
-                metadata = self.wandb_config,
-            )
-
-            # Add folder directory
-            trained_model_artifact.add_dir(checkpoint_folder)
-
-            # Log the artifact
-            run.log_artifact(trained_model_artifact)
-
         # Delete variables to free memory
         del model_results
         del training_variables
         del checkpoint
-        # del trained_model_artifact
 
         logger.info(f"Training and model information saved.")
-        #self.info_mem(self.step)
 
 
     def eval_and_save_best_model(self, prediction, label):
@@ -852,10 +828,34 @@ class Trainer:
         logger.info(f'All not latest artifacts deleted.')
 
 
+    def save_model_artifact(self):
+
+        # Save checkpoint as a wandb artifact
+
+        logger.info(f'Starting to save checkpoint as wandb artifact...')
+
+        # Define the artifact
+        trained_model_artifact = wandb.Artifact(
+            name = self.params.model_name,
+            type = "trained_model",
+            description = self.params.model_name_prefix, # TODO set as an argparse input param
+            metadata = self.wandb_config,
+        )
+
+        # Add folder directory
+        checkpoint_folder = os.path.join(self.params.model_output_folder, self.params.model_name)
+        trained_model_artifact.add_dir(checkpoint_folder)
+
+        # Log the artifact
+        run.log_artifact(trained_model_artifact)
+
+        logger.info(f'Artifact saved.')
+
+
     def main(self):
 
         self.train(self.starting_epoch, self.params.max_epochs)
-        self.delete_version_artifacts()
+        self.save_model_artifact()
 
 
 class ArgsParser:
