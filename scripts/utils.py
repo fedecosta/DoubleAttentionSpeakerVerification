@@ -88,7 +88,7 @@ def get_number_of_speakers(labels_file_path):
     return len(speakers_set)
 
 
-def generate_model_name(params, start_datetime, wandb_run_id):
+def generate_model_name(params, start_datetime, wandb_run_id, wandb_run_name):
 
     # TODO add all neccesary components
 
@@ -116,7 +116,7 @@ def generate_model_name(params, start_datetime, wandb_run_id):
 
     formatted_datetime = start_datetime.replace(':', '_').replace(' ', '_').replace('-', '_')
 
-    model_name = f"{formatted_datetime}_{model_name}_{wandb_run_id}"
+    model_name = f"{formatted_datetime}_{model_name}_{wandb_run_id}_{wandb_run_name}"
 
     return model_name
 
