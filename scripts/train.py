@@ -76,6 +76,7 @@ class Trainer:
             self.params, 
             start_datetime = self.start_datetime, 
             wandb_run_id = wandb.run.id,
+            wandb_run_name = wandb.run.name
             )
 
         if self.params.load_checkpoint == True:
@@ -633,24 +634,25 @@ class Trainer:
         #wandb.config.update(self.wandb_config)
 
         # Define the artifact
-        trained_model_artifact = wandb.Artifact(
-            name = self.params.model_name,
-            type = "trained_model",
-            description = self.params.model_name_prefix, # TODO set as an argparse input param
-            metadata = self.wandb_config,
-        )
+        if False:
+            trained_model_artifact = wandb.Artifact(
+                name = self.params.model_name,
+                type = "trained_model",
+                description = self.params.model_name_prefix, # TODO set as an argparse input param
+                metadata = self.wandb_config,
+            )
 
-        # Add folder directory
-        trained_model_artifact.add_dir(checkpoint_folder)
+            # Add folder directory
+            trained_model_artifact.add_dir(checkpoint_folder)
 
-        # Log the artifact
-        run.log_artifact(trained_model_artifact)
+            # Log the artifact
+            run.log_artifact(trained_model_artifact)
 
         # Delete variables to free memory
         del model_results
         del training_variables
         del checkpoint
-        del trained_model_artifact
+        # del trained_model_artifact
 
         logger.info(f"Training and model information saved.")
         #self.info_mem(self.step)
