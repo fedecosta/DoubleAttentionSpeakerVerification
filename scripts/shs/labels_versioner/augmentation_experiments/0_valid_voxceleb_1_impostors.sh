@@ -6,9 +6,10 @@
 #SBATCH --mem=32G      					# Max CPU Memory
 #SBATCH --job-name=labels_versioner
 python scripts/labels_versioner.py \
-	--labels_file_folder './labels/test/voxceleb1_h_protocol/' \
+	--labels_file_folder './labels/augmentation_experiments/valid/voxceleb_1/' \
 	--labels_file_name 'impostors.ndx' \
 	--prepend_directory '/home/usuaris/veussd/DATABASES/VoxCeleb/VoxCeleb1/dev/' \
-	--prepend_directory '/home/usuaris/veussd/DATABASES/VoxCeleb/VoxCeleb1/test/' \
-	--dump_folder_name './labels/test/voxceleb1_h_protocol/' \
-	--log_file_folder './logs/labels_versioner/'
+	--dump_folder_name './labels/augmentation_experiments/valid/voxceleb_1/' \
+	--log_file_folder './logs/labels_versioner/' \
+	--get_duration \
+	> logs/console_output/labels_versioner/console_output.log 2>&1

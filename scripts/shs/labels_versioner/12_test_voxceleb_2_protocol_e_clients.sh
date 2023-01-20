@@ -1,5 +1,6 @@
 #!/bin/bash
-#SBATCH --output=logs/sbatch_output/slurm-%j.out
+#SBATCH -o logs/sbatch/outputs/slurm-%j.out
+#SBATCH -e logs/sbatch/errors/slurm-%j.err
 #SBATCH -p veu							# Partition to submit to
 #SBATCH -c1
 #SBATCH --mem=32G      					# Max CPU Memory

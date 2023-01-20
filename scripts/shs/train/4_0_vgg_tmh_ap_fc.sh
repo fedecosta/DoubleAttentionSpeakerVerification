@@ -5,7 +5,7 @@
 #SBATCH -c1
 #SBATCH --mem=64G      # Max CPU Memory
 #SBATCH --gres=gpu:4
-#SBATCH --job-name=train_vgg_mh_ap_fc
+#SBATCH --job-name=train_vgg_tmh_ap_fc
 python scripts/train.py \
 	--train_labels_path './labels/train/voxceleb_2/22_12_26_00_36_23_39bjucvr_gallant-dragon-44/train_labels.ndx' \
 	--train_data_dir './datasets/voxceleb_2/dev/22_12_05_21_59_21_f0yycx91_azure-pine-7/' \
@@ -20,12 +20,16 @@ python scripts/train.py \
 	--early_stopping 0 \
 	--update_optimizer_every 0 \
 	--normalization 'cmn' \
-	--model_name_prefix 'vgg_mh_ap_fc' \
+	--model_name_prefix 'vgg_tmh_ap_fc' \
 	--embedding_size 400 \
 	--front_end 'VGGNL' \
-	--pooling_method 'MultiHeadAttentionAttentionPooling' \
+	--pooling_method 'TransformerStackedAttentionPooling' \
 	--pooling_output_size 400 \
 	--pooling_heads_number 6 \
 	--no-pooling_positional_encoding \
+	--transformer_n_blocks 2 \
+	--transformer_expansion_coef 4 \
+	--transformer_attention_type 'MultiHeadAttention' \
+	--transformer_drop_out 0.1 \
 	--bottleneck_drop_out 0.0 \
-	> logs/console_output/train/2_vgg_mh_ap_fc.log 2>&1
+	> logs/console_output/train/4_0_vgg_tmh_ap_fc.log 2>&1
