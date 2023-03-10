@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 from torch.nn import functional as F
-from poolings import Attention, MultiHeadAttention, DoubleMHA
+from poolings_original import Attention, MultiHeadAttention, DoubleMHA
 from poolings import SelfAttentionAttentionPooling, MultiHeadAttentionAttentionPooling, TransformerStackedAttentionPooling
 from front_end import VGGNL, PatchsGenerator
 from loss import AMSoftmax
