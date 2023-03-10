@@ -1,5 +1,6 @@
 .ipynb_checkpoints/
 __pycache__/
+augmentation_experiments/
 datasets/
 feature_extractor/
 labels/
