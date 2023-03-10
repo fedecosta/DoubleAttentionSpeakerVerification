@@ -11,3 +11,4 @@ wandb/
 *.chkpt
 *.pkl
 *.out
+*.csv
