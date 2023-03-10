@@ -8,6 +8,7 @@ import datetime
 from utils import get_number_of_speakers
 from settings import FEATURE_EXTRACTOR_DEFAULT_SETTINGS
 
+# ---------------------------------------------
 # Set logging config
 import logging
 
@@ -25,17 +26,22 @@ logger_stream_handler.setFormatter(logger_formatter)
 
 # Add handlers
 logger.addHandler(logger_stream_handler)
+# ---------------------------------------------
 
+# ---------------------------------------------
 # Init a wandb project
 import wandb
 run = wandb.init(project = "speaker_verification_datasets", job_type = "dataset")
+# ---------------------------------------------
 
+# ---------------------------------------------
 # In this particular case we ignore warnings of loading a .m4a audio
 # Not a good practice
 import warnings
 warnings.filterwarnings("ignore")
 
 # TODO add the usage instructions in README.md
+# ---------------------------------------------
 
 
 class FeatureExtractor:
@@ -250,6 +256,7 @@ class ArgsParser:
     def __init__(self):
         self.initialize_parser()
 
+
     def initialize_parser(self):
 
         self.parser = argparse.ArgumentParser(
@@ -257,6 +264,7 @@ class ArgsParser:
                 It searches audio files in a paths file and dumps the  \
                 extracted features in a .pickle file in the same directory.',
             )
+
 
     def add_parser_args(self):
 
@@ -294,13 +302,6 @@ class ArgsParser:
             default = FEATURE_EXTRACTOR_DEFAULT_SETTINGS['log_file_folder'],
             help = 'Name of folder that will contain the log file.',
             )
-        
-        #self.parser.add_argument(
-        #    '--log_file_name',
-        #    type = str, 
-        #    default = FEATURE_EXTRACTOR_DEFAULT_SETTINGS['log_file_name'],
-        #    help = 'Name of the log file.',
-        #    )
 
         self.parser.add_argument(
             "--sampling_rate", "-sr", 

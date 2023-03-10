@@ -11,7 +11,6 @@ FEATURE_EXTRACTOR_DEFAULT_SETTINGS = {
     'prepend_directory' : '',
     'dump_folder_name' : './datasets/v0/',
     'log_file_folder' : './logs/feature_extractor/',
-    #'log_file_name' : 'feature_extractor.log',
     'sampling_rate' : 16000,
     'n_fft_secs': 0.032,
     'window' : 'hamming',
