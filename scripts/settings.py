@@ -1,6 +1,7 @@
 PATHS_GENERATOR_DEFAULT_SETTINGS = {
     'dump_file_name' : 'feature_extractor_paths.lst',
     'dump_file_folder' : './feature_extractor/',
+    'dump_max_lines' : -1,
     'valid_audio_formats': ['wav', 'm4a'],
     'verbose' : False,
 }
