@@ -1016,7 +1016,7 @@ class ArgsParser:
             '--normalization', 
             type = str, 
             default = TRAIN_DEFAULT_SETTINGS['normalization'], 
-            choices = ['cmn', 'cmvn'],
+            choices = ['cmn', 'cmvn', 'full'],
             help = 'Type of normalization applied to the features when evaluating in validation. \
                 It can be Cepstral Mean Normalization or Cepstral Mean and Variance Normalization',
             )

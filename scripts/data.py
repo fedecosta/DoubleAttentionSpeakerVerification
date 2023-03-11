@@ -86,6 +86,27 @@ class Dataset(data.Dataset):
             # Divide for each column the corresponding column std
             features = features / std
 
+        # Cepstral mean and variance normalization and range normalization between -1 and 1
+        elif self.parameters.normalization == 'full':
+
+            # Compute the mean for each frequency band (columns)
+            mean = np.mean(features, axis = 0)
+            
+            # Substract for each column the corresponding column mean
+            features = features - mean
+            
+            # Compute the standard deviation for each frequency band (columns)
+            std = np.std(features, axis = 0)
+            
+            # HACK guess this is to avoid zero division overflow
+            std = np.where(std > 0.01, std, 1.0)
+
+            # Divide for each column the corresponding column std
+            features = features / std
+
+            # Range between -1 and 1
+            features = features / np.max(np.abs(features), axis = 0)
+
         return features
 
 
