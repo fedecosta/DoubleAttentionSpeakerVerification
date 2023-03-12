@@ -468,7 +468,7 @@ class Trainer:
 
     def extractInputFromFeature(self, sline):
 
-        logger.debug("Using extractInputFromFeature")
+        logger.debug(f"Using extractInputFromFeature on {sline}")
 
         features1 = normalizeFeatures(
             featureReader(sline[0]), 
@@ -844,6 +844,7 @@ class Trainer:
 
         # Add folder directory
         checkpoint_folder = os.path.join(self.params.model_output_folder, self.params.model_name)
+        logger.info(f'checkpoint_folder {checkpoint_folder}')
         trained_model_artifact.add_dir(checkpoint_folder)
 
         # Log the artifact
