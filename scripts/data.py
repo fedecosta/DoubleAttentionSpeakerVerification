@@ -1,14 +1,13 @@
 import pickle
 import numpy as np
-from random import randint, randrange
+from random import randint
 import os
 import torch
 from torch.utils import data
 
 from utils import scoreCosineDistance
 
-# TODO understand where is this function used, move to the correct module
-def featureReader(featurePath, VAD = None):
+def feature_reader(featurePath, VAD = None):
 
     with open(featurePath,'rb') as pickleFile:
         features_dict = pickle.load(pickleFile)
@@ -26,18 +25,58 @@ def featureReader(featurePath, VAD = None):
     else:
         return np.transpose(features)
 
-# TODO understand where is this function used, move to the correct module
-# This is exactly the same as Dataset.__normalize
-def normalizeFeatures(features, normalization = 'cmn'):
 
-    mean = np.mean(features, axis=0)
-    features -= mean 
-    if normalization=='cmn':
-       return features
-    if normalization=='cmvn':
-        std = np.std(features, axis=0)
-        std = np.where(std>0.01,std,1.0)
-        return features/std
+def normalize_features(features, normalization = 'cmn'):
+
+        # Cepstral mean normalization
+        if normalization == 'cmn':
+
+            # Compute the mean for each frequency band (columns)
+            mean = np.mean(features, axis = 0)
+            
+            # Substract for each column the corresponding column mean
+            features = features - mean
+
+        # Cepstral mean and variance normalization
+        elif normalization == 'cmvn':
+
+            # Compute the mean for each frequency band (columns)
+            mean = np.mean(features, axis = 0)
+            
+            # Substract for each column the corresponding column mean
+            features = features - mean
+            
+            # Compute the standard deviation for each frequency band (columns)
+            std = np.std(features, axis = 0)
+            
+            # HACK guess this is to avoid zero division overflow
+            std = np.where(std > 0.01, std, 1.0)
+
+            # Divide for each column the corresponding column std
+            features = features / std
+
+        # Cepstral mean and variance normalization and range normalization between -1 and 1
+        elif normalization == 'full':
+
+            # Compute the mean for each frequency band (columns)
+            mean = np.mean(features, axis = 0)
+            
+            # Substract for each column the corresponding column mean
+            features = features - mean
+            
+            # Compute the standard deviation for each frequency band (columns)
+            std = np.std(features, axis = 0)
+            
+            # HACK guess this is to avoid zero division overflow
+            std = np.where(std > 0.01, std, 1.0)
+
+            # Divide for each column the corresponding column std
+            features = features / std
+
+            # Range between -1 and 1
+            features = features / np.max(np.abs(features), axis = 0)
+
+        return features
 
 
 class Dataset(data.Dataset):
@@ -59,55 +98,9 @@ class Dataset(data.Dataset):
 
     def normalize(self, features):
 
-        # Cepstral mean normalization
-        if self.parameters.normalization == 'cmn':
+        normalized_features = normalize_features(features, normalization = self.parameters.normalization)
 
-            # Compute the mean for each frequency band (columns)
-            mean = np.mean(features, axis = 0)
-            
-            # Substract for each column the corresponding column mean
-            features = features - mean
-
-        # Cepstral mean and variance normalization
-        elif self.parameters.normalization == 'cmvn':
-
-            # Compute the mean for each frequency band (columns)
-            mean = np.mean(features, axis = 0)
-            
-            # Substract for each column the corresponding column mean
-            features = features - mean
-            
-            # Compute the standard deviation for each frequency band (columns)
-            std = np.std(features, axis = 0)
-            
-            # HACK guess this is to avoid zero division overflow
-            std = np.where(std > 0.01, std, 1.0)
-
-            # Divide for each column the corresponding column std
-            features = features / std
-
-        # Cepstral mean and variance normalization and range normalization between -1 and 1
-        elif self.parameters.normalization == 'full':
-
-            # Compute the mean for each frequency band (columns)
-            mean = np.mean(features, axis = 0)
-            
-            # Substract for each column the corresponding column mean
-            features = features - mean
-            
-            # Compute the standard deviation for each frequency band (columns)
-            std = np.std(features, axis = 0)
-            
-            # HACK guess this is to avoid zero division overflow
-            std = np.where(std > 0.01, std, 1.0)
-
-            # Divide for each column the corresponding column std
-            features = features / std
-
-            # Range between -1 and 1
-            features = features / np.max(np.abs(features), axis = 0)
-
-        return features
+        return normalized_features
 
 
     def sample_spectogram_crop(self, features):
@@ -211,34 +204,9 @@ class TestDataset(data.Dataset):
 
     def normalize(self, features):
 
-        # Cepstral mean normalization
-        if self.input_parameters.normalization == 'cmn':
+        normalized_features = normalize_features(features, normalization = self.parameters.normalization)
 
-            # Compute the mean for each frequency band (columns)
-            mean = np.mean(features, axis = 0)
-            
-            # Substract for each column the corresponding column mean
-            features = features - mean
-
-        # Cepstral mean and variance normalization
-        elif self.input_parameters.normalization == 'cmvn':
-
-            # Compute the mean for each frequency band (columns)
-            mean = np.mean(features, axis = 0)
-            
-            # Substract for each column the corresponding column mean
-            features = features - mean
-            
-            # Compute the standard deviation for each frequency band (columns)
-            std = np.std(features, axis = 0)
-            
-            # HACK guess this is to avoid zero division overflow
-            std = np.where(std > 0.01, std, 1.0)
-
-            # Divide for each column the corresponding column std
-            features = features / std
-
-        return features
+        return normalized_features
 
 
     def sample_spectogram_crop(self, features):

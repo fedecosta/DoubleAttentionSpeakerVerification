@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from torch import optim
 from torchsummary import summary
 
-from data import Dataset, normalizeFeatures, featureReader
+from data import Dataset, normalize_features, feature_reader
 from model import SpeakerClassifier
 from utils import get_number_of_speakers, generate_model_name, Accuracy, scoreCosineDistance, Score, get_memory_info
 from settings import TRAIN_DEFAULT_SETTINGS
@@ -470,12 +470,12 @@ class Trainer:
 
         logger.debug(f"Using extractInputFromFeature on {sline}")
 
-        features1 = normalizeFeatures(
-            featureReader(sline[0]), 
+        features1 = normalize_features(
+            feature_reader(sline[0]), 
             normalization = self.params.normalization,
             )
-        features2 = normalizeFeatures(
-            featureReader(sline[1]), 
+        features2 = normalize_features(
+            feature_reader(sline[1]), 
             normalization = self.params.normalization,
             )
 
