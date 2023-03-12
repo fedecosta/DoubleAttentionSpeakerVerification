@@ -386,12 +386,21 @@ class LabelsGenerator:
             self.params.random_split,
         )
         
+        # Generate training speaker classification labels
         self.generate_training_labels_file(
             dump_file_folder = self.params.train_labels_dump_file_folder,
             dump_file_name = self.params.train_labels_dump_file_name, 
             speakers_dict = self.train_speakers_dict,
         )
+
+        # Generate validation speaker classification labels
+        self.generate_training_labels_file(
+            dump_file_folder = self.params.valid_labels_dump_file_folder,
+            dump_file_name = self.params.valid_labels_dump_file_name, 
+            speakers_dict = self.valid_speakers_dict,
+        )
         
+        # Generate validation speaker verification clients labels
         self.generate_clients_labels_file(
             clients_dump_file_folder = self.params.valid_clients_labels_dump_file_folder, 
             clients_dump_file_name = self.params.valid_clients_labels_dump_file_name, 
@@ -399,6 +408,7 @@ class LabelsGenerator:
             clients_lines_max = self.params.clients_lines_max, 
         )
 
+        # Generate validation speaker verification clients labels
         self.generate_impostors_labels_file(
             impostors_dump_file_folder = self.params.valid_impostors_labels_dump_file_folder, 
             impostors_dump_file_name = self.params.valid_impostors_labels_dump_file_name, 
@@ -440,42 +450,56 @@ class ArgsParser:
             '--train_labels_dump_file_folder', 
             type = str, 
             default = LABELS_GENERATOR_DEFAULT_SETTINGS['train_labels_dump_file_folder'], 
-            help = 'Folder where we want to dump the .ndx file with the training labels.',
+            help = 'Folder where we want to dump the .ndx file with the speaker classification training labels.',
             )
 
         self.parser.add_argument(
             '--train_labels_dump_file_name', 
             type = str, 
             default = LABELS_GENERATOR_DEFAULT_SETTINGS['train_labels_dump_file_name'], 
-            help = 'Name of the .ndx file we want to dump training labels into.',
+            help = 'Name of the .ndx file we want to dump speaker classification training labels into.',
+            )
+
+        self.parser.add_argument(
+            '--valid_labels_dump_file_folder', 
+            type = str, 
+            default = LABELS_GENERATOR_DEFAULT_SETTINGS['valid_labels_dump_file_folder'], 
+            help = 'Folder where we want to dump the .ndx file with the speaker classification validation labels.',
+            )
+
+        self.parser.add_argument(
+            '--valid_labels_dump_file_name', 
+            type = str, 
+            default = LABELS_GENERATOR_DEFAULT_SETTINGS['valid_labels_dump_file_name'], 
+            help = 'Name of the .ndx file we want to dump speaker verification classification labels into.',
             )
 
         self.parser.add_argument(
             '--valid_impostors_labels_dump_file_folder', 
             type = str, 
             default = LABELS_GENERATOR_DEFAULT_SETTINGS['valid_impostors_labels_dump_file_folder'], 
-            help = 'Folder where we want to dump the .ndx file with the validation impostors labels.',
+            help = 'Folder where we want to dump the .ndx file with the speaker verification validation impostors labels.',
             )
 
         self.parser.add_argument(
             '--valid_impostors_labels_dump_file_name', 
             type = str, 
             default = LABELS_GENERATOR_DEFAULT_SETTINGS['valid_impostors_labels_dump_file_name'], 
-            help = 'Name of the .ndx file we want to dump validation impostors labels into.',
+            help = 'Name of the .ndx file we want to dump speaker verification validation impostors labels into.',
             )
         
         self.parser.add_argument(
             '--valid_clients_labels_dump_file_folder', 
             type = str, 
             default = LABELS_GENERATOR_DEFAULT_SETTINGS['valid_clients_labels_dump_file_folder'], 
-            help = 'Folder where we want to dump the .ndx file with the validation clients labels.',
+            help = 'Folder where we want to dump the .ndx file with the speaker verification validation clients labels.',
             )
 
         self.parser.add_argument(
             '--valid_clients_labels_dump_file_name', 
             type = str, 
             default = LABELS_GENERATOR_DEFAULT_SETTINGS['valid_clients_labels_dump_file_name'], 
-            help = 'Name of the .ndx file we want to dump validation clients labels into.',
+            help = 'Name of the .ndx file we want to dump speaker verification validation clients labels into.',
             )
         
         self.parser.add_argument(

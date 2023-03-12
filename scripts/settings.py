@@ -26,6 +26,8 @@ FEATURE_EXTRACTOR_DEFAULT_SETTINGS = {
 LABELS_GENERATOR_DEFAULT_SETTINGS = {
     'train_labels_dump_file_folder' : './labels/train/',
     'train_labels_dump_file_name' : 'train_labels.ndx',
+    'valid_labels_dump_file_folder' : './labels/valid/',
+    'valid_labels_dump_file_name' : 'valid_labels.ndx',
     'valid_impostors_labels_dump_file_folder' : './labels/valid/',
     'valid_impostors_labels_dump_file_name' : 'impostors.ndx',
     'valid_clients_labels_dump_file_folder' : './labels/valid/',
