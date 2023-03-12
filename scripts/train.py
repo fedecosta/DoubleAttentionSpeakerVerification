@@ -1,6 +1,7 @@
 import argparse
 import os
 import numpy as np
+import pandas as pd
 import random
 import pickle
 import datetime
@@ -562,8 +563,9 @@ class Trainer:
     def evaluate(self, prediction, label):
 
         self.evaluate_training(prediction, label)
+        self.multiple_evaluate_validation()
         self.evaluate_validation()
-
+        
 
     def save_model(self):
 
@@ -852,6 +854,64 @@ class Trainer:
         run.log_artifact(trained_model_artifact)
 
         logger.info(f'Artifact saved.')
+
+
+    def multiple_evaluate_validation(self):
+
+        # This function is only used for own research, it is not necessary for the train process
+
+        logger.info(f"Evaluating multiple validation...")
+
+        with torch.no_grad():
+
+            # Switch torch to evaluation mode
+            self.net.eval()
+
+            clients_len = len(self.valid_clients_labels)
+            impostors_len = len(self.valid_impostors_labels)
+
+            epochs, steps, total_clients_lens, total_impostors_lens, reduced_clients_lens, reduced_impostors_lens, eer_list = [], [], [], [], [], [], []
+
+            for percentage in [0.1, 0.2, 0.3, 0.4, 0.5, 1.0]:
+
+                logger.info(f"Evaluating with {int(percentage * 100)}% of clients and impostors...")
+
+                reduced_clients = random.sample(self.valid_clients_labels, int(percentage * clients_len))
+                reduced_impostors = random.sample(self.valid_impostors_labels, int(percentage * impostors_len))
+
+                # EER Validation score clients
+                CL = self.extract_scores(reduced_clients)
+                IM = self.extract_scores(reduced_impostors)
+                
+                # Compute EER
+                EER = self.calculate_EER(CL, IM)
+
+                epochs.append(self.epoch)
+                steps.append(self.step)
+                total_clients_lens.append(clients_len)
+                total_impostors_lens.append(impostors_len)
+                reduced_clients_lens.append(len(reduced_clients))
+                reduced_impostors_lens.append(len(reduced_impostors))
+                eer_list.append(EER)    
+
+        dict_info = {
+            "epoch" : epochs,
+            "step" : steps,
+            "total_clients_len" : total_clients_lens,
+            "total_impostors_len" : total_impostors_lens,
+            "reduced_clients_len" : reduced_clients_lens,
+            "reduced_impostors_len" : reduced_impostors_lens,
+            "EER" : eer_list,
+        }
+
+        df_info = pd.DataFrame(dict_info)    
+
+        df_info.to_csv('./metadata/multiple_validation_info.csv', index = False)
+
+        # Return to training mode
+        self.net.train()
+
+        logger.info(f"Multiple validation evaluated.")
 
 
     def main(self):
