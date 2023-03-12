@@ -150,6 +150,7 @@ class Trainer:
 
         # Set the seed for experimental reproduction
         torch.manual_seed(1234)
+        torch.cuda.manual_seed(1234)
         np.random.seed(1234)
         random.seed(1234)
 
