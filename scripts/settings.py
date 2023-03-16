@@ -34,6 +34,8 @@ LABELS_GENERATOR_DEFAULT_SETTINGS = {
     'valid_clients_labels_dump_file_name' : 'clients.ndx',
     'train_speakers_pctg': 0.98,
     'random_split' : True,
+    'train_lines_max' : -1,
+    'valid_lines_max' : -1,
     'clients_lines_max' : 20000,
     'impostors_lines_max' : 20000,
     'verbose' : False,

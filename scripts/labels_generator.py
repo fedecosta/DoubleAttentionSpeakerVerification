@@ -240,7 +240,7 @@ class LabelsGenerator:
         return train_speakers_dict, valid_speakers_dict
     
     
-    def generate_training_labels_file(self, dump_file_folder, dump_file_name, speakers_dict):
+    def generate_training_labels_file(self, dump_file_folder, dump_file_name, speakers_dict, max_lines):
     
         logger.info(f"Generating training labels...")
         
@@ -256,6 +256,21 @@ class LabelsGenerator:
                     f.write(line_to_write)
                     f.write('\n')
             f.close()
+
+        # Reduce the number of lines if needed
+        if max_lines > 0:
+            
+            with open(dump_path, 'r') as f:
+                labels = f.readlines()
+                f.close()
+            
+            reduced_labels = random.sample(labels, max_lines)
+
+            with open(dump_path, 'w') as f:
+                for line_to_write in reduced_labels: 
+                    f.write(line_to_write.replace('\n', ''))
+                    f.write('\n')
+                f.close()
 
         logger.info(f"Training labels generated.")
 
@@ -391,6 +406,7 @@ class LabelsGenerator:
             dump_file_folder = self.params.train_labels_dump_file_folder,
             dump_file_name = self.params.train_labels_dump_file_name, 
             speakers_dict = self.train_speakers_dict,
+            max_lines = self.params.train_lines_max,
         )
 
         # Generate validation speaker classification labels
@@ -398,6 +414,7 @@ class LabelsGenerator:
             dump_file_folder = self.params.valid_labels_dump_file_folder,
             dump_file_name = self.params.valid_labels_dump_file_name, 
             speakers_dict = self.valid_speakers_dict,
+            max_lines = self.params.valid_lines_max,
         )
         
         # Generate validation speaker verification clients labels
@@ -514,6 +531,20 @@ class ArgsParser:
             action = argparse.BooleanOptionalAction,
             default = LABELS_GENERATOR_DEFAULT_SETTINGS['random_split'],
             help = 'Randomly split into train and validation.',
+            )
+
+        self.parser.add_argument(
+            '--train_lines_max', 
+            type = int,
+            default = LABELS_GENERATOR_DEFAULT_SETTINGS['train_lines_max'],
+            help = 'Max number of lines generated for the training speaker classification task. Set to -1 if no max is required.',
+            )
+        
+        self.parser.add_argument(
+            '--valid_lines_max', 
+            type = int,
+            default = LABELS_GENERATOR_DEFAULT_SETTINGS['valid_lines_max'],
+            help = 'Max number of lines generated for the validation speaker classification task. Set to -1 if no max is required.',
             )
 
         self.parser.add_argument(
