@@ -7,11 +7,11 @@
 #SBATCH --gres=gpu:2
 #SBATCH --job-name=eval_t
 python scripts/model_evaluator.py \
-	'/home/usuaris/veussd/federico.costa/models/23_01_19_12_28_21_vgg_dmha_fc_aug_VGGNL_DoubleMHA_15cqf6t5/' \
-	'23_01_19_12_28_21_vgg_dmha_fc_aug_VGGNL_DoubleMHA_15cqf6t5.chkpt' \
+	'./models/23_01_02_15_09_14_vgg_mh_ap_fc_VGGNL_MultiHeadAttentionAttentionPooling_3oxqbxav/' \
+	'23_01_02_15_09_14_vgg_mh_ap_fc_VGGNL_MultiHeadAttentionAttentionPooling_3oxqbxav.chkpt' \
 	'./labels/test/voxceleb1_t_protocol/22_12_09_13_09_15_2tkbqp0k_revived-bush-19/clients.ndx' \
 	'./labels/test/voxceleb1_t_protocol/22_12_09_13_11_45_1366qjbx_avid-pyramid-20/impostors.ndx' \
 	--dump_folder './models_results/' \
 	--data_dir '/home/usuaris/veussd/federico.costa/datasets/voxceleb_1/test/23_01_19_10_50_02_2z4ix3k0_divine-wind-20/' \
-	--evaluation_type "total_length" \
-	> logs/console_output/model_evaluator/model_evaluator_t.log 2>&1
+	--evaluation_type 'random_crop' \
+	> logs/console_output/model_evaluator/model_evaluator_t_3oxqbxav_random_crop.log 2>&1

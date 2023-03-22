@@ -83,7 +83,6 @@ class Dataset(data.Dataset):
 
     def __init__(self, utterances_paths, parameters):
         
-        'Initialization'
         self.utterances_paths = utterances_paths
         self.parameters = parameters
         self.num_samples = len(utterances_paths)
@@ -111,7 +110,7 @@ class Dataset(data.Dataset):
         
         # Get a random start point
         index = randint(0, max(0, file_frames - self.parameters.random_crop_frames - 1))
-
+        
         # Generate the index slicing
         a = np.array(range(min(file_frames, int(self.parameters.random_crop_frames)))) + index
         
@@ -163,7 +162,6 @@ class Dataset(data.Dataset):
 class TestDataset(data.Dataset):
 
     def __init__(self, clients_utterances_paths, impostors_utterances_paths, train_parameters, input_parameters):
-        'Initialization'
 
         self.clients_utterances_paths = clients_utterances_paths
         self.impostors_utterances_paths = impostors_utterances_paths
