@@ -17,6 +17,7 @@ class PathsGenerator:
 
         print(f"Searching {self.params.valid_audio_formats} files in {self.params.load_data_folder}")
         
+        finish_search = False
         for (dir_path, dir_names, file_names) in os.walk(self.params.load_data_folder):
 
                 if self.params.verbose: print(f"Searching in {dir_path}")
@@ -26,7 +27,19 @@ class PathsGenerator:
                     if file_name.split(".")[-1] in self.params.valid_audio_formats:
                         
                         path_to_write = os.path.join(dir_path, file_name)
+                        # we want to keep only the data structure directory (speaker_id/interview_id/file), 
+                        # not the prepended folder directory
+                        path_to_write = path_to_write.replace(self.params.load_data_folder, "")
                         self.lines_to_write.append(path_to_write)
+
+                        if self.params.dump_max_lines != -1 and len(self.lines_to_write) >= self.params.dump_max_lines:
+                            finish_search = True
+
+                        if finish_search: break
+
+                    if finish_search: break
+                    
+                if finish_search: break
 
         print(f"{len(self.lines_to_write)} files founded in {self.params.load_data_folder}")
 
@@ -89,6 +102,13 @@ class ArgsParser:
             type = str, 
             default = PATHS_GENERATOR_DEFAULT_SETTINGS['dump_file_folder'], 
             help = 'Data folder where we want to dump the .lst file.',
+            )
+
+        self.parser.add_argument(
+            '--dump_max_lines', 
+            type = int, 
+            default = PATHS_GENERATOR_DEFAULT_SETTINGS['dump_max_lines'], 
+            help = 'Max lines to dump to the .lst file. Set to -1 if no limitation is wanted.',
             )
         
         self.parser.add_argument(

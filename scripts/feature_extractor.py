@@ -3,9 +3,12 @@ import os
 import librosa
 import numpy as np
 import pickle
+import datetime
 
+from utils import get_number_of_speakers
 from settings import FEATURE_EXTRACTOR_DEFAULT_SETTINGS
 
+# ---------------------------------------------
 # Set logging config
 import logging
 
@@ -23,21 +26,45 @@ logger_stream_handler.setFormatter(logger_formatter)
 
 # Add handlers
 logger.addHandler(logger_stream_handler)
+# ---------------------------------------------
 
+# ---------------------------------------------
+# Init a wandb project
+import wandb
+run = wandb.init(project = "speaker_verification_datasets", job_type = "dataset")
+# ---------------------------------------------
+
+# ---------------------------------------------
 # In this particular case we ignore warnings of loading a .m4a audio
 # Not a good practice
 import warnings
 warnings.filterwarnings("ignore")
 
 # TODO add the usage instructions in README.md
+# ---------------------------------------------
 
 
 class FeatureExtractor:
 
     def __init__(self, params):
         self.params = params
-        self.params.audio_paths_file_path = os.path.join(self.params.audio_paths_file_folder, self.params.audio_paths_file_name)
+        self.set_other_params()
         self.set_log_file_handler()
+
+
+    def set_other_params(self):
+
+        self.start_datetime = datetime.datetime.strftime(datetime.datetime.now(), '%y-%m-%d %H:%M:%S')
+        self.start_datetime = self.start_datetime.replace("-", "_").replace(" ", "_").replace(":", "_")
+
+        self.dataset_id = f"{self.start_datetime}_{wandb.run.id}_{wandb.run.name}"
+        self.params.dump_folder_name = os.path.join(self.params.dump_folder_name, self.dataset_id)
+        self.params.log_file_name = f"{self.dataset_id}_feature_extractor.log"
+
+        self.params.audio_paths_file_path = os.path.join(
+            self.params.audio_paths_file_folder, 
+            self.params.audio_paths_file_name,
+            )
 
 
     def set_log_file_handler(self):
@@ -53,14 +80,28 @@ class FeatureExtractor:
         logger.addHandler(logger_file_handler)
 
 
-    def count_input_lines(self):
-        
-        # Doing this to be able to print progress of processing files
+    def config_wandb(self):
+
+        # 1 - Save the params
+        self.wandb_config = vars(self.params)
+
+        # 2 - Update the wandb config
+        wandb.config.update(self.wandb_config)
+
+
+    def get_dataset_statistics(self):
+
+        # num speakers
+        self.params.number_speakers = get_number_of_speakers(self.params.audio_paths_file_path)
+
+        # num files
         with open(self.params.audio_paths_file_path, 'r') as file:
-            self.total_lines = sum(1 for line in list(file))
+            self.params.num_files = sum(1 for line in list(file))
             file.close()
 
-
+        self.params.total_duration_hours = 0
+        
+        
     def generate_log_mel_spectrogram(self, samples, sampling_rate):
         
         # Pre-emphasis
@@ -99,6 +140,9 @@ class FeatureExtractor:
 
     def extract_features(self, audio_path):
 
+        # Get the audio duration for dataset statistics
+        self.params.total_duration_hours = self.params.total_duration_hours + librosa.get_duration(filename = audio_path) / 3600
+
         # Load the audio
         samples, sampling_rate = librosa.load(
             f'{audio_path}',
@@ -117,28 +161,39 @@ class FeatureExtractor:
         return log_mel_spectrogram
 
 
-    def main(self):
+    def extract_all_features(self):
 
-        self.count_input_lines()
+        # If not exists, create the dump folder
+        if not os.path.exists(self.params.dump_folder_name):
+            os.makedirs(self.params.dump_folder_name)
 
         with open(self.params.audio_paths_file_path, 'r') as file:
         
-            logger.info(f"[Feature Extractor] {self.total_lines} audios ready for feature extraction.")
+            logger.info(f"{self.params.num_files} audios ready for feature extraction.")
 
             line_num = 0
             progress_pctg_to_print = 0
             for line in file:
 
+                # remove end of line
                 audio_path = line.replace("\n", "")
+                # Prepend the optional folder directory
+                load_audio_path = os.path.join(self.params.prepend_directory, audio_path)
 
-                if self.params.verbose: logger.info(f"[Feature Extractor] Processing file {audio_path}...")
+                if self.params.verbose: logger.info(f"Processing file {load_audio_path}...")
 
                 file_dump_path = '.'.join(line.split(".")[:-1]) # remove the file extension
                 file_dump_path = file_dump_path + ".pickle" # add the pickle extension
+                file_dump_path = os.path.join(self.params.dump_folder_name, file_dump_path)
+
+                # If not exists, create the dump folder (specific to that speaker and interview)
+                file_dump_folder = '/'.join(file_dump_path.split("/")[:-1])
+                if not os.path.exists(file_dump_folder):
+                    os.makedirs(file_dump_folder)
 
                 if (self.params.overwrite == True) or (self.params.overwrite == False and not os.path.exists(file_dump_path)):
                     
-                    log_mel_spectrogram = self.extract_features(audio_path)
+                    log_mel_spectrogram = self.extract_features(load_audio_path)
 
                     info_dict = {}
                     info_dict["features"] = log_mel_spectrogram
@@ -148,27 +203,60 @@ class FeatureExtractor:
                     with open(file_dump_path, 'wb') as handle:
                         pickle.dump(info_dict, handle)
 
-                    if self.params.verbose: logger.info(f"[Feature Extractor] File processed. Dumpled pickle in {file_dump_path}")
+                    if self.params.verbose: logger.info(f"File processed. Dumpled pickle in {file_dump_path}")
                     
-                progress_pctg = line_num / self.total_lines * 100
+                progress_pctg = line_num / self.params.num_files * 100
                 if progress_pctg >=  progress_pctg_to_print:
-                    logger.info(f"[Feature Extractor] {progress_pctg:.0f}% audios processed...")
+                    logger.info(f"{progress_pctg:.0f}% audios processed...")
+                    wandb.log(
+                        {"progress_pctg" : progress_pctg,}, 
+                        step = line_num,
+                        )
                     progress_pctg_to_print = progress_pctg_to_print + 1
                 
                 # A flush print have some issues with large datasets
-                # print(f"\r [Feature Extractor] {progress_pctg:.1f}% audios processed...", end = '', flush = True)
+                # print(f"\r {progress_pctg:.1f}% audios processed...", end = '', flush = True)
 
                 line_num = line_num + 1
 
-            logger.info(f"[Feature Extractor] All audios processed!")
+            logger.info(f"All audios processed!")
 
 
+    def save_artifact(self):
+
+        # Save dataset as a wandb artifact
+
+        # Update and save config parameters
+        self.config_wandb()
+
+        # Define the artifact
+        dataset_artifact = wandb.Artifact(
+            name = self.dataset_id,
+            type = "dataset",
+            description = "dataset of spectrograms",
+            metadata = self.wandb_config,
+        )
+
+        # Add folder directory
+        dataset_artifact.add_dir(self.params.dump_folder_name)
+
+        # Log the artifact
+        run.log_artifact(dataset_artifact)
+
+
+    def main(self):
+
+        self.get_dataset_statistics()
+        self.extract_all_features()
+        self.save_artifact()
+
+               
 class ArgsParser:
 
     def __init__(self):
         self.initialize_parser()
 
-    
+
     def initialize_parser(self):
 
         self.parser = argparse.ArgumentParser(
@@ -195,17 +283,24 @@ class ArgsParser:
             )
 
         self.parser.add_argument(
+            '--prepend_directory',
+            type = str, 
+            default = FEATURE_EXTRACTOR_DEFAULT_SETTINGS['prepend_directory'],
+            help = 'Optional folder directory you want to prepend to each line of audio_paths_file_name.',
+            )
+
+        self.parser.add_argument(
+            '--dump_folder_name',
+            type = str, 
+            default = FEATURE_EXTRACTOR_DEFAULT_SETTINGS['dump_folder_name'],
+            help = 'Folder directory to dump the .pickle files.',
+            )
+
+        self.parser.add_argument(
             '--log_file_folder',
             type = str, 
             default = FEATURE_EXTRACTOR_DEFAULT_SETTINGS['log_file_folder'],
             help = 'Name of folder that will contain the log file.',
-            )
-        
-        self.parser.add_argument(
-            '--log_file_name',
-            type = str, 
-            default = FEATURE_EXTRACTOR_DEFAULT_SETTINGS['log_file_name'],
-            help = 'Name of the log file.',
             )
 
         self.parser.add_argument(

@@ -49,6 +49,7 @@ class ModelEvaluator:
         self.load_checkpoint()
         self.load_checkpoint_params()
         self.load_network()
+        self.load_data()
 
     
     def set_device(self):
@@ -101,11 +102,18 @@ class ModelEvaluator:
     def load_checkpoint(self):
 
         # Load checkpoint
-        checkpoint_path = self.input_params.model_checkpoint_path
+        self.checkpoint_path = os.path.join(
+            self.input_params.model_checkpoint_folder, 
+            self.input_params.model_checkpoint_file_name,
+            )
+        
+        # Saved for the future in case we want to load as an artifact
+        #model_artifact = run.use_artifact(f'{self.input_params.model_checkpoint_folder}:latest')
+        #datadir = model_artifact.download()
 
-        logger.info(f"Loading checkpoint from {checkpoint_path}")
+        logger.info(f"Loading checkpoint from {self.checkpoint_path}")
 
-        self.checkpoint = torch.load(checkpoint_path, map_location = self.device)
+        self.checkpoint = torch.load(self.checkpoint_path, map_location = self.device)
 
         logger.info(f"Model checkpoint was saved at epoch {self.checkpoint['training_variables']['epoch']}")
 
@@ -137,6 +145,55 @@ class ModelEvaluator:
         if torch.cuda.device_count() > 1:
             logger.info(f"Let's use {torch.cuda.device_count()} GPUs!")
             self.net = nn.DataParallel(self.net)
+
+
+    def format_labels(self, labels_path):
+
+        # Read the paths of the train audios and their labels
+        with open(labels_path, 'r') as data_labels_file:
+            test_labels = data_labels_file.readlines()
+
+        # If labels are of the form /speaker/interview/file /speaker/interview/file we need to remove the first "/" of each case to join paths
+        final_test_labels = []
+        for test_label in test_labels:
+
+            speaker_1 = test_label.split(" ")[0].strip()
+            speaker_2 = test_label.split(" ")[1].strip()
+
+            if speaker_1[0] == "/":
+                speaker_1 = speaker_1[1:]
+            if speaker_2[0] == "/":
+                speaker_2 = speaker_2[1:]
+
+            # remove the file extension, if has
+            if len(speaker_1.split(".")) > 1:
+                speaker_1 = '.'.join(speaker_1.split(".")[:-1]) 
+            if len(speaker_2.split(".")) > 1:
+                speaker_2 = '.'.join(speaker_2.split(".")[:-1]) 
+            
+            # Add the pickle extension
+            speaker_1 = f"{speaker_1}.pickle"
+            speaker_2 = f"{speaker_2}.pickle"
+            
+            data_founded = False
+            for dir in self.input_params.data_dir:
+                if os.path.exists(os.path.join(dir, speaker_1)):
+                    speaker_1 = os.path.join(dir, speaker_1)
+                    data_founded = True
+                    break
+            assert data_founded, f"{speaker_1} not founded."
+
+            data_founded = False
+            for dir in self.input_params.data_dir:
+                if os.path.exists(os.path.join(dir, speaker_2)):
+                    speaker_2 = os.path.join(dir, speaker_2)
+                    data_founded = True
+                    break
+            assert data_founded, f"{speaker_2} not founded."
+            
+            final_test_labels.append(f"{speaker_1} {speaker_2}")
+    
+        return final_test_labels
 
 
     def set_random_crop_size(self, pickle_path):
@@ -209,22 +266,23 @@ class ModelEvaluator:
             
         logger.info(f'Loading data from {self.input_params.test_clients} and {self.input_params.test_impostors}')
 
+        self.clients_labels = self.format_labels(self.input_params.test_clients)
+        self.impostors_labels = self.format_labels(self.input_params.test_impostors)
+
         if self.input_params.evaluation_type == "random_crop":
 
             # Get one sample to calculate the random crop size in frames for all the dataset
-            with open(self.input_params.test_clients, 'r') as clients_file:
-                clients_utterances_paths = clients_file.readlines()
-            representative_sample = clients_utterances_paths[0]
-            partial_pickle_path = representative_sample.replace('\n', '').split(' ')[0] + ".pickle"
-            for dir in self.input_params.data_dir:
-                complete_pickle_path = os.path.join(dir, partial_pickle_path)
-                if os.path.exists(complete_pickle_path):
-                    break
-            self.set_random_crop_size(complete_pickle_path)
-
+            representative_sample = self.clients_labels[0]
+            pickle_path = representative_sample.replace('\n', '').split(' ')[0]
+            self.set_random_crop_size(pickle_path)
 
         # Instanciate a Dataset class
-        dataset = TestDataset(train_parameters = self.params, input_parameters = self.input_params)
+        dataset = TestDataset(
+            clients_utterances_paths = self.clients_labels,
+            impostors_utterances_paths = self.impostors_labels,
+            train_parameters = self.params, 
+            input_parameters = self.input_params,
+            )
 
         # Instanciate a DataLoader class
         self.evaluating_generator = DataLoader(
@@ -234,6 +292,8 @@ class ModelEvaluator:
             num_workers = 1, # TODO set this as a input parameter
             #collate_fn = self.collate_batch,
             )
+
+        self.total_batches = len(self.evaluating_generator)
 
         logger.info("Data and labels loaded.")
 
@@ -298,13 +358,13 @@ class ModelEvaluator:
         self.end_time = time.time()
         self.end_datetime = datetime.datetime.strftime(datetime.datetime.now(), '%y-%m-%d %H:%M:%S')
         self.elapsed_time_hours = (self.end_time - self.start_time) / 60 / 60
-        model_name = generate_model_name(self.params)
+        model_name = self.params.model_name
 
         self.evaluation_results['start_datetime'] = self.start_datetime
         self.evaluation_results['end_datetime'] = self.end_datetime
         self.evaluation_results['elapsed_time_hours'] = self.elapsed_time_hours
         self.evaluation_results['model_name'] = model_name
-        self.evaluation_results['model_loaded_from'] = self.input_params.model_checkpoint_path
+        self.evaluation_results['model_loaded_from'] = self.checkpoint_path
         self.evaluation_results['clients_loaded_from'] = self.input_params.test_clients
         self.evaluation_results['impostors_loaded_from'] = self.input_params.test_impostors
         self.evaluation_results['clients_num'] = self.clients_num
@@ -317,7 +377,8 @@ class ModelEvaluator:
         if not os.path.exists(dump_folder):
             os.makedirs(dump_folder)
 
-        dump_file_name = f"report_{model_name}_{self.start_datetime}.json"
+        formatted_start_datetime = self.start_datetime.replace(':', '_').replace(' ', '_').replace('-', '_')
+        dump_file_name = f"report_{formatted_start_datetime}_model_{model_name}.json"
 
         dump_path = os.path.join(dump_folder, dump_file_name)
         
@@ -333,9 +394,6 @@ class ModelEvaluator:
 
             # Switch torch to evaluation mode
             self.net.eval()
-
-            self.load_data()
-            self.total_batches = len(self.evaluating_generator)
 
             self.evaluate(
                 clients_labels = self.input_params.test_clients,
@@ -363,9 +421,15 @@ class ArgsParser:
     def add_parser_args(self):
 
         self.parser.add_argument(
-            'model_checkpoint_path', 
+            'model_checkpoint_folder', 
             type = str, 
-            help = 'Complete path where the checkpoint model is saved.'
+            help = 'Folder where the checkpoint model is saved.'
+            )
+
+        self.parser.add_argument(
+            'model_checkpoint_file_name', 
+            type = str, 
+            help = 'File name of the checkpoint model.'
             ) 
 
         self.parser.add_argument(

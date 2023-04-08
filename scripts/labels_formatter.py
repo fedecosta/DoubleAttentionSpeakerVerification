@@ -31,10 +31,9 @@ class LabelsFormatter:
                 
                 label, speaker_1_path, speaker_2_path = line.split(" ")
 
-                # Remove the file extension
-                speaker_1_path = '.'.join(speaker_1_path.split(".")[:-1])
-                speaker_2_path = '.'.join(speaker_2_path.split(".")[:-1])
-
+                # Remove the file extension and add the .pickle extension
+                speaker_1_path = '.'.join(speaker_1_path.split(".")[:-1]) + '.pickle'
+                speaker_2_path = '.'.join(speaker_2_path.split(".")[:-1]) + '.pickle'
                 dump_line = f"{speaker_1_path} {speaker_2_path}"
 
                 if label == "0":
@@ -109,7 +108,7 @@ class LabelsFormatter:
 if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(
-        description = 'Format original VoxCeleb evaluation protocols into train.py readable labels',
+        description = 'Format original VoxCeleb evaluation protocols into train.py readable labels.',
         )
 
     parser.add_argument(

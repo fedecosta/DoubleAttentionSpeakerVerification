@@ -2,6 +2,7 @@ import torch
 from torch.nn import functional as F
 import numpy as np
 import datetime
+import psutil
 
 
 def Score(SC, th, rate):
@@ -78,13 +79,16 @@ def get_number_of_speakers(labels_file_path):
     speakers_set = set()
     with open(labels_file_path, 'r') as f:
         for line in f.readlines():
-            speaker_label = line.split()[-2]
+            speaker_chunk = [chunk for chunk in line.split("/") if chunk.startswith("id")]
+            # Only consider directories with /id.../
+            if len(speaker_chunk) > 0: 
+                speaker_label = speaker_chunk[0]
             speakers_set.add(speaker_label)
 
     return len(speakers_set)
 
 
-def generate_model_name(params):
+def generate_model_name(params, start_datetime, wandb_run_id, wandb_run_name):
 
     # TODO add all neccesary components
 
@@ -93,22 +97,14 @@ def generate_model_name(params):
     name_components.append(params.model_name_prefix)
     name_components.append(params.front_end)
     name_components.append(params.pooling_method)
-    
-    
-    #name_components.append('batch_size' + str(params.batch_size))
-    #name_components.append(params.heads_number)
-    #name_components.append(str(params.window_size))
-    #name_components.append('lr' + params.learning_rate)
-    #name_components.append('weight_decay' + params.weight_decay)
-    #name_components.append('kernel' + params.kernel_size)
-    #name_components.append('emb_size' + params.embedding_size)
-    #name_components.append('s' + params.scaling_factor)
-    #name_components.append('m' + params.margin_factor)
-    
 
     name_components = [str (component) for component in name_components]
 
     model_name = "_".join(name_components)
+
+    formatted_datetime = start_datetime.replace(':', '_').replace(' ', '_').replace('-', '_')
+
+    model_name = f"{formatted_datetime}_{model_name}_{wandb_run_id}_{wandb_run_name}"
 
     return model_name
 
@@ -133,6 +129,29 @@ def calculate_EER(clients_similarities, impostors_similarities):
 
     return EER
 
+
+def get_memory_info(cpu = True, gpu = True):
+
+    cpu_available_pctg, gpu_free = None, None
+
+    # CPU memory info
+    if cpu:
+        cpu_memory_info = dict(psutil.virtual_memory()._asdict())
+        cpu_total = cpu_memory_info["total"]
+        cpu_available = cpu_memory_info["available"]
+        cpu_available_pctg = cpu_available * 100 / cpu_total
+
+    # GPU memory info
+    if gpu:
+        if torch.cuda.is_available():
+            gpu_free, gpu_occupied = torch.cuda.mem_get_info()
+            gpu_free = gpu_free/1000000000
+        else:
+            gpu_free = None
+
+    return cpu_available_pctg, gpu_free
+
+    
 
 
 #def normalize_features(self, features):

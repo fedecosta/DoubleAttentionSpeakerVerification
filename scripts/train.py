@@ -1,6 +1,7 @@
 import argparse
 import os
 import numpy as np
+import pandas as pd
 import random
 import pickle
 import datetime
@@ -10,9 +11,9 @@ from torch.utils.data import DataLoader
 from torch import optim
 from torchsummary import summary
 
-from data import Dataset, normalizeFeatures, featureReader
+from data import Dataset, normalize_features, feature_reader
 from model import SpeakerClassifier
-from utils import get_number_of_speakers, generate_model_name, Accuracy, scoreCosineDistance, Score
+from utils import get_number_of_speakers, generate_model_name, Accuracy, scoreCosineDistance, Score, get_memory_info
 from settings import TRAIN_DEFAULT_SETTINGS
 
 # Set logging config
@@ -33,6 +34,10 @@ logger_stream_handler.setFormatter(logger_formatter)
 # Add handlers
 logger.addHandler(logger_stream_handler)
 
+# Init a wandb project
+import wandb
+run = wandb.init(project = "speaker_verification_models", job_type = "training")
+
 
 class Trainer:
 
@@ -48,10 +53,18 @@ class Trainer:
         self.load_loss_function()
         self.load_optimizer()
         self.initialize_training_variables()
-        self.total_batches = len(self.training_generator)
+        self.config_wandb()
 
 
     # Init methods
+
+
+    def info_mem(self, step = None):
+        cpu_available_pctg, gpu_free = get_memory_info()
+        if step is not None:
+            logger.info(f"Step {self.step}: CPU available {cpu_available_pctg:.2f}% - GPU free {gpu_free}")
+        else:
+            logger.info(f"CPU available {cpu_available_pctg:.2f}% - GPU free {gpu_free}")
 
 
     def set_params(self, input_params):
@@ -60,7 +73,12 @@ class Trainer:
 
         self.params = input_params
         self.params.number_speakers = get_number_of_speakers(self.params.train_labels_path)
-        self.params.model_name = generate_model_name(self.params)
+        self.params.model_name = generate_model_name(
+            self.params, 
+            start_datetime = self.start_datetime, 
+            wandb_run_id = wandb.run.id,
+            wandb_run_name = wandb.run.name
+            )
 
         if self.params.load_checkpoint == True:
 
@@ -99,9 +117,12 @@ class Trainer:
     def set_log_file_handler(self):
 
         # Set a logging file handler
+
         if not os.path.exists(self.params.log_file_folder):
             os.makedirs(self.params.log_file_folder)
-        logger_file_path = os.path.join(self.params.log_file_folder, self.params.log_file_name)
+        
+        logger_file_name = f"{self.params.model_name}.log"
+        logger_file_path = os.path.join(self.params.log_file_folder, logger_file_name)
         logger_file_handler = logging.FileHandler(logger_file_path, mode = 'w')
         logger_file_handler.setLevel(logging.INFO) # TODO set the file handler level as a input param
         logger_file_handler.setFormatter(logger_formatter)
@@ -118,8 +139,8 @@ class Trainer:
         
         logger.info(f"Running on {self.device} device.")
         
-        if torch.cuda.device_count() > 1:
-            logger.info(f"{torch.cuda.device_count()} GPUs available.")
+        self.gpus = torch.cuda.device_count()
+        logger.info(f"{self.gpus} GPUs available.")
         
         logger.info("Device setted.")
 
@@ -130,6 +151,7 @@ class Trainer:
 
         # Set the seed for experimental reproduction
         torch.manual_seed(1234)
+        torch.cuda.manual_seed(1234)
         np.random.seed(1234)
         random.seed(1234)
 
@@ -169,21 +191,66 @@ class Trainer:
         logger.info(f'Random crop size calculated: {self.params.random_crop_frames} frames (eq to {self.params.random_crop_secs} seconds).')
         
 
-    def load_data(self):
-            
-        logger.info(f'Loading data and labels from {self.params.train_labels_path}')
-        
+    def format_train_labels(self):
+
         # Read the paths of the train audios and their labels
         with open(self.params.train_labels_path, 'r') as data_labels_file:
             train_labels = data_labels_file.readlines()
 
+        # If train labels are of the form /speaker/interview/file we need to remove the first "/" to join paths
+        self.train_labels = []
+        for train_label in train_labels:
+            if train_label[0] == "/":
+                train_label = train_label[1:]
+            self.train_labels.append(train_label)
+        
+        # We prepend train_data_dir to the paths
+        self.train_labels = [os.path.join(self.params.train_data_dir, train_label) for train_label in self.train_labels]
+
+
+    def format_valid_labels(self, labels_path):
+
+        # Read the paths of the train audios and their labels
+        with open(labels_path, 'r') as data_labels_file:
+            valid_labels = data_labels_file.readlines()
+
+        # If valid labels are of the form /speaker/interview/file /speaker/interview/file we need to remove the first "/" of each case to join paths
+        final_valid_labels = []
+        for valid_label in valid_labels:
+            speaker_1 = valid_label.split(" ")[0]
+            speaker_2 = valid_label.split(" ")[1]
+            if speaker_1[0] == "/":
+                speaker_1 = speaker_1[1:]
+            if speaker_2[0] == "/":
+                speaker_2 = speaker_2[1:]
+            speaker_1 = os.path.join(self.params.valid_data_dir, speaker_1)
+            speaker_2 = os.path.join(self.params.valid_data_dir, speaker_2)
+            
+            final_valid_labels.append(f"{speaker_1} {speaker_2}")
+    
+        return final_valid_labels
+
+
+    def format_labels(self):
+
+        self.format_train_labels()
+        self.valid_clients_labels = self.format_valid_labels(self.params.valid_clients_path)
+        self.valid_impostors_labels = self.format_valid_labels(self.params.valid_impostors_path)
+        
+
+    def load_data(self):
+            
+        logger.info(f'Loading data and labels from {self.params.train_labels_path}')
+
+        self.format_labels()
+
         # Get one sample to calculate the random crop size in frames for all the dataset
-        representative_sample = train_labels[0]
-        pickle_path = representative_sample.replace('\n', '').split(' ')[0] + ".pickle"
+        representative_sample = self.train_labels[0]
+        pickle_path = representative_sample.replace('\n', '').split(' ')[0]
         self.set_random_crop_size(pickle_path)
 
         # Instanciate a Dataset class
-        dataset = Dataset(train_labels, self.params)
+        dataset = Dataset(self.train_labels, self.params)
         
         # Load DataLoader params
         data_loader_parameters = {
@@ -197,6 +264,9 @@ class Trainer:
             dataset, 
             **data_loader_parameters,
             )
+
+        del representative_sample
+        del dataset
 
         logger.info("Data and labels loaded.")
 
@@ -232,8 +302,13 @@ class Trainer:
             logger.info(f"Let's use {torch.cuda.device_count()} GPUs!")
             self.net = nn.DataParallel(self.net)
         
-        # TODO set the correct size in this call to see the network summary
-        # summary(self.net, torch.Size([80, 350]))
+        summary(self.net, input_tensor = (350, 80))
+
+        # Calculate trainable parameters (to estimate model complexity)
+        self.total_trainable_params = sum(
+            p.numel() for p in self.net.parameters() if p.requires_grad
+        )
+
         logger.info("Network loaded.")
 
 
@@ -308,6 +383,7 @@ class Trainer:
             self.best_model_train_loss = loaded_training_variables['best_model_train_loss'] 
             self.best_model_train_eval_metric = loaded_training_variables['best_model_train_eval_metric'] 
             self.best_model_valid_eval_metric = loaded_training_variables['best_model_valid_eval_metric']
+            
 
             logger.info(f"Checkpoint training variables loaded.") 
             logger.info(f"Training will start from:")
@@ -331,8 +407,44 @@ class Trainer:
             self.best_model_train_loss = np.inf
             self.best_model_train_eval_metric = 0.0
             self.best_model_valid_eval_metric = 50.0
+        
+        self.total_batches = len(self.training_generator)
 
         logger.info("Training variables initialized.")
+
+
+    def config_wandb(self):
+
+        # 1 - Save the params
+        self.wandb_config = vars(self.params)
+
+        # 2 - Save the feature extraction configuration params
+
+        # Get one sample to get the feature extraction configuration for all the dataset
+        representative_sample = self.train_labels[0]
+        pickle_path = representative_sample.replace('\n', '').split(' ')[0]
+
+        # Load the file
+        with open(pickle_path, 'rb') as pickle_file:
+            features_dict = pickle.load(pickle_file)
+            
+        # Unpack the spectrogram and the features settings
+        # features = features_dict["features"]
+        dev_features_settings = features_dict["settings"]
+
+        self.wandb_config["dev_features_settings"] = vars(dev_features_settings)
+
+        # 3 - Save additional params
+
+        self.wandb_config["total_trainable_params"] = self.total_trainable_params
+        self.wandb_config["gpus"] = self.gpus
+
+        # 4 - Update the wandb config
+        wandb.config.update(self.wandb_config)
+
+        del representative_sample
+        del features_dict
+        del dev_features_settings
 
 
     # Training methods
@@ -353,22 +465,21 @@ class Trainer:
 
         logger.info(f"Training evaluated.")
         logger.info(f"Accuracy on training set: {accuracy:.3f}")
+        #self.info_mem(self.step)
 
 
     def extractInputFromFeature(self, sline):
 
-        logger.debug("Using extractInputFromFeature")
+        logger.debug(f"Using extractInputFromFeature on {sline}")
 
-        features1 = normalizeFeatures(
-            featureReader(
-                self.params.valid_data_dir + '/' + sline[0] + '.pickle'), 
-                normalization=self.params.normalization,
-                )
-        features2 = normalizeFeatures(
-            featureReader(
-                self.params.valid_data_dir + '/' + sline[1] + '.pickle'), 
-                normalization=self.params.normalization,
-                )
+        features1 = normalize_features(
+            feature_reader(sline[0]), 
+            normalization = self.params.normalization,
+            )
+        features2 = normalize_features(
+            feature_reader(sline[1]), 
+            normalization = self.params.normalization,
+            )
 
         input1 = torch.FloatTensor(features1).to(self.device)
         input2 = torch.FloatTensor(features2).to(self.device)
@@ -433,11 +544,9 @@ class Trainer:
             # Switch torch to evaluation mode
             self.net.eval()
 
-            # EER Validation
-            with open(self.params.valid_clients,'r') as clients_in, open(self.params.valid_impostors,'r') as impostors_in:
-                # score clients
-                CL = self.extract_scores(clients_in)
-                IM = self.extract_scores(impostors_in)
+            # EER Validation score clients
+            CL = self.extract_scores(self.valid_clients_labels)
+            IM = self.extract_scores(self.valid_impostors_labels)
             
             # Compute EER
             EER = self.calculate_EER(CL, IM)
@@ -448,22 +557,26 @@ class Trainer:
 
         logger.info(f"EER on validation set: {EER:.3f}")
         logger.info(f"Validation evaluated.")
+        #self.info_mem(self.step)
 
 
     def evaluate(self, prediction, label):
 
         self.evaluate_training(prediction, label)
+        self.multiple_evaluate_validation()
         self.evaluate_validation()
-
+        
 
     def save_model(self):
 
         '''Function to save the model info and optimizer parameters.'''
 
+        # 1 - Add all the info that will be saved in checkpoint 
+        
         model_results = {
-            'train_loss' : self.best_model_train_loss,
-            'train_eval_metric' : self.best_model_train_eval_metric,
-            'valid_eval_metric' : self.best_model_valid_eval_metric,
+            'best_model_train_loss' : self.best_model_train_loss,
+            'best_model_train_eval_metric' : self.best_model_train_eval_metric,
+            'best_model_valid_eval_metric' : self.best_model_valid_eval_metric,
         }
 
         training_variables = {
@@ -478,6 +591,7 @@ class Trainer:
             'best_model_train_loss' : self.best_model_train_loss,
             'best_model_train_eval_metric' : self.best_model_train_eval_metric,
             'best_model_valid_eval_metric' : self.best_model_valid_eval_metric,
+            'total_trainable_params' : self.total_trainable_params,
         }
         
         if torch.cuda.device_count() > 1:
@@ -501,17 +615,24 @@ class Trainer:
         checkpoint['start_datetime'] = self.start_datetime
         checkpoint['end_datetime'] = end_datetime
 
-        # We will save this checkpoint and it will overwrite the last one of this model
-        checkpoint_folder = self.params.model_output_folder
-        checkpoint_file_name = f"{self.params.model_name}_{self.step}.chkpt"
+        # 2 - Save the checkpoint locally
+
+        checkpoint_folder = os.path.join(self.params.model_output_folder, self.params.model_name)
+        checkpoint_file_name = f"{self.params.model_name}.chkpt"
         checkpoint_path = os.path.join(checkpoint_folder, checkpoint_file_name)
 
         # Create directory if doesn't exists
-        if not os.path.exists(self.params.model_output_folder):
-            os.makedirs(self.params.model_output_folder)
+        if not os.path.exists(checkpoint_folder):
+            os.makedirs(checkpoint_folder)
 
         logger.info(f"Saving training and model information in {checkpoint_path}")
         torch.save(checkpoint, checkpoint_path)
+        logger.info(f"Done.")
+
+        # Delete variables to free memory
+        del model_results
+        del training_variables
+        del checkpoint
 
         logger.info(f"Training and model information saved.")
 
@@ -552,6 +673,7 @@ class Trainer:
 
             logger.info(f"Consecutive validations without improvement: {self.validations_without_improvement}")
             logger.info('Evaluating and saving done.')
+            #self.info_mem(self.step)
 
 
     def check_update_optimizer(self):
@@ -593,10 +715,8 @@ class Trainer:
 
             logger.info(info_to_print)
             
-            #logger.info(f"Step: {self.step}")
-            #logger.info(f"Best loss achieved: {self.best_train_loss:.3f}")
-            #logger.info(f"Best model training evaluation metric: {self.best_model_train_eval_metric:.3f}")
-            #logger.info(f"Best model validation evaluation metric: {self.best_model_valid_eval_metric:.3f}")
+            # Uncomment for memory usage info 
+            #self.info_mem(self.step)
 
             
     def train_single_epoch(self, epoch):
@@ -640,6 +760,23 @@ class Trainer:
             self.check_early_stopping()
             self.check_print_training_info()
 
+            try:
+                wandb.log(
+                    {
+                        "epoch" : self.epoch,
+                        "batch_number" : self.batch_number,
+                        "loss": self.train_loss,
+                        "train_eval_metric" : self.train_eval_metric,
+                        "valid_eval_metric" : self.valid_eval_metric,
+                        'best_model_train_loss' : self.best_model_train_loss,
+                        'best_model_train_eval_metric' : self.best_model_train_eval_metric,
+                        'best_model_valid_eval_metric' : self.best_model_valid_eval_metric,
+                    },
+                    step = self.step
+                    )
+            except Exception as e:
+                logger.error('Failed at wandb.log: '+ str(e))
+
             if self.early_stopping_flag == True: 
                 break
             
@@ -667,9 +804,120 @@ class Trainer:
         logger.info('Training finished!')
     
 
+    def delete_version_artifacts(self):
+
+        logger.info(f'Starting to delete not latest checkpoint version artifacts...')
+
+        # We want to keep only the latest checkpoint because of wandb memory storage limit
+
+        api = wandb.Api()
+        actual_run = api.run(f"{run.entity}/{run.project}/{run.id}")
+        
+        # We need to finish the run and let wandb upload all files
+        run.finish()
+
+        for artifact_version in actual_run.logged_artifacts():
+            
+            if 'latest' in artifact_version.aliases:
+                latest_version = True
+            else:
+                latest_version = False
+
+            if latest_version == False:
+                logger.info(f'Deleting not latest artifact {artifact_version.name} from wandb...')
+                artifact_version.delete(delete_aliases=True)
+                logger.info(f'Deleted.')
+
+        logger.info(f'All not latest artifacts deleted.')
+
+
+    def save_model_artifact(self):
+
+        # Save checkpoint as a wandb artifact
+
+        logger.info(f'Starting to save checkpoint as wandb artifact...')
+
+        # Define the artifact
+        trained_model_artifact = wandb.Artifact(
+            name = self.params.model_name,
+            type = "trained_model",
+            description = self.params.model_name_prefix, # TODO set as an argparse input param
+            metadata = self.wandb_config,
+        )
+
+        # Add folder directory
+        checkpoint_folder = os.path.join(self.params.model_output_folder, self.params.model_name)
+        logger.info(f'checkpoint_folder {checkpoint_folder}')
+        trained_model_artifact.add_dir(checkpoint_folder)
+
+        # Log the artifact
+        run.log_artifact(trained_model_artifact)
+
+        logger.info(f'Artifact saved.')
+
+
+    def multiple_evaluate_validation(self):
+
+        # This function is only used for own research, it is not necessary for the train process
+
+        logger.info(f"Evaluating multiple validation...")
+
+        with torch.no_grad():
+
+            # Switch torch to evaluation mode
+            self.net.eval()
+
+            clients_len = len(self.valid_clients_labels)
+            impostors_len = len(self.valid_impostors_labels)
+
+            epochs, steps, total_clients_lens, total_impostors_lens, reduced_clients_lens, reduced_impostors_lens, eer_list = [], [], [], [], [], [], []
+
+            for percentage in [0.1, 0.2, 0.3, 0.4, 0.5, 1.0]:
+
+                logger.info(f"Evaluating with {int(percentage * 100)}% of clients and impostors...")
+
+                reduced_clients = random.sample(self.valid_clients_labels, int(percentage * clients_len))
+                reduced_impostors = random.sample(self.valid_impostors_labels, int(percentage * impostors_len))
+
+                # EER Validation score clients
+                CL = self.extract_scores(reduced_clients)
+                IM = self.extract_scores(reduced_impostors)
+                
+                # Compute EER
+                EER = self.calculate_EER(CL, IM)
+
+                epochs.append(self.epoch)
+                steps.append(self.step)
+                total_clients_lens.append(clients_len)
+                total_impostors_lens.append(impostors_len)
+                reduced_clients_lens.append(len(reduced_clients))
+                reduced_impostors_lens.append(len(reduced_impostors))
+                eer_list.append(EER)    
+
+        dict_info = {
+            "epoch" : epochs,
+            "step" : steps,
+            "total_clients_len" : total_clients_lens,
+            "total_impostors_len" : total_impostors_lens,
+            "reduced_clients_len" : reduced_clients_lens,
+            "reduced_impostors_len" : reduced_impostors_lens,
+            "EER" : eer_list,
+        }
+
+        df_info = pd.DataFrame(dict_info)    
+
+        df_info.to_csv('./metadata/multiple_validation_info.csv', index = False)
+
+        # Return to training mode
+        self.net.train()
+
+        logger.info(f"Multiple validation evaluated.")
+
+
     def main(self):
 
         self.train(self.starting_epoch, self.params.max_epochs)
+        self.save_model_artifact()
 
 
 class ArgsParser:
@@ -707,16 +955,16 @@ class ArgsParser:
             )
         
         self.parser.add_argument(
-            '--valid_clients', 
+            '--valid_clients_path', 
             type = str, 
-            default = TRAIN_DEFAULT_SETTINGS['valid_clients'],
+            default = TRAIN_DEFAULT_SETTINGS['valid_clients_path'],
             help = 'Path of the file containing the validation clients pairs paths.',
             )
 
         self.parser.add_argument(
-            '--valid_impostors', 
+            '--valid_impostors_path', 
             type = str, 
-            default = TRAIN_DEFAULT_SETTINGS['valid_impostors'],
+            default = TRAIN_DEFAULT_SETTINGS['valid_impostors_path'],
             help = 'Path of the file containing the validation impostors pairs paths.',
             )
 
@@ -739,13 +987,6 @@ class ArgsParser:
             type = str, 
             default = TRAIN_DEFAULT_SETTINGS['log_file_folder'],
             help = 'Name of folder that will contain the log file.',
-            )
-        
-        self.parser.add_argument(
-            '--log_file_name',
-            type = str, 
-            default = TRAIN_DEFAULT_SETTINGS['log_file_name'],
-            help = 'Name of the log file.',
             )
 
         # Training Parameters
@@ -792,7 +1033,7 @@ class ArgsParser:
             '--update_optimizer_every', 
             type = int, 
             default = TRAIN_DEFAULT_SETTINGS['update_optimizer_every'],
-            help = "Some optimizer parameters will be updated every update_optimizer_every consectuive validations without improvement. \
+            help = "Some optimizer parameters will be updated every update_optimizer_every consecutive validations without improvement. \
                 Set to 0 if you don't want to execute this utility.",
             )
 
@@ -820,6 +1061,13 @@ class ArgsParser:
         # Data Parameters
 
         self.parser.add_argument(
+            '--n_mels', 
+            type = int, 
+            default = TRAIN_DEFAULT_SETTINGS['n_mels'], 
+            help = 'Spectrograms mel bands.'
+            )
+
+        self.parser.add_argument(
             '--random_crop_secs', 
             type = float, 
             default = TRAIN_DEFAULT_SETTINGS['random_crop_secs'], 
@@ -830,8 +1078,8 @@ class ArgsParser:
             '--normalization', 
             type = str, 
             default = TRAIN_DEFAULT_SETTINGS['normalization'], 
-            choices = ['cmn', 'cmvn'],
-            help = 'Type of normalization applied to the features. \
+            choices = ['cmn', 'cmvn', 'full'],
+            help = 'Type of normalization applied to the features when evaluating in validation. \
                 It can be Cepstral Mean Normalization or Cepstral Mean and Variance Normalization',
             )
 
@@ -852,11 +1100,19 @@ class ArgsParser:
             )
 
         self.parser.add_argument(
+            '--embedding_size', 
+            type = int, 
+            default = TRAIN_DEFAULT_SETTINGS['embedding_size'],
+            help = 'Size of the embedding that the system will generate.',
+            )
+
+        self.parser.add_argument(
             '--front_end', 
             type = str, 
             default = TRAIN_DEFAULT_SETTINGS['front_end'],
-            choices = ['VGGNL'], 
-            help = 'Type of Front-end used. VGGNL for a N-block VGG architecture.'
+            choices = ['VGGNL', 'PatchsGenerator'], 
+            help = 'Type of Front-end used. \
+                VGGNL for a N-block VGG architecture, PatchsGenerator for Visual Transformer architecture.'
             )
             
         self.parser.add_argument(
@@ -877,35 +1133,91 @@ class ArgsParser:
             )
 
         self.parser.add_argument(
+            '--patchs_generator_patch_width', 
+            type = int,
+            help = 'Width of each patch token to use with at the PatchsGenerator front-end. \
+                (Only used when front_end = PatchsGenerator.',
+            )
+
+        self.parser.add_argument(
             '--pooling_method', 
             type = str, 
             default = TRAIN_DEFAULT_SETTINGS['pooling_method'], 
-            choices = ['Attention', 'MHA', 'DoubleMHA'], 
+            choices = ['Attention', 'MHA', 'DoubleMHA', 'SelfAttentionAttentionPooling', 'MultiHeadAttentionAttentionPooling', 'TransformerStackedAttentionPooling'], 
             help = 'Type of pooling method.',
             )
 
         self.parser.add_argument(
-            '--heads_number', 
+            '--pooling_output_size', 
             type = int, 
-            default = TRAIN_DEFAULT_SETTINGS['heads_number'],
-            help = 'Number of heads for the pooling method (only for MHA and DoubleMHA options).',
+            default = TRAIN_DEFAULT_SETTINGS['pooling_output_size'], 
+            help = 'Each output vector of the pooling component will have 1 x pooling_output_size dimension.',
             )
 
         self.parser.add_argument(
-            '--mask_prob', 
+            '--pooling_heads_number', 
+            type = int, 
+            #default = TRAIN_DEFAULT_SETTINGS['pooling_heads_number'],
+            help = 'Number of heads for the attention layer of the pooling component \
+                (only for MHA based pooling_method options).',
+            )
+
+        self.parser.add_argument(
+            '--pooling_mask_prob', 
             type = float, 
-            default = TRAIN_DEFAULT_SETTINGS['mask_prob'], 
-            help = 'Masking Drop Probability. Only used for Double MHA',
+            #default = TRAIN_DEFAULT_SETTINGS['pooling_mask_prob'], 
+            help = 'Masking head drop probability. Only used for pooling_method = Double MHA',
             )
 
         self.parser.add_argument(
-            '--embedding_size', 
+            '--pooling_positional_encoding', 
+            action = argparse.BooleanOptionalAction,
+            #default = TRAIN_DEFAULT_SETTINGS['pooling_positional_encoding'], 
+            help = 'Wether to use positional encoding in the attention layer of the pooling component.'
+            )
+
+        self.parser.add_argument(
+            '--transformer_n_blocks', 
             type = int, 
-            default = TRAIN_DEFAULT_SETTINGS['embedding_size'],
-            help = 'Size of the embedding that the system will generate.',
+            #default = TRAIN_DEFAULT_SETTINGS['transformer_n_blocks'],
+            help = 'Number of transformer blocks to stack in the attention component of the pooling_method. \
+                (Only for pooling_method = TransformerStackedAttentionPooling).',
+            )
+
+        self.parser.add_argument(
+            '--transformer_expansion_coef', 
+            type = int, 
+            #default = TRAIN_DEFAULT_SETTINGS['transformer_expansion_coef'], 
+            help = "Number you want to multiply by the size of the hidden layer of the transformer block's feed forward net. \
+                (Only for pooling_method = TransformerStackedAttentionPooling)."
+            )
+
+        self.parser.add_argument(
+            '--transformer_attention_type', 
+            type = str, 
+            #default = TRAIN_DEFAULT_SETTINGS['transformer_attention_type'], 
+            choices = ['SelfAttention', 'MultiHeadAttention'],
+            help = 'Type of Attention to use in the attention component of the transformer block.\
+                (Only for pooling_method = TransformerStackedAttentionPooling).'
+            )
+        
+        self.parser.add_argument(
+            '--transformer_drop_out', 
+            type = float, 
+            #default = TRAIN_DEFAULT_SETTINGS['transformer_drop_out'], 
+            help = 'Dropout probability to use in the feed forward component of the transformer block.\
+                (Only for pooling_method = TransformerStackedAttentionPooling).'
+            )
+
+        self.parser.add_argument(
+            '--bottleneck_drop_out', 
+            type = float, 
+            default = TRAIN_DEFAULT_SETTINGS['bottleneck_drop_out'], 
+            help = 'Dropout probability to use in each layer of the final fully connected bottleneck.'
             )
 
         # AMSoftmax Config
+
         self.parser.add_argument(
             '--scaling_factor', 
             type = float, 
@@ -921,6 +1233,7 @@ class ArgsParser:
             )
 
         # Optimization arguments
+
         self.parser.add_argument(
             '--optimizer', 
             type = str, 
@@ -957,7 +1270,7 @@ class ArgsParser:
 
 
 if __name__=="__main__":
-
+    
     args_parser = ArgsParser()
     args_parser.main()
     parameters = args_parser.arguments

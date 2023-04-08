@@ -86,7 +86,6 @@ class VGGNL(torch.nn.Module):
             
             self.conv_blocks.add_module(conv_block_name, conv_block)
 
-            
             # Update start_block_channels and end_block_channels for the next block
             if num_block < vgg_n_blocks: # If num_block = vgg_n_blocks, start_block_channels and end_block_channels must not get updated
                 start_block_channels = end_block_channels # The next block will start with end_block_channels channels
@@ -130,3 +129,40 @@ class VGGNL(torch.nn.Module):
             )
 
         return output_tensor
+
+
+class PatchsGenerator(torch.nn.Module):
+
+    def __init__(self, patch_width):
+
+        super().__init__()
+
+        self.patch_width = patch_width
+
+
+    def spectrogram_to_tokens(self, spectrogram, patch_width):
+
+        # We are going to take the spectrogram and generate patch tokens.
+        # In this case, patches will be of dimension patch_width x mels.
+        # Each token will be flatten to dimension 1 x (patch_width * mels).
+        # Note that we might need to do some padding 
+
+        batch_size, frames, bands = spectrogram.size()
+
+        frames_right_pad = (patch_width - (frames % patch_width)) % patch_width
+        pad = (0, 0, 0, frames_right_pad)
+        tokens = F.pad(spectrogram, pad, "constant", 0)
+
+        batch_size, padded_frames, bands = tokens.size()
+
+        tokens = tokens.view(batch_size, padded_frames // patch_width, bands * patch_width)
+
+        return tokens
+
+
+    def forward(self, x):
+
+        tokens = self.spectrogram_to_tokens(x, patch_width = self.patch_width)
+
+        return tokens
+
