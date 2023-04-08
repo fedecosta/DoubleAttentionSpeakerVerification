@@ -6,6 +6,7 @@ feature_extractor/
 improvement_experiments/
 labels/
 logs/
+metadata/
 models/
 models_results/
 tests/
