@@ -1,3 +1,5 @@
+# Imports
+# ---------------------------------------------------------------------
 import argparse
 import pickle
 import torch
@@ -12,9 +14,12 @@ from torch.utils.data import DataLoader
 
 from model import SpeakerClassifier
 from data import TestDataset
-from utils import scoreCosineDistance, generate_model_name, calculate_EER
+from utils import scoreCosineDistance, score, format_sv_labels
 from settings import MODEL_EVALUATOR_DEFAULT_SETTINGS
+# ---------------------------------------------------------------------
 
+# Logging
+# ---------------------------------------------------------------------
 # Set logging config
 import logging
 
@@ -32,14 +37,84 @@ logger_stream_handler.setFormatter(logger_formatter)
 
 # Add handlers
 logger.addHandler(logger_stream_handler)
+# ---------------------------------------------------------------------
+
+# Common evaluation utils
+# ---------------------------------------------------------------------
+def calculate_similarities(logger_obj, evaluation_total_batches, evaluating_generator, device, trained_net):
+
+        logger_obj.info(f"Extracting embeddings and calculating similarities using {evaluation_total_batches} batches...")
+
+        similarities = []
+        progress_pctg_to_print = 0
+        progress_pctg_to_print_step = 10
+        for evaluation_batch_number, (input_1, input_2, label) in enumerate(evaluating_generator):
+
+            progress_pctg = evaluation_batch_number / evaluation_total_batches * 100
+            if progress_pctg >=  progress_pctg_to_print:
+                logger_obj.info(f"Progress: {progress_pctg:.2f}%")
+                progress_pctg_to_print = progress_pctg_to_print + progress_pctg_to_print_step
+            
+            input_1 = input_1.float().to(device)
+            input_2 = input_2.float().to(device)
+            label = label.int().to(device)
+
+            if torch.cuda.device_count() > 1:
+                embedding_1 = trained_net.module.get_embedding(input_1)
+                embedding_2 = trained_net.module.get_embedding(input_2)
+            else:
+                embedding_1 = trained_net.get_embedding(input_1)
+                embedding_2 = trained_net.get_embedding(input_2)
+            
+            dist = scoreCosineDistance(embedding_1, embedding_2)
+
+            similarities = similarities + list(zip(dist.cpu().detach().numpy(), label.cpu().detach().numpy()))
+
+        logger_obj.info(f"Embeddings extracted and similarities calculated.")
+
+        return similarities
 
 
+def calculate_accuracy(pred, labels):
+
+    acc = 0.0
+    num_pred = pred.size()[0]
+    pred = torch.max(pred, 1)[1]
+    for idx in range(num_pred):
+        if pred[idx].item() == labels[idx].item():
+            acc += 1
+
+    return acc / num_pred
+
+
+def calculate_EER(clients_similarities, impostors_similarities):
+
+    # Given clients and impostors similarities, calculate EER
+
+    thresholds = np.arange(-1, 1, 0.01)
+    FRR, FAR = np.zeros(len(thresholds)), np.zeros(len(thresholds))
+    for idx, th in enumerate(thresholds):
+        FRR[idx] = score(clients_similarities, th, 'FRR')
+        FAR[idx] = score(impostors_similarities, th, 'FAR')
+
+    EER_Idx = np.argwhere(np.diff(np.sign(FAR - FRR)) != 0).reshape(-1)
+    if len(EER_Idx) > 0:
+        if len(EER_Idx) > 1:
+            EER_Idx = EER_Idx[0]
+        EER = round((FAR[int(EER_Idx)] + FRR[int(EER_Idx)]) / 2, 4)
+    else:
+        EER = 50.00
+
+    return EER
+# ---------------------------------------------------------------------
+
+# Classes
+# ---------------------------------------------------------------------
 class ModelEvaluator:
 
     def __init__(self, input_params):
 
         self.input_params = input_params
-        self.set_batch_size()
         self.set_device()
         self.set_random_seed()
         self.set_log_file_handler()
@@ -108,8 +183,8 @@ class ModelEvaluator:
             )
         
         # Saved for the future in case we want to load as an artifact
-        #model_artifact = run.use_artifact(f'{self.input_params.model_checkpoint_folder}:latest')
-        #datadir = model_artifact.download()
+        # model_artifact = run.use_artifact(f'{self.input_params.model_checkpoint_folder}:latest')
+        # datadir = model_artifact.download()
 
         logger.info(f"Loading checkpoint from {self.checkpoint_path}")
 
@@ -147,53 +222,17 @@ class ModelEvaluator:
             self.net = nn.DataParallel(self.net)
 
 
-    def format_labels(self, labels_path):
+    def format_labels(self):
 
-        # Read the paths of the train audios and their labels
-        with open(labels_path, 'r') as data_labels_file:
-            test_labels = data_labels_file.readlines()
+        self.sv_clients_labels_lines = format_sv_labels(
+            labels_path = self.input_params.test_clients,
+            prepend_directories = self.input_params.data_dir,
+        )
 
-        # If labels are of the form /speaker/interview/file /speaker/interview/file we need to remove the first "/" of each case to join paths
-        final_test_labels = []
-        for test_label in test_labels:
-
-            speaker_1 = test_label.split(" ")[0].strip()
-            speaker_2 = test_label.split(" ")[1].strip()
-
-            if speaker_1[0] == "/":
-                speaker_1 = speaker_1[1:]
-            if speaker_2[0] == "/":
-                speaker_2 = speaker_2[1:]
-
-            # remove the file extension, if has
-            if len(speaker_1.split(".")) > 1:
-                speaker_1 = '.'.join(speaker_1.split(".")[:-1]) 
-            if len(speaker_2.split(".")) > 1:
-                speaker_2 = '.'.join(speaker_2.split(".")[:-1]) 
-            
-            # Add the pickle extension
-            speaker_1 = f"{speaker_1}.pickle"
-            speaker_2 = f"{speaker_2}.pickle"
-            
-            data_founded = False
-            for dir in self.input_params.data_dir:
-                if os.path.exists(os.path.join(dir, speaker_1)):
-                    speaker_1 = os.path.join(dir, speaker_1)
-                    data_founded = True
-                    break
-            assert data_founded, f"{speaker_1} not founded."
-
-            data_founded = False
-            for dir in self.input_params.data_dir:
-                if os.path.exists(os.path.join(dir, speaker_2)):
-                    speaker_2 = os.path.join(dir, speaker_2)
-                    data_founded = True
-                    break
-            assert data_founded, f"{speaker_2} not founded."
-            
-            final_test_labels.append(f"{speaker_1} {speaker_2}")
-    
-        return final_test_labels
+        self.sv_impostors_labels_lines = format_sv_labels(
+            labels_path = self.input_params.test_impostors,
+            prepend_directories = self.input_params.data_dir,
+        )
 
 
     def set_random_crop_size(self, pickle_path):
@@ -263,26 +302,28 @@ class ModelEvaluator:
 
 
     def load_data(self):
+
+        self.format_labels()
             
         logger.info(f'Loading data from {self.input_params.test_clients} and {self.input_params.test_impostors}')
 
-        self.clients_labels = self.format_labels(self.input_params.test_clients)
-        self.impostors_labels = self.format_labels(self.input_params.test_impostors)
-
+        # Get one sample to calculate the random crop size in frames for all the dataset
         if self.input_params.evaluation_type == "random_crop":
-
-            # Get one sample to calculate the random crop size in frames for all the dataset
-            representative_sample = self.clients_labels[0]
+            representative_sample = self.sv_clients_labels_lines[0]
             pickle_path = representative_sample.replace('\n', '').split(' ')[0]
             self.set_random_crop_size(pickle_path)
 
         # Instanciate a Dataset class
         dataset = TestDataset(
-            clients_utterances_paths = self.clients_labels,
-            impostors_utterances_paths = self.impostors_labels,
+            clients_utterances_paths = self.sv_clients_labels_lines,
+            impostors_utterances_paths = self.sv_impostors_labels_lines,
             train_parameters = self.params, 
-            input_parameters = self.input_params,
+            random_crop_frames = self.input_params.random_crop_frames,
+            evaluation_type = self.input_params.evaluation_type,
             )
+        
+        # If evaluation_type is total_length, batch size must be 1 because we will have different-size samples
+        self.set_batch_size()
 
         # Instanciate a DataLoader class
         self.evaluating_generator = DataLoader(
@@ -298,57 +339,40 @@ class ModelEvaluator:
         logger.info("Data and labels loaded.")
 
 
-    def calculate_similarities(self):
-
-        logger.info("Extracting embeddings and calculating similarities...")
-
-        similarities = []
-        for self.batch_number, (input_1, input_2, label) in enumerate(self.evaluating_generator):
-
-            logger.info(f"Batch {self.batch_number} of {self.total_batches}")
-            
-            input_1 = input_1.float().to(self.device)
-            input_2 = input_2.float().to(self.device)
-            label = label.int().to(self.device)
-
-            if torch.cuda.device_count() > 1:
-                embedding_1 = self.net.module.get_embedding(input_1)
-                embedding_2 = self.net.module.get_embedding(input_2)
-            else:
-                embedding_1 = self.net.get_embedding(input_1)
-                embedding_2 = self.net.get_embedding(input_2)
-            
-            dist = scoreCosineDistance(embedding_1, embedding_2)
-
-            similarities = similarities + list(zip(dist.cpu().detach().numpy(), label.cpu().detach().numpy()))
-
-        logger.info(f"Embeddings extracted and similarities calculated.")
-
-        return similarities
-
-
     def evaluate(self, clients_labels, impostor_labels, data_dir):
 
-        logger.info("Evaluating model...")
+        logger.info("Evaluating model at Speaker Verification task...")
 
-        logger.info("Going to evaluate using these labels:")
-        logger.info(f"Clients: {clients_labels}")
-        logger.info(f"Impostors: {impostor_labels}")
-        logger.info(f"For each row in these labels where are using prefix {data_dir}")
+        with torch.no_grad():
 
-        self.clients_num = sum(1 for line in open(clients_labels))
-        self.impostors_num = sum(1 for line in open(impostor_labels))
+            # Switch torch to evaluation mode
+            self.net.eval()
 
-        logger.info(f"{self.clients_num} test clients to evaluate.")
-        logger.info(f"{self.impostors_num} test impostors to evaluate.")
+            logger.info("Going to evaluate using these labels:")
+            logger.info(f"Clients: {clients_labels}")
+            logger.info(f"Impostors: {impostor_labels}")
+            logger.info(f"For each row in these labels where are using prefix {data_dir}")
 
-        similarities = self.calculate_similarities()
-        self.CL = [similarity for similarity, label in similarities if label == 1]
-        self.IM = [similarity for similarity, label in similarities if label == 0]
-        
-        # Compute EER
-        self.EER = calculate_EER(self.CL, self.IM)
-        logger.info(f"Model evaluated on test dataset. EER: {self.EER:.3f}")
+            self.evaluation_clients_num = len(self.sv_clients_labels_lines)
+            self.evaluation_impostors_num = len(self.sv_impostors_labels_lines)
+
+            logger.info(f"{self.evaluation_clients_num} clients to evaluate.")
+            logger.info(f"{self.evaluation_impostors_num} impostors to evaluate.")
+
+            similarities = calculate_similarities(
+                logger_obj = logger, 
+                evaluation_total_batches = self.total_batches, 
+                evaluating_generator = self.evaluating_generator, 
+                device = self.device, 
+                trained_net = self.net,
+                )
+            
+            clients_similarities = [similarity for similarity, label in similarities if label == 1]
+            impostors_similarities = [similarity for similarity, label in similarities if label == 0]
+            
+            # Compute EER
+            self.EER = calculate_EER(clients_similarities, impostors_similarities)
+            logger.info(f"Model evaluated, EER: {self.EER:.3f}")
 
 
     def save_report(self):
@@ -367,8 +391,8 @@ class ModelEvaluator:
         self.evaluation_results['model_loaded_from'] = self.checkpoint_path
         self.evaluation_results['clients_loaded_from'] = self.input_params.test_clients
         self.evaluation_results['impostors_loaded_from'] = self.input_params.test_impostors
-        self.evaluation_results['clients_num'] = self.clients_num
-        self.evaluation_results['impostors_num'] = self.impostors_num
+        self.evaluation_results['clients_num'] = self.evaluation_clients_num
+        self.evaluation_results['impostors_num'] = self.evaluation_impostors_num
         self.evaluation_results['EER'] = self.EER
         self.evaluation_results['input_params'] = vars(self.input_params) # convert Namespace object into dictionary
         self.evaluation_results['training_params'] = vars(self.params) # convert Namespace object into dictionary
@@ -512,7 +536,8 @@ class ArgsParser:
 
         self.add_parser_args()
         self.arguments = self.parser.parse_args()
-    
+# --------------------------------------------------------------------- 
+
 
 if __name__ == "__main__":
 

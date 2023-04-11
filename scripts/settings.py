@@ -57,6 +57,8 @@ TRAIN_DEFAULT_SETTINGS = {
     'update_optimizer_every' : 0,
     'load_checkpoint' : False,
     'checkpoint_file_folder' : './models/',
+    'evaluation_type' : 'total_length',
+    'evaluation_batch_size' : 256,
     'n_mels' : 80,
     'random_crop_secs' : 3.5,
     'normalization' : 'cmn',
