@@ -1,3 +1,5 @@
+# Imports
+# ---------------------------------------------------------------------
 import argparse
 import os
 import warnings
@@ -6,7 +8,10 @@ import itertools
 import pandas as pd
 
 from settings import LABELS_GENERATOR_DEFAULT_SETTINGS
+# ---------------------------------------------------------------------
 
+# Logging
+# ---------------------------------------------------------------------
 # Set logging config
 import logging
 
@@ -24,10 +29,12 @@ logger_stream_handler.setFormatter(logger_formatter)
 
 # Add handlers
 logger.addHandler(logger_stream_handler)
+# ---------------------------------------------------------------------
 
 # TODO add the usage instructions in README.md
 
-
+# Classes
+# ---------------------------------------------------------------------
 class LabelsGenerator:
 
     def __init__(self, params):
@@ -39,9 +46,10 @@ class LabelsGenerator:
 
     def set_random_seed(self):
 
+        '''Set the seed for experimental reproduction.'''
+
         logger.info("Setting random seed...")
 
-        # Set the seed for experimental reproduction
         random.seed(1234)
 
         logger.info("Random seed setted.")
@@ -49,7 +57,7 @@ class LabelsGenerator:
 
     def set_log_file_handler(self):
 
-        # Set a logging file handler
+        '''Set a logging file handler.'''
 
         if not os.path.exists(self.params.log_file_folder):
             os.makedirs(self.params.log_file_folder)
@@ -65,19 +73,26 @@ class LabelsGenerator:
 
     def load_metada(self):
 
+        '''Load speakers metadata (needed for hard validation).'''
+
         if self.params.hard_validation:
 
-            logger.info("Loading metadata...")
+            logger.info(f"Loading metadata from {self.params.metadata_file_path}...")
 
+            # Load de data
             self.metadata_df = pd.read_csv(self.params.metadata_file_path, sep = ",")
 
+            # Lowercase the columns
+            self.metadata_df.columns = [col.lower() for col in self.metadata_df]
+
+            # Use only mandatory columns
             mandatory_columns = ["id", "gender", "nationality"]
             for col in mandatory_columns:
                 if col not in self.metadata_df.columns:
                     self.metadata_df[col] = "null_value"
-            
             self.metadata_df = self.metadata_df[mandatory_columns]
             
+            # Null processing
             self.metadata_df["id"].fillna("null_value", inplace = True)
             self.metadata_df["gender"].fillna("null_value", inplace = True)
             self.metadata_df["nationality"].fillna("null_value", inplace = True)
@@ -89,6 +104,7 @@ class LabelsGenerator:
             logger.info(f"{gender_nulls} gender nulls")
             logger.info(f"{nationality_nulls} nationality nulls")
 
+            # Values cleaning
             self.metadata_df["id"] = self.metadata_df["id"].str.strip()
             self.metadata_df["gender"] = self.metadata_df["gender"].str.strip()
             self.metadata_df["nationality"] = self.metadata_df["nationality"].str.strip()
@@ -103,11 +119,14 @@ class LabelsGenerator:
 
     def generate_speakers_dict(self, load_path):
 
+        '''Construct a dictionary where each speaker_id is the key and the corresponding value is a dictionary with its information (paths of its features and metadata information).'''
+
         logger.info("Loading dev data...")
     
         speakers_set = set()
         speakers_dict = {}
         
+        # Search over the folder and extract each speaker information
         for (dir_path, dir_names, file_names) in os.walk(load_path):
             
             # Directory should have some /id.../ part
@@ -117,6 +136,7 @@ class LabelsGenerator:
             # Only consider directories with /id.../
             if len(speaker_chunk) > 0: 
             
+                # If there is more than one /id.../ chunk we take the first and make a warning at the end
                 speaker_id = speaker_chunk[0]
                 
                 # If speaker_id is looped for the first time, initialize variables
@@ -135,21 +155,23 @@ class LabelsGenerator:
                         file_path = file_path.replace(load_path, "")
                         speakers_dict[speaker_id]["files_paths"].add(file_path)
 
-                # Add gender
-                if self.params.hard_validation:
-                    gender = self.metadata_df[self.metadata_df["id"] == speaker_id.lower().strip()]["gender"].iloc[0]
-                    if gender is None: gender = "null_value"
-                else:
-                    gender = "null_value"
-                speakers_dict[speaker_id]["gender"] = gender
+                # If speaker_id is looped for the first time, add gender
+                if speaker_id not in speakers_set:
+                    if self.params.hard_validation:
+                        gender = self.metadata_df[self.metadata_df["id"] == speaker_id.lower().strip()]["gender"].iloc[0]
+                        if gender is None: gender = "null_value"
+                    else:
+                        gender = "null_value"
+                    speakers_dict[speaker_id]["gender"] = gender
 
-                # Add nationality
-                if self.params.hard_validation:
-                    nationality = self.metadata_df[self.metadata_df["id"] == speaker_id.lower().strip()]["nationality"].iloc[0]
-                    if nationality is None: nationality = "null_value"
-                else:
-                    nationality = "null_value"
-                speakers_dict[speaker_id]["nationality"] = nationality
+                # If speaker_id is looped for the first time, add nationality
+                if speaker_id not in speakers_set:
+                    if self.params.hard_validation:
+                        nationality = self.metadata_df[self.metadata_df["id"] == speaker_id.lower().strip()]["nationality"].iloc[0]
+                        if nationality is None: nationality = "null_value"
+                    else:
+                        nationality = "null_value"
+                    speakers_dict[speaker_id]["nationality"] = nationality
                 
                 # Add speaker_id to set and continue with the loop
                 speakers_set.add(speaker_id)
@@ -158,6 +180,7 @@ class LabelsGenerator:
             if len(speaker_chunk) > 1:
                 warnings.warn(f"Ambiguous directory path: {dir_path}. Taking {speaker_id} as id.")
                 
+        # Count metadata information nulls
         if self.params.hard_validation:
 
             null_gender = 0
@@ -392,46 +415,52 @@ class LabelsGenerator:
             load_path = self.params.dev_dataset_folder,
         )
 
-        self.num_speakers = len(self.dev_speakers_dict)
-        logger.info(f"Total number of distinct speakers loaded: {self.num_speakers}")
+        ex_id = list(self.dev_speakers_dict.keys())[0]
+        #logger.info(f"{list(self.dev_speakers_dict.keys())}")
+        logger.info(f"{self.dev_speakers_dict[ex_id]}")
 
-        self.train_speakers_dict, self.valid_speakers_dict = self.train_valid_split_dict(
-            self.dev_speakers_dict, 
-            self.params.train_speakers_pctg, 
-            self.params.random_split,
-        )
-        
-        # Generate training speaker classification labels
-        self.generate_training_labels_file(
-            dump_file_folder = self.params.train_labels_dump_file_folder,
-            dump_file_name = self.params.train_labels_dump_file_name, 
-            speakers_dict = self.train_speakers_dict,
-            max_lines = self.params.train_lines_max,
-        )
+        if False:
 
-        # Generate validation speaker classification labels
-        self.generate_training_labels_file(
-            dump_file_folder = self.params.valid_labels_dump_file_folder,
-            dump_file_name = self.params.valid_labels_dump_file_name, 
-            speakers_dict = self.valid_speakers_dict,
-            max_lines = self.params.valid_lines_max,
-        )
-        
-        # Generate validation speaker verification clients labels
-        self.generate_clients_labels_file(
-            clients_dump_file_folder = self.params.valid_clients_labels_dump_file_folder, 
-            clients_dump_file_name = self.params.valid_clients_labels_dump_file_name, 
-            speakers_dict = self.valid_speakers_dict, 
-            clients_lines_max = self.params.clients_lines_max, 
-        )
+            self.num_speakers = len(self.dev_speakers_dict)
+            logger.info(f"Total number of distinct speakers loaded: {self.num_speakers}")
 
-        # Generate validation speaker verification clients labels
-        self.generate_impostors_labels_file(
-            impostors_dump_file_folder = self.params.valid_impostors_labels_dump_file_folder, 
-            impostors_dump_file_name = self.params.valid_impostors_labels_dump_file_name, 
-            speakers_dict = self.valid_speakers_dict,
-            impostors_lines_max = self.params.impostors_lines_max,
-        )
+            self.train_speakers_dict, self.valid_speakers_dict = self.train_valid_split_dict(
+                self.dev_speakers_dict, 
+                self.params.train_speakers_pctg, 
+                self.params.random_split,
+            )
+            
+            # Generate training speaker classification labels
+            self.generate_training_labels_file(
+                dump_file_folder = self.params.train_labels_dump_file_folder,
+                dump_file_name = self.params.train_labels_dump_file_name, 
+                speakers_dict = self.train_speakers_dict,
+                max_lines = self.params.train_lines_max,
+            )
+
+            # Generate validation speaker classification labels
+            self.generate_training_labels_file(
+                dump_file_folder = self.params.valid_labels_dump_file_folder,
+                dump_file_name = self.params.valid_labels_dump_file_name, 
+                speakers_dict = self.valid_speakers_dict,
+                max_lines = self.params.valid_lines_max,
+            )
+            
+            # Generate validation speaker verification clients labels
+            self.generate_clients_labels_file(
+                clients_dump_file_folder = self.params.valid_clients_labels_dump_file_folder, 
+                clients_dump_file_name = self.params.valid_clients_labels_dump_file_name, 
+                speakers_dict = self.valid_speakers_dict, 
+                clients_lines_max = self.params.clients_lines_max, 
+            )
+
+            # Generate validation speaker verification clients labels
+            self.generate_impostors_labels_file(
+                impostors_dump_file_folder = self.params.valid_impostors_labels_dump_file_folder, 
+                impostors_dump_file_name = self.params.valid_impostors_labels_dump_file_name, 
+                speakers_dict = self.valid_speakers_dict,
+                impostors_lines_max = self.params.impostors_lines_max,
+            )
         
     
 class ArgsParser:
@@ -448,10 +477,10 @@ class ArgsParser:
                 It takes dev data and splits it into training and validation. \
                 All audios of the same speaker goes to same split.\
                 Dev data files (.pickle) must be contained in a /id.../ folder to be parsed correctly.\
-                For the training split, it generates labels for the speaker classification task. \
+                For the training split, it generates labels for the Speaker Classification task. \
                 Each line of the training file will be of the form: file_path speaker_num -1.\
                 For the validation split, it generates labels for the speaker verification task randomly.\
-                Each line of the validation file will be of the form: file_path file_path.',
+                Each line of the validation file will be of the form: file_path_1 file_path_2.',
             )
 
 
@@ -571,7 +600,8 @@ class ArgsParser:
         self.parser.add_argument(
             '--hard_validation', 
             action = argparse.BooleanOptionalAction,
-            help = 'If True, valid impostors labels are generated using same gender and nationality if possible.',
+            help = 'If True, valid impostors labels are generated using same gender and nationality if possible. \
+                In this case, metadata_file_path must be specified.',
             )
 
         self.parser.add_argument(
@@ -600,7 +630,7 @@ class ArgsParser:
 
         self.add_parser_args()
         self.arguments = self.parser.parse_args()
-
+# ---------------------------------------------------------------------
 
 if __name__=="__main__":
 

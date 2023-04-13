@@ -6,7 +6,7 @@
 #SBATCH --mem=32G      					# Max CPU Memory
 #SBATCH --job-name=labels_generator
 python scripts/labels_generator.py \
-	'./datasets/voxceleb_1_augmented/train/23_01_12_14_35_02_uqxid5l3_curious-microwave-10/' \
+	'/home/usuaris/veussd/federico.costa/datasets/tiny/dev/22_12_02_21_20_39_3gq59pny_iconic-totem-7/' \
 	--train_labels_dump_file_folder './labels/augmentation_experiments/train/voxceleb_1_augmented/' \
 	--train_labels_dump_file_name 'train_labels.ndx' \
 	--valid_impostors_labels_dump_file_folder './labels/augmentation_experiments/valid/voxceleb_1_augmented/' \
@@ -16,4 +16,6 @@ python scripts/labels_generator.py \
 	--clients_lines_max 0 \
 	--impostors_lines_max 0 \
 	--train_speakers_pctg 1 \
+	--hard_validation \
+	--metadata_file_path './metadata/vox1_meta_cleaned.csv' \
 	> logs/console_output/labels_generator/console_output.log 2>&1
