@@ -203,6 +203,8 @@ class LabelsGenerator:
 
     def train_valid_split_dict(self, speakers_dict, train_speakers_pctg, random_split = True):
 
+        '''Split speakers_dict into train_speakers_dict and valid_speakers_dict.'''
+
         logger.info(f"Spliting data into train and valid...")
         
         # We are going to split speakers_dict in train and valid using speaker_id's
@@ -222,7 +224,7 @@ class LabelsGenerator:
         elif random_split == True:
             random.shuffle(speakers_list)
 
-        # Add 0 to total_speakers-1 labels
+        # Label the speakers. Add 0 to total_speakers-1 labels
         for i, speaker in enumerate(speakers_list):
             speakers_dict[speaker]["speaker_num"] = i
 
@@ -263,9 +265,9 @@ class LabelsGenerator:
         return train_speakers_dict, valid_speakers_dict
     
     
-    def generate_training_labels_file(self, dump_file_folder, dump_file_name, speakers_dict, max_lines):
+    def generate_sc_labels_file(self, dump_file_folder, dump_file_name, speakers_dict, max_lines):
     
-        logger.info(f"Generating training labels...")
+        logger.info(f"Generating Speaker Classification labels...")
         
         if not os.path.exists(dump_file_folder):
             os.makedirs(dump_file_folder)
@@ -295,9 +297,9 @@ class LabelsGenerator:
                     f.write('\n')
                 f.close()
 
-        logger.info(f"Training labels generated.")
+        logger.info(f"Speaker Classification labels generated.")
 
-    
+
     def generate_clients_labels_file(
         self,
         clients_dump_file_folder, clients_dump_file_name,
@@ -307,7 +309,7 @@ class LabelsGenerator:
 
         # TODO review the logic of creating clients randomly. As a first iteration it is ok.
 
-        logger.info(f"Generating valid clients trials...")
+        logger.info(f"Generating Speaker Verification clients trials...")
 
         lines_to_write = []
 
@@ -342,7 +344,7 @@ class LabelsGenerator:
                 f.write('\n')
             f.close()
 
-        logger.info(f"Valid clients trials generated.")
+        logger.info(f"Speaker Verification clients trials generated.")
 
 
     def generate_impostors_labels_file(
@@ -352,7 +354,7 @@ class LabelsGenerator:
         impostors_lines_max,
         ):
 
-        logger.info(f"Generating valid impostors trials...")
+        logger.info(f"Generating Speaker Verification impostors trials...")
 
         lines_to_write = []
 
@@ -406,63 +408,83 @@ class LabelsGenerator:
                 f.write('\n')
             f.close()
 
-        logger.info(f"Valid impostors trials generated.")
+        logger.info(f"Speaker Verification impostors trials generated.")
 
+
+    def generate_sv_labels_file(self):
+
+        self.generate_clients_labels_file(
+            clients_dump_file_folder = self.params.valid_clients_labels_dump_file_folder, 
+            clients_dump_file_name = self.params.valid_clients_labels_dump_file_name, 
+            speakers_dict = self.valid_speakers_dict, 
+            clients_lines_max = self.params.clients_lines_max, 
+        )
+
+        self.generate_impostors_labels_file(
+            impostors_dump_file_folder = self.params.valid_impostors_labels_dump_file_folder, 
+            impostors_dump_file_name = self.params.valid_impostors_labels_dump_file_name, 
+            speakers_dict = self.valid_speakers_dict,
+            impostors_lines_max = self.params.impostors_lines_max,
+        )
+
+
+    def generate_training_labels(self):
+
+        logger.info(f"Generating training labels...")
+
+        self.generate_sc_labels_file(
+            dump_file_folder = self.params.train_labels_dump_file_folder,
+            dump_file_name = self.params.train_labels_dump_file_name, 
+            speakers_dict = self.train_speakers_dict,
+            max_lines = self.params.train_lines_max,
+        )
+
+        logger.info(f"Training labels generated.")
+
+
+    def generate_validation_labels(self):
+
+        logger.info(f"Generating validation labels...")
+
+        # Generate validation Speaker Classification labels
+        self.generate_sc_labels_file(
+            dump_file_folder = self.params.valid_labels_dump_file_folder,
+            dump_file_name = self.params.valid_labels_dump_file_name, 
+            speakers_dict = self.valid_speakers_dict,
+            max_lines = self.params.valid_lines_max,
+        )
+
+        # Generate validation Speaker Verification clients and impostors labels
+        self.generate_sv_labels_file()
+
+        logger.info(f"Validation labels generated.")
+        
 
     def main(self):
 
+        # Generate speakers_dict
         self.dev_speakers_dict = self.generate_speakers_dict(
             load_path = self.params.dev_dataset_folder,
         )
 
-        ex_id = list(self.dev_speakers_dict.keys())[0]
-        #logger.info(f"{list(self.dev_speakers_dict.keys())}")
-        logger.info(f"{self.dev_speakers_dict[ex_id]}")
+        # Calculate the total number of speakers
+        self.num_speakers = len(self.dev_speakers_dict)
+        logger.info(f"Total number of distinct speakers loaded: {self.num_speakers}")
 
-        if False:
-
-            self.num_speakers = len(self.dev_speakers_dict)
-            logger.info(f"Total number of distinct speakers loaded: {self.num_speakers}")
-
-            self.train_speakers_dict, self.valid_speakers_dict = self.train_valid_split_dict(
+        # Split the dict into train and valid
+        self.train_speakers_dict, self.valid_speakers_dict = self.train_valid_split_dict(
                 self.dev_speakers_dict, 
                 self.params.train_speakers_pctg, 
                 self.params.random_split,
             )
-            
-            # Generate training speaker classification labels
-            self.generate_training_labels_file(
-                dump_file_folder = self.params.train_labels_dump_file_folder,
-                dump_file_name = self.params.train_labels_dump_file_name, 
-                speakers_dict = self.train_speakers_dict,
-                max_lines = self.params.train_lines_max,
-            )
 
-            # Generate validation speaker classification labels
-            self.generate_training_labels_file(
-                dump_file_folder = self.params.valid_labels_dump_file_folder,
-                dump_file_name = self.params.valid_labels_dump_file_name, 
-                speakers_dict = self.valid_speakers_dict,
-                max_lines = self.params.valid_lines_max,
-            )
-            
-            # Generate validation speaker verification clients labels
-            self.generate_clients_labels_file(
-                clients_dump_file_folder = self.params.valid_clients_labels_dump_file_folder, 
-                clients_dump_file_name = self.params.valid_clients_labels_dump_file_name, 
-                speakers_dict = self.valid_speakers_dict, 
-                clients_lines_max = self.params.clients_lines_max, 
-            )
+        # Generate training labels
+        self.generate_training_labels()
 
-            # Generate validation speaker verification clients labels
-            self.generate_impostors_labels_file(
-                impostors_dump_file_folder = self.params.valid_impostors_labels_dump_file_folder, 
-                impostors_dump_file_name = self.params.valid_impostors_labels_dump_file_name, 
-                speakers_dict = self.valid_speakers_dict,
-                impostors_lines_max = self.params.impostors_lines_max,
-            )
-        
-    
+        # Generate validation labels
+        self.generate_validation_labels()
+
+
 class ArgsParser:
 
     def __init__(self):
