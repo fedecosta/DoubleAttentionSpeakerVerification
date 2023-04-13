@@ -6,6 +6,7 @@ import warnings
 import random
 import itertools
 import pandas as pd
+from collections import OrderedDict
 
 from settings import LABELS_GENERATOR_DEFAULT_SETTINGS
 # ---------------------------------------------------------------------
@@ -126,7 +127,7 @@ class LabelsGenerator:
         logger.info("Loading dev data...")
     
         speakers_set = set()
-        speakers_dict = {}
+        speakers_dict = OrderedDict() # Using ordered dict for reproducibility
         
         # Search over the folder and extract each speaker information
         total_files = 0
@@ -311,35 +312,75 @@ class LabelsGenerator:
         speakers_dict, 
         clients_lines_max,
         sv_hard_pairs,
+        sv_reduced_pairs,
         ):
 
         # TODO review the logic of creating clients randomly. As a first iteration it is ok.
 
         logger.info(f"Generating Speaker Verification clients trials...")
 
+        if sv_reduced_pairs:
+            used_interviews_dict = {}
+            for speaker in speakers_dict.keys():
+                used_interviews_dict[speaker] = set()
+        
         lines_to_write = []
-
         for _ in range(clients_lines_max):
 
             # Choose a speaker randomly
             speaker_1 = random.choice(list(speakers_dict.keys()))
+            logger.info(f"[TEST] speaker_1 {speaker_1}.")
 
             # Get the speakers files
             speaker_1_dict = speakers_dict[speaker_1]
             speaker_1_files = list(speaker_1_dict["files_paths"])
 
+            # Generate elegible files for speaker_1
+            if sv_reduced_pairs:
+                # We are going to use only one file per interview
+                elegible_files = [file for file in speaker_1_files if file.split("/")[1] not in used_interviews_dict[speaker]]
+            else:
+                elegible_files = speaker_1_files.copy()
+            
+            if len(elegible_files) == 0:
+                logger.info(f"No elegible files left for speaker {speaker_1}.")
+                continue
+            
             # Select the first file
-            speaker_1_file_1 = random.choice(speaker_1_files)
+            speaker_1_file_1 = random.choice(elegible_files)
+            
+            speaker_1_file_1_interview = speaker_1_file_1.split("/")[1]
+            # Add the interview to the used interviews set
+            if sv_reduced_pairs:
+                used_interviews_dict[speaker_1].add(speaker_1_file_1_interview)
 
-            # Select the second file
+            # Generate elegible files for speaker_1 for the second file
             if sv_hard_pairs:
                 # To make more difficult clients, we are going to consider only files from different interviews
                 # We are assuming that every file path has the form speaker_id/interview_id/file
-                speaker_1_file_1_interview = speaker_1_file_1.split("/")[1]
-                speaker_1_elegible_files = [file for file in speaker_1_files if file.split("/")[1] != speaker_1_file_1_interview]
-                speaker_1_file_2 = random.choice(speaker_1_elegible_files)
+                if sv_reduced_pairs:
+                    # We are going to use only one file per interview
+                    elegible_files = [file for file in speaker_1_files if file.split("/")[1] not in used_interviews_dict[speaker]]
+                else:
+                    elegible_files = [file for file in speaker_1_files if file.split("/")[1] != speaker_1_file_1_interview]
             else:
-                speaker_1_file_2 = random.choice(speaker_1_files) 
+                if sv_reduced_pairs:
+                    # We are going to use only one file per interview
+                    elegible_files = [file for file in speaker_1_files if file.split("/")[1] not in used_interviews_dict[speaker]]
+                else:
+                    elegible_files = speaker_1_files.copy()
+
+            if len(elegible_files) == 0:
+                logger.info(f"No elegible files left for speaker {speaker_1}.")
+                continue
+            
+            # Select the second file
+            speaker_1_file_2 = random.choice(speaker_1_files) 
+            
+            speaker_1_file_2_interview = speaker_1_file_2.split("/")[1]
+            # Add the interview to the used interviews set
+            if sv_reduced_pairs:
+                used_interviews_dict[speaker_1].add(speaker_1_file_2_interview)
 
             # We order files paths to avoid duplicated pairs
             ordered_files = [speaker_1_file_1, speaker_1_file_2]
@@ -373,42 +414,85 @@ class LabelsGenerator:
         speakers_dict, 
         impostors_lines_max,
         sv_hard_pairs,
+        sv_reduced_pairs,
         ):
 
         logger.info(f"Generating Speaker Verification impostors trials...")
+
+        if sv_reduced_pairs:
+            used_interviews_dict = {}
+            for speaker in speakers_dict.keys():
+                used_interviews_dict[speaker] = set()
 
         lines_to_write = []
         for _ in range(impostors_lines_max):
 
             # Choose the first speaker randomly
             speaker_1 = random.choice(list(speakers_dict.keys()))
+
+            # Get the speakers files
+            speaker_1_dict = speakers_dict[speaker_1]
+            speaker_1_files = list(speaker_1_dict["files_paths"])
+
+            # Generate elegible files for speaker_1
+            if sv_reduced_pairs:
+                # We are going to use only one file per interview
+                elegible_files = [file for file in speaker_1_files if file.split("/")[1] not in used_interviews_dict[speaker_1]]
+            else:
+                elegible_files = speaker_1_files.copy()
             
-            # Choose the second speaker (the impostor)
+            if len(elegible_files) == 0:
+                logger.info(f"No elegible files left for speaker {speaker_1}.")
+                continue
+
+            # Select the first file
+            speaker_1_file_1 = random.choice(elegible_files)
+            
+            speaker_1_file_1_interview = speaker_1_file_1.split("/")[1]
+            # Add the interview to the used interviews set
+            if sv_reduced_pairs:
+                used_interviews_dict[speaker_1].add(speaker_1_file_1_interview)
+            
+            # Generate the second elegible speakers
             if sv_hard_pairs:
                 speaker_1_gender = speakers_dict[speaker_1]["gender"]
                 speaker_1_nationality = speakers_dict[speaker_1]["nationality"]
-                remain_speakers_list = [
+                elegible_speakers = [
                     speaker for speaker in speakers_dict.keys() if (speakers_dict[speaker]["gender"] == speaker_1_gender and speakers_dict[speaker]["nationality"] == speaker_1_nationality)
                     ]
             else:
-                remain_speakers_list = list(speakers_dict.keys())
-            remain_speakers_list.remove(speaker_1)
+                elegible_speakers = list(speakers_dict.keys())
+            elegible_speakers.remove(speaker_1)
 
-            if len(remain_speakers_list) == 0:
+            if len(elegible_speakers) == 0:
                 logger.info(f"No speaker impostor with gender {speaker_1_gender} and nationality {speaker_1_nationality} founded for speaker {speaker_1}.")
                 continue
 
-            speaker_2 = random.choice(remain_speakers_list)
+            # Choose the second speaker (the impostor)
+            speaker_2 = random.choice(elegible_speakers)
 
-            # Get the first speaker file
-            speaker_1_dict = speakers_dict[speaker_1]
-            speaker_1_files = list(speaker_1_dict["files_paths"])
-            speaker_1_file_1 = random.choice(speaker_1_files)
-
-            # Get the second speaker file
+            # Get the speakers files
             speaker_2_dict = speakers_dict[speaker_2]
             speaker_2_files = list(speaker_2_dict["files_paths"])
-            speaker_2_file_1 = random.choice(speaker_2_files)
+
+            # Generate elegible files for speaker_2 for the second file
+            if sv_reduced_pairs:
+                # We are going to use only one file per interview
+                elegible_files = [file for file in speaker_2_files if file.split("/")[1] not in used_interviews_dict[speaker_2]]
+            else:
+                elegible_files = speaker_2_files.copy()
+
+            if len(elegible_files) == 0:
+                logger.info(f"No elegible files left for speaker {speaker_2}.")
+                continue
+
+            # Select the second file
+            speaker_2_file_1 = random.choice(elegible_files) 
+            
+            speaker_2_file_1_interview = speaker_2_file_1.split("/")[1]
+            # Add the interview to the used interviews set
+            if sv_reduced_pairs:
+                used_interviews_dict[speaker_2].add(speaker_2_file_1_interview)
 
             # We order files paths to avoid duplicated pairs
             ordered_files = [speaker_1_file_1, speaker_2_file_1]
@@ -444,6 +528,7 @@ class LabelsGenerator:
             speakers_dict = self.valid_speakers_dict, 
             clients_lines_max = self.params.valid_sv_clients_lines_max, 
             sv_hard_pairs = self.params.sv_hard_pairs,
+            sv_reduced_pairs = self.params.sv_reduced_pairs,
         )
 
         self.generate_impostors_labels_file(
@@ -452,6 +537,7 @@ class LabelsGenerator:
             speakers_dict = self.valid_speakers_dict,
             impostors_lines_max = self.params.valid_sv_impostors_lines_max,
             sv_hard_pairs = self.params.sv_hard_pairs,
+            sv_reduced_pairs = self.params.sv_reduced_pairs,
         )
 
 
@@ -638,8 +724,15 @@ class ArgsParser:
         self.parser.add_argument(
             '--sv_hard_pairs', 
             action = argparse.BooleanOptionalAction,
-            help = 'If True, Speaker Verification impostors labels are generated using same gender and nationality if possible. \
-                In this case, metadata_file_path must be specified.',
+            help = 'If True, Speaker Verification impostors labels are generated only using same gender and nationality. \
+                Speaker Verification clients are generated only using different interviews pairs. \
+                In True, metadata_file_path must be specified.',
+            )
+
+        self.parser.add_argument(
+            '--sv_reduced_pairs', 
+            action = argparse.BooleanOptionalAction,
+            help = 'If True, Speaker Verification impostors and clients labels are generated using only one file per interview.',
             )
 
         self.parser.add_argument(

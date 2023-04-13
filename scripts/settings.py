@@ -39,6 +39,7 @@ LABELS_GENERATOR_DEFAULT_SETTINGS = {
     'valid_sv_clients_lines_max' : 20000,
     'valid_sv_impostors_lines_max' : 20000,
     'sv_hard_pairs' : False,
+    'sv_reduced_pairs' : False,
     'verbose' : False,
 }
 

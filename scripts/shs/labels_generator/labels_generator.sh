@@ -15,12 +15,13 @@ python scripts/labels_generator.py \
 	--valid_sv_impostors_labels_dump_file_name 'sv_impostors.ndx' \
 	--valid_sv_clients_labels_dump_file_folder './labels/improvements_tests/valid/' \
 	--valid_sv_clients_labels_dump_file_name 'sv_clients.ndx' \
-	--train_speakers_pctg 0.9 \
-	--random_split \
+	--train_speakers_pctg 0.1 \
+	--no-random_split \
 	--train_sc_lines_max -1 \
 	--valid_sc_lines_max -1 \
-	--valid_sv_clients_lines_max 20 \
-	--valid_sv_impostors_lines_max 20 \
+	--valid_sv_clients_lines_max 2 \
+	--valid_sv_impostors_lines_max 2 \
 	--sv_hard_pairs \
+	--sv_reduced_pairs \
 	--metadata_file_path './metadata/vox1_meta_cleaned.csv' \
 	> logs/console_output/labels_generator/console_output.log 2>&1
