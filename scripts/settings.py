@@ -24,20 +24,21 @@ FEATURE_EXTRACTOR_DEFAULT_SETTINGS = {
 }
 
 LABELS_GENERATOR_DEFAULT_SETTINGS = {
-    'train_labels_dump_file_folder' : './labels/train/',
-    'train_labels_dump_file_name' : 'train_labels.ndx',
-    'valid_labels_dump_file_folder' : './labels/valid/',
-    'valid_labels_dump_file_name' : 'valid_labels.ndx',
-    'valid_impostors_labels_dump_file_folder' : './labels/valid/',
-    'valid_impostors_labels_dump_file_name' : 'impostors.ndx',
-    'valid_clients_labels_dump_file_folder' : './labels/valid/',
-    'valid_clients_labels_dump_file_name' : 'clients.ndx',
+    'train_sc_labels_dump_file_folder' : './labels/train/',
+    'train_sc_labels_dump_file_name' : 'sc_labels.ndx',
+    'valid_sc_labels_dump_file_folder' : './labels/valid/',
+    'valid_sc_labels_dump_file_name' : 'sc_labels.ndx',
+    'valid_sv_impostors_labels_dump_file_folder' : './labels/valid/',
+    'valid_sv_impostors_labels_dump_file_name' : 'sv_impostors.ndx',
+    'valid_sv_clients_labels_dump_file_folder' : './labels/valid/',
+    'valid_sv_clients_labels_dump_file_name' : 'sv_clients.ndx',
     'train_speakers_pctg': 0.98,
     'random_split' : True,
-    'train_lines_max' : -1,
-    'valid_lines_max' : -1,
-    'clients_lines_max' : 20000,
-    'impostors_lines_max' : 20000,
+    'train_sc_lines_max' : -1,
+    'valid_sc_lines_max' : -1,
+    'valid_sv_clients_lines_max' : 20000,
+    'valid_sv_impostors_lines_max' : 20000,
+    'sv_hard_pairs' : False,
     'verbose' : False,
 }
 

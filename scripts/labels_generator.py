@@ -75,7 +75,9 @@ class LabelsGenerator:
 
         '''Load speakers metadata (needed for hard validation).'''
 
-        if self.params.hard_validation:
+        logger.info("Loading metadata...")
+
+        if self.params.sv_hard_pairs:
 
             logger.info(f"Loading metadata from {self.params.metadata_file_path}...")
 
@@ -127,6 +129,7 @@ class LabelsGenerator:
         speakers_dict = {}
         
         # Search over the folder and extract each speaker information
+        total_files = 0
         for (dir_path, dir_names, file_names) in os.walk(load_path):
             
             # Directory should have some /id.../ part
@@ -154,10 +157,11 @@ class LabelsGenerator:
                         # not the prepended folder directory
                         file_path = file_path.replace(load_path, "")
                         speakers_dict[speaker_id]["files_paths"].add(file_path)
+                        total_files = total_files + 1
 
                 # If speaker_id is looped for the first time, add gender
                 if speaker_id not in speakers_set:
-                    if self.params.hard_validation:
+                    if self.params.sv_hard_pairs:
                         gender = self.metadata_df[self.metadata_df["id"] == speaker_id.lower().strip()]["gender"].iloc[0]
                         if gender is None: gender = "null_value"
                     else:
@@ -166,7 +170,7 @@ class LabelsGenerator:
 
                 # If speaker_id is looped for the first time, add nationality
                 if speaker_id not in speakers_set:
-                    if self.params.hard_validation:
+                    if self.params.sv_hard_pairs:
                         nationality = self.metadata_df[self.metadata_df["id"] == speaker_id.lower().strip()]["nationality"].iloc[0]
                         if nationality is None: nationality = "null_value"
                     else:
@@ -181,7 +185,7 @@ class LabelsGenerator:
                 warnings.warn(f"Ambiguous directory path: {dir_path}. Taking {speaker_id} as id.")
                 
         # Count metadata information nulls
-        if self.params.hard_validation:
+        if self.params.sv_hard_pairs:
 
             null_gender = 0
             for value in speakers_dict.values():
@@ -195,8 +199,9 @@ class LabelsGenerator:
 
         logger.info("Dev data loaded.")
         logger.info(f"Total number of speakers: {len(speakers_set)}")
-        if self.params.hard_validation: logger.info(f"Speakers with null gender: {null_gender} ({null_gender / len(speakers_set) * 100}%)")
-        if self.params.hard_validation: logger.info(f"Speakers with null nationality: {null_nationality} ({null_nationality / len(speakers_set) * 100}%)")
+        logger.info(f"Total number of files: {total_files}")
+        if self.params.sv_hard_pairs: logger.info(f"Speakers with null gender: {null_gender} ({null_gender / len(speakers_set) * 100}%)")
+        if self.params.sv_hard_pairs: logger.info(f"Speakers with null nationality: {null_nationality} ({null_nationality / len(speakers_set) * 100}%)")
         
         return speakers_dict
 
@@ -305,6 +310,7 @@ class LabelsGenerator:
         clients_dump_file_folder, clients_dump_file_name,
         speakers_dict, 
         clients_lines_max,
+        sv_hard_pairs,
         ):
 
         # TODO review the logic of creating clients randomly. As a first iteration it is ok.
@@ -318,11 +324,24 @@ class LabelsGenerator:
             # Choose a speaker randomly
             speaker_1 = random.choice(list(speakers_dict.keys()))
 
+            # Get the speakers files
             speaker_1_dict = speakers_dict[speaker_1]
             speaker_1_files = list(speaker_1_dict["files_paths"])
-            speaker_1_file_1 = random.choice(speaker_1_files)
-            speaker_1_file_2 = random.choice(speaker_1_files)
 
+            # Select the first file
+            speaker_1_file_1 = random.choice(speaker_1_files)
+
+            # Select the second file
+            if sv_hard_pairs:
+                # To make more difficult clients, we are going to consider only files from different interviews
+                # We are assuming that every file path has the form speaker_id/interview_id/file
+                speaker_1_file_1_interview = speaker_1_file_1.split("/")[1]
+                speaker_1_elegible_files = [file for file in speaker_1_files if file.split("/")[1] != speaker_1_file_1_interview]
+                speaker_1_file_2 = random.choice(speaker_1_elegible_files)
+            else:
+                speaker_1_file_2 = random.choice(speaker_1_files) 
+
+            # We order files paths to avoid duplicated pairs
             ordered_files = [speaker_1_file_1, speaker_1_file_2]
             ordered_files.sort()
 
@@ -335,6 +354,7 @@ class LabelsGenerator:
 
         logger.info(f"{len(lines_to_write)} lines to write for clients.")
 
+        # Dump the file with the trials
         if not os.path.exists(clients_dump_file_folder):
             os.makedirs(clients_dump_file_folder)
         clients_dump_path = os.path.join(clients_dump_file_folder, clients_dump_file_name)
@@ -352,6 +372,7 @@ class LabelsGenerator:
         impostors_dump_file_folder, impostors_dump_file_name,
         speakers_dict, 
         impostors_lines_max,
+        sv_hard_pairs,
         ):
 
         logger.info(f"Generating Speaker Verification impostors trials...")
@@ -360,7 +381,7 @@ class LabelsGenerator:
 
         # HACK Minimun effort way to choose speakers of the same gender. 
         # Won't work with nationalities
-        if self.params.hard_validation:
+        if sv_hard_pairs:
             speakers_list_f = [speaker for speaker in speakers_dict.keys() if speakers_dict[speaker]["gender"] == "f"]
             speakers_list_m = [speaker for speaker in speakers_dict.keys() if speakers_dict[speaker]["gender"] == "m"]
             speakers_lists_gender = {"f" : speakers_list_f, "m": speakers_list_m}
@@ -370,7 +391,7 @@ class LabelsGenerator:
             # Choose a speaker randomly
             speaker_1 = random.choice(list(speakers_dict.keys()))
             
-            if self.params.hard_validation:
+            if sv_hard_pairs:
                 speaker_1_gender = speakers_dict[speaker_1]["gender"]
                 remain_speakers_list = speakers_lists_gender[speaker_1_gender].copy()
             else:
@@ -414,17 +435,19 @@ class LabelsGenerator:
     def generate_sv_labels_file(self):
 
         self.generate_clients_labels_file(
-            clients_dump_file_folder = self.params.valid_clients_labels_dump_file_folder, 
-            clients_dump_file_name = self.params.valid_clients_labels_dump_file_name, 
+            clients_dump_file_folder = self.params.valid_sv_clients_labels_dump_file_folder, 
+            clients_dump_file_name = self.params.valid_sv_clients_labels_dump_file_name, 
             speakers_dict = self.valid_speakers_dict, 
-            clients_lines_max = self.params.clients_lines_max, 
+            clients_lines_max = self.params.valid_sv_clients_lines_max, 
+            sv_hard_pairs = self.params.sv_hard_pairs,
         )
 
         self.generate_impostors_labels_file(
-            impostors_dump_file_folder = self.params.valid_impostors_labels_dump_file_folder, 
-            impostors_dump_file_name = self.params.valid_impostors_labels_dump_file_name, 
+            impostors_dump_file_folder = self.params.valid_sv_impostors_labels_dump_file_folder, 
+            impostors_dump_file_name = self.params.valid_sv_impostors_labels_dump_file_name, 
             speakers_dict = self.valid_speakers_dict,
-            impostors_lines_max = self.params.impostors_lines_max,
+            impostors_lines_max = self.params.valid_sv_impostors_lines_max,
+            sv_hard_pairs = self.params.sv_hard_pairs,
         )
 
 
@@ -433,10 +456,10 @@ class LabelsGenerator:
         logger.info(f"Generating training labels...")
 
         self.generate_sc_labels_file(
-            dump_file_folder = self.params.train_labels_dump_file_folder,
-            dump_file_name = self.params.train_labels_dump_file_name, 
+            dump_file_folder = self.params.train_sc_labels_dump_file_folder,
+            dump_file_name = self.params.train_sc_labels_dump_file_name, 
             speakers_dict = self.train_speakers_dict,
-            max_lines = self.params.train_lines_max,
+            max_lines = self.params.train_sc_lines_max,
         )
 
         logger.info(f"Training labels generated.")
@@ -448,10 +471,10 @@ class LabelsGenerator:
 
         # Generate validation Speaker Classification labels
         self.generate_sc_labels_file(
-            dump_file_folder = self.params.valid_labels_dump_file_folder,
-            dump_file_name = self.params.valid_labels_dump_file_name, 
+            dump_file_folder = self.params.valid_sc_labels_dump_file_folder,
+            dump_file_name = self.params.valid_sc_labels_dump_file_name, 
             speakers_dict = self.valid_speakers_dict,
-            max_lines = self.params.valid_lines_max,
+            max_lines = self.params.valid_sc_lines_max,
         )
 
         # Generate validation Speaker Verification clients and impostors labels
@@ -466,10 +489,6 @@ class LabelsGenerator:
         self.dev_speakers_dict = self.generate_speakers_dict(
             load_path = self.params.dev_dataset_folder,
         )
-
-        # Calculate the total number of speakers
-        self.num_speakers = len(self.dev_speakers_dict)
-        logger.info(f"Total number of distinct speakers loaded: {self.num_speakers}")
 
         # Split the dict into train and valid
         self.train_speakers_dict, self.valid_speakers_dict = self.train_valid_split_dict(
@@ -515,58 +534,58 @@ class ArgsParser:
             )
 
         self.parser.add_argument(
-            '--train_labels_dump_file_folder', 
+            '--train_sc_labels_dump_file_folder', 
             type = str, 
-            default = LABELS_GENERATOR_DEFAULT_SETTINGS['train_labels_dump_file_folder'], 
+            default = LABELS_GENERATOR_DEFAULT_SETTINGS['train_sc_labels_dump_file_folder'], 
             help = 'Folder where we want to dump the .ndx file with the speaker classification training labels.',
             )
 
         self.parser.add_argument(
-            '--train_labels_dump_file_name', 
+            '--train_sc_labels_dump_file_name', 
             type = str, 
-            default = LABELS_GENERATOR_DEFAULT_SETTINGS['train_labels_dump_file_name'], 
+            default = LABELS_GENERATOR_DEFAULT_SETTINGS['train_sc_labels_dump_file_name'], 
             help = 'Name of the .ndx file we want to dump speaker classification training labels into.',
             )
 
         self.parser.add_argument(
-            '--valid_labels_dump_file_folder', 
+            '--valid_sc_labels_dump_file_folder', 
             type = str, 
-            default = LABELS_GENERATOR_DEFAULT_SETTINGS['valid_labels_dump_file_folder'], 
+            default = LABELS_GENERATOR_DEFAULT_SETTINGS['valid_sc_labels_dump_file_folder'], 
             help = 'Folder where we want to dump the .ndx file with the speaker classification validation labels.',
             )
 
         self.parser.add_argument(
-            '--valid_labels_dump_file_name', 
+            '--valid_sc_labels_dump_file_name', 
             type = str, 
-            default = LABELS_GENERATOR_DEFAULT_SETTINGS['valid_labels_dump_file_name'], 
+            default = LABELS_GENERATOR_DEFAULT_SETTINGS['valid_sc_labels_dump_file_name'], 
             help = 'Name of the .ndx file we want to dump speaker verification classification labels into.',
             )
 
         self.parser.add_argument(
-            '--valid_impostors_labels_dump_file_folder', 
+            '--valid_sv_impostors_labels_dump_file_folder', 
             type = str, 
-            default = LABELS_GENERATOR_DEFAULT_SETTINGS['valid_impostors_labels_dump_file_folder'], 
+            default = LABELS_GENERATOR_DEFAULT_SETTINGS['valid_sv_impostors_labels_dump_file_folder'], 
             help = 'Folder where we want to dump the .ndx file with the speaker verification validation impostors labels.',
             )
 
         self.parser.add_argument(
-            '--valid_impostors_labels_dump_file_name', 
+            '--valid_sv_impostors_labels_dump_file_name', 
             type = str, 
-            default = LABELS_GENERATOR_DEFAULT_SETTINGS['valid_impostors_labels_dump_file_name'], 
+            default = LABELS_GENERATOR_DEFAULT_SETTINGS['valid_sv_impostors_labels_dump_file_name'], 
             help = 'Name of the .ndx file we want to dump speaker verification validation impostors labels into.',
             )
         
         self.parser.add_argument(
-            '--valid_clients_labels_dump_file_folder', 
+            '--valid_sv_clients_labels_dump_file_folder', 
             type = str, 
-            default = LABELS_GENERATOR_DEFAULT_SETTINGS['valid_clients_labels_dump_file_folder'], 
+            default = LABELS_GENERATOR_DEFAULT_SETTINGS['valid_sv_clients_labels_dump_file_folder'], 
             help = 'Folder where we want to dump the .ndx file with the speaker verification validation clients labels.',
             )
 
         self.parser.add_argument(
-            '--valid_clients_labels_dump_file_name', 
+            '--valid_sv_clients_labels_dump_file_name', 
             type = str, 
-            default = LABELS_GENERATOR_DEFAULT_SETTINGS['valid_clients_labels_dump_file_name'], 
+            default = LABELS_GENERATOR_DEFAULT_SETTINGS['valid_sv_clients_labels_dump_file_name'], 
             help = 'Name of the .ndx file we want to dump speaker verification validation clients labels into.',
             )
         
@@ -574,7 +593,7 @@ class ArgsParser:
             '--train_speakers_pctg', 
             type = float,
             default = LABELS_GENERATOR_DEFAULT_SETTINGS['train_speakers_pctg'],
-            help = 'Proportion of training split of the dev set. It must be a float between 0 and 1',
+            help = 'Proportion of speakers training split of the dev set. It must be a float between 0 and 1.',
             )
 
         self.parser.add_argument(
@@ -585,31 +604,38 @@ class ArgsParser:
             )
 
         self.parser.add_argument(
-            '--train_lines_max', 
+            '--train_sc_lines_max', 
             type = int,
-            default = LABELS_GENERATOR_DEFAULT_SETTINGS['train_lines_max'],
+            default = LABELS_GENERATOR_DEFAULT_SETTINGS['train_sc_lines_max'],
             help = 'Max number of lines generated for the training speaker classification task. Set to -1 if no max is required.',
             )
         
         self.parser.add_argument(
-            '--valid_lines_max', 
+            '--valid_sc_lines_max', 
             type = int,
-            default = LABELS_GENERATOR_DEFAULT_SETTINGS['valid_lines_max'],
+            default = LABELS_GENERATOR_DEFAULT_SETTINGS['valid_sc_lines_max'],
             help = 'Max number of lines generated for the validation speaker classification task. Set to -1 if no max is required.',
             )
 
         self.parser.add_argument(
-            '--clients_lines_max', 
+            '--valid_sv_clients_lines_max', 
             type = int,
-            default = LABELS_GENERATOR_DEFAULT_SETTINGS['clients_lines_max'],
+            default = LABELS_GENERATOR_DEFAULT_SETTINGS['valid_sv_clients_lines_max'],
             help = 'Max number of clients labels generated.',
             )
 
         self.parser.add_argument(
-            '--impostors_lines_max', 
+            '--valid_sv_impostors_lines_max', 
             type = int,
-            default = LABELS_GENERATOR_DEFAULT_SETTINGS['impostors_lines_max'],
+            default = LABELS_GENERATOR_DEFAULT_SETTINGS['valid_sv_impostors_lines_max'],
             help = 'Max number of impostors labels generated.',
+            )
+
+        self.parser.add_argument(
+            '--sv_hard_pairs', 
+            action = argparse.BooleanOptionalAction,
+            help = 'If True, Speaker Verification impostors labels are generated using same gender and nationality if possible. \
+                In this case, metadata_file_path must be specified.',
             )
 
         self.parser.add_argument(
@@ -617,13 +643,6 @@ class ArgsParser:
             type = str, 
             help = '.csv file containg speakers metadata such as gender or nationality.\
                 This file must be comma separated and have id, gender, and/or nationality columns.',
-            )
-
-        self.parser.add_argument(
-            '--hard_validation', 
-            action = argparse.BooleanOptionalAction,
-            help = 'If True, valid impostors labels are generated using same gender and nationality if possible. \
-                In this case, metadata_file_path must be specified.',
             )
 
         self.parser.add_argument(
