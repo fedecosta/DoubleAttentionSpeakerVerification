@@ -378,36 +378,39 @@ class LabelsGenerator:
         logger.info(f"Generating Speaker Verification impostors trials...")
 
         lines_to_write = []
-
-        # HACK Minimun effort way to choose speakers of the same gender. 
-        # Won't work with nationalities
-        if sv_hard_pairs:
-            speakers_list_f = [speaker for speaker in speakers_dict.keys() if speakers_dict[speaker]["gender"] == "f"]
-            speakers_list_m = [speaker for speaker in speakers_dict.keys() if speakers_dict[speaker]["gender"] == "m"]
-            speakers_lists_gender = {"f" : speakers_list_f, "m": speakers_list_m}
-
         for _ in range(impostors_lines_max):
 
-            # Choose a speaker randomly
+            # Choose the first speaker randomly
             speaker_1 = random.choice(list(speakers_dict.keys()))
             
+            # Choose the second speaker (the impostor)
             if sv_hard_pairs:
                 speaker_1_gender = speakers_dict[speaker_1]["gender"]
-                remain_speakers_list = speakers_lists_gender[speaker_1_gender].copy()
+                speaker_1_nationality = speakers_dict[speaker_1]["nationality"]
+                remain_speakers_list = [
+                    speaker for speaker in speakers_dict.keys() if (speakers_dict[speaker]["gender"] == speaker_1_gender and speakers_dict[speaker]["nationality"] == speaker_1_nationality)
+                    ]
             else:
                 remain_speakers_list = list(speakers_dict.keys())
             remain_speakers_list.remove(speaker_1)
 
+            if len(remain_speakers_list) == 0:
+                logger.info(f"No speaker impostor with gender {speaker_1_gender} and nationality {speaker_1_nationality} founded for speaker {speaker_1}.")
+                continue
+
             speaker_2 = random.choice(remain_speakers_list)
 
+            # Get the first speaker file
             speaker_1_dict = speakers_dict[speaker_1]
             speaker_1_files = list(speaker_1_dict["files_paths"])
             speaker_1_file_1 = random.choice(speaker_1_files)
 
+            # Get the second speaker file
             speaker_2_dict = speakers_dict[speaker_2]
             speaker_2_files = list(speaker_2_dict["files_paths"])
             speaker_2_file_1 = random.choice(speaker_2_files)
 
+            # We order files paths to avoid duplicated pairs
             ordered_files = [speaker_1_file_1, speaker_2_file_1]
             ordered_files.sort()
 
@@ -420,6 +423,7 @@ class LabelsGenerator:
         
         logger.info(f"{len(lines_to_write)} lines to write for impostors.")
 
+        # Dump the file with the trials
         if not os.path.exists(impostors_dump_file_folder):
             os.makedirs(impostors_dump_file_folder)
         clients_dump_path = os.path.join(impostors_dump_file_folder, impostors_dump_file_name)
