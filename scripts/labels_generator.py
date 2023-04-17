@@ -185,6 +185,11 @@ class LabelsGenerator:
             if len(speaker_chunk) > 1:
                 warnings.warn(f"Ambiguous directory path: {dir_path}. Taking {speaker_id} as id.")
                 
+        # Transform sets into list for experiment reproducibility (sets seems that are unordered).
+        for speaker in speakers_dict.keys():
+            speakers_dict[speaker]["files_paths"] = list(speakers_dict[speaker]["files_paths"])
+            speakers_dict[speaker]["files_paths"].sort()
+
         # Count metadata information nulls
         if self.params.sv_hard_pairs:
 
@@ -315,10 +320,9 @@ class LabelsGenerator:
         sv_reduced_pairs,
         ):
 
-        # TODO review the logic of creating clients randomly. As a first iteration it is ok.
-
         logger.info(f"Generating Speaker Verification clients trials...")
 
+        # Create a dict to keep track of used interviews
         if sv_reduced_pairs:
             used_interviews_dict = {}
             for speaker in speakers_dict.keys():
@@ -327,18 +331,18 @@ class LabelsGenerator:
         lines_to_write = []
         for _ in range(clients_lines_max):
 
-            # Choose a speaker randomly
+            # Choose speaker_1 randomly
             speaker_1 = random.choice(list(speakers_dict.keys()))
             logger.info(f"[TEST] speaker_1 {speaker_1}.")
 
-            # Get the speakers files
+            # Get speaker_1 files
             speaker_1_dict = speakers_dict[speaker_1]
-            speaker_1_files = list(speaker_1_dict["files_paths"])
+            speaker_1_files = speaker_1_dict["files_paths"].copy()
 
             # Generate elegible files for speaker_1
             if sv_reduced_pairs:
                 # We are going to use only one file per interview
-                elegible_files = [file for file in speaker_1_files if file.split("/")[1] not in used_interviews_dict[speaker]]
+                elegible_files = [file for file in speaker_1_files if file.split("/")[1] not in used_interviews_dict[speaker_1]]
             else:
                 elegible_files = speaker_1_files.copy()
             
@@ -348,6 +352,7 @@ class LabelsGenerator:
             
             # Select the first file
             speaker_1_file_1 = random.choice(elegible_files)
+            logger.info(f"[TEST] speaker_1_file_1 {speaker_1_file_1}.")
             
             speaker_1_file_1_interview = speaker_1_file_1.split("/")[1]
             # Add the interview to the used interviews set
@@ -360,13 +365,13 @@ class LabelsGenerator:
                 # We are assuming that every file path has the form speaker_id/interview_id/file
                 if sv_reduced_pairs:
                     # We are going to use only one file per interview
-                    elegible_files = [file for file in speaker_1_files if file.split("/")[1] not in used_interviews_dict[speaker]]
+                    elegible_files = [file for file in speaker_1_files if file.split("/")[1] not in used_interviews_dict[speaker_1]]
                 else:
                     elegible_files = [file for file in speaker_1_files if file.split("/")[1] != speaker_1_file_1_interview]
             else:
                 if sv_reduced_pairs:
                     # We are going to use only one file per interview
-                    elegible_files = [file for file in speaker_1_files if file.split("/")[1] not in used_interviews_dict[speaker]]
+                    elegible_files = [file for file in speaker_1_files if file.split("/")[1] not in used_interviews_dict[speaker_1]]
                 else:
                     elegible_files = speaker_1_files.copy()
 
@@ -375,7 +380,8 @@ class LabelsGenerator:
                 continue
             
             # Select the second file
-            speaker_1_file_2 = random.choice(speaker_1_files) 
+            speaker_1_file_2 = random.choice(elegible_files) 
+            logger.info(f"[TEST] speaker_1_file_2 {speaker_1_file_2}.")
             
             speaker_1_file_2_interview = speaker_1_file_2.split("/")[1]
             # Add the interview to the used interviews set
@@ -419,6 +425,7 @@ class LabelsGenerator:
 
         logger.info(f"Generating Speaker Verification impostors trials...")
 
+        # Create a dict to keep track of used interviews
         if sv_reduced_pairs:
             used_interviews_dict = {}
             for speaker in speakers_dict.keys():
@@ -427,10 +434,10 @@ class LabelsGenerator:
         lines_to_write = []
         for _ in range(impostors_lines_max):
 
-            # Choose the first speaker randomly
+            # Choose speaker_1 randomly
             speaker_1 = random.choice(list(speakers_dict.keys()))
 
-            # Get the speakers files
+            # Get speaker_1 files
             speaker_1_dict = speakers_dict[speaker_1]
             speaker_1_files = list(speaker_1_dict["files_paths"])
 
@@ -468,10 +475,10 @@ class LabelsGenerator:
                 logger.info(f"No speaker impostor with gender {speaker_1_gender} and nationality {speaker_1_nationality} founded for speaker {speaker_1}.")
                 continue
 
-            # Choose the second speaker (the impostor)
+            # Choose speaker_2 (the impostor)
             speaker_2 = random.choice(elegible_speakers)
 
-            # Get the speakers files
+            # Get speaker_2 files
             speaker_2_dict = speakers_dict[speaker_2]
             speaker_2_files = list(speaker_2_dict["files_paths"])
 
@@ -498,7 +505,12 @@ class LabelsGenerator:
             ordered_files = [speaker_1_file_1, speaker_2_file_1]
             ordered_files.sort()
 
-            line_to_write = f"{ordered_files[0]} {ordered_files[1]}"
+            speaker_1_gender = speakers_dict[speaker_1]["gender"]
+            speaker_1_nationality = speakers_dict[speaker_1]["nationality"]
+            speaker_2_gender = speakers_dict[speaker_2]["gender"]
+            speaker_2_nationality = speakers_dict[speaker_2]["nationality"]
+
+            line_to_write = f"{ordered_files[0]}/{speaker_1_gender}/{speaker_1_nationality} - {ordered_files[1]}/{speaker_2_gender}/{speaker_2_nationality}"
 
             lines_to_write.append(line_to_write)
 

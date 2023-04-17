@@ -19,9 +19,9 @@ python scripts/labels_generator.py \
 	--no-random_split \
 	--train_sc_lines_max -1 \
 	--valid_sc_lines_max -1 \
-	--valid_sv_clients_lines_max 2 \
-	--valid_sv_impostors_lines_max 2 \
-	--sv_hard_pairs \
-	--sv_reduced_pairs \
+	--valid_sv_clients_lines_max 10 \
+	--valid_sv_impostors_lines_max 10 \
+	--no-sv_hard_pairs \
+	--no-sv_reduced_pairs \
 	--metadata_file_path './metadata/vox1_meta_cleaned.csv' \
 	> logs/console_output/labels_generator/console_output.log 2>&1
