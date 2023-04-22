@@ -399,6 +399,7 @@ class LabelsGenerator:
 
         # Remove duplicated trials
         lines_to_write = list(set(lines_to_write))
+        lines_to_write.sort() # we need to sort this list to make the experiment reproducible (set() changes order every time).
 
         logger.info(f"{len(lines_to_write)} lines to write for clients.")
 
@@ -517,6 +518,7 @@ class LabelsGenerator:
 
         # Remove duplicated trials
         lines_to_write = list(set(lines_to_write))
+        lines_to_write.sort() # we need to sort this list to make the experiment reproducible (set() changes order every time).
         
         logger.info(f"{len(lines_to_write)} lines to write for impostors.")
 
