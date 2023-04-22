@@ -334,7 +334,6 @@ class LabelsGenerator:
 
             # Choose speaker_1 randomly
             speaker_1 = random.choice(list(speakers_dict.keys()))
-            logger.info(f"[TEST] speaker_1 {speaker_1}.")
 
             # Get speaker_1 files
             speaker_1_dict = speakers_dict[speaker_1]
@@ -353,7 +352,6 @@ class LabelsGenerator:
             
             # Select the first file
             speaker_1_file_1 = random.choice(elegible_files)
-            logger.info(f"[TEST] speaker_1_file_1 {speaker_1_file_1}.")
             
             speaker_1_file_1_interview = speaker_1_file_1.split("/")[1]
             # Add the interview to the used interviews set
@@ -382,7 +380,6 @@ class LabelsGenerator:
             
             # Select the second file
             speaker_1_file_2 = random.choice(elegible_files) 
-            logger.info(f"[TEST] speaker_1_file_2 {speaker_1_file_2}.")
             
             speaker_1_file_2_interview = speaker_1_file_2.split("/")[1]
             # Add the interview to the used interviews set
