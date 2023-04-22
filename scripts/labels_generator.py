@@ -230,10 +230,13 @@ class LabelsGenerator:
         
         # Order the speakers
         speakers_list = list(speakers_set)
+        speakers_list.sort() # we need to sort this list in order to make the experiment reproducible (set changes order every time).
         if random_split == False:
             speakers_list.sort()
         elif random_split == True:
             random.shuffle(speakers_list)
+
+        logger.info(f"speakers_list[0:2]: {speakers_list[0:2]}")
 
         # Label the speakers. Add 0 to total_speakers-1 labels
         for i, speaker in enumerate(speakers_list):
