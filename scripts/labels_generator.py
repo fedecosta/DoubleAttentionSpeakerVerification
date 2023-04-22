@@ -236,8 +236,6 @@ class LabelsGenerator:
         elif random_split == True:
             random.shuffle(speakers_list)
 
-        logger.info(f"speakers_list[0:2]: {speakers_list[0:2]}")
-
         # Label the speakers. Add 0 to total_speakers-1 labels
         for i, speaker in enumerate(speakers_list):
             speakers_dict[speaker]["speaker_num"] = i
