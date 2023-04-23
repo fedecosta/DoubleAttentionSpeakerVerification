@@ -504,12 +504,13 @@ class LabelsGenerator:
             ordered_files = [speaker_1_file_1, speaker_2_file_1]
             ordered_files.sort()
 
-            speaker_1_gender = speakers_dict[speaker_1]["gender"]
-            speaker_1_nationality = speakers_dict[speaker_1]["nationality"]
-            speaker_2_gender = speakers_dict[speaker_2]["gender"]
-            speaker_2_nationality = speakers_dict[speaker_2]["nationality"]
+            # Saving this code for debugging purposes
+            #speaker_1_gender = speakers_dict[speaker_1]["gender"]
+            #speaker_1_nationality = speakers_dict[speaker_1]["nationality"]
+            #speaker_2_gender = speakers_dict[speaker_2]["gender"]
+            #speaker_2_nationality = speakers_dict[speaker_2]["nationality"]
 
-            line_to_write = f"{ordered_files[0]}/{speaker_1_gender}/{speaker_1_nationality} - {ordered_files[1]}/{speaker_2_gender}/{speaker_2_nationality}"
+            line_to_write = f"{ordered_files[0]} {ordered_files[1]}"
 
             lines_to_write.append(line_to_write)
 
