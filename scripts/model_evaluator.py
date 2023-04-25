@@ -312,6 +312,9 @@ class ModelEvaluator:
             representative_sample = self.sv_clients_labels_lines[0]
             pickle_path = representative_sample.replace('\n', '').split(' ')[0]
             self.set_random_crop_size(pickle_path)
+        else:
+            # In this case random_crop_frames is not used
+            self.input_params.random_crop_frames = 0
 
         # Instanciate a Dataset class
         dataset = TestDataset(
