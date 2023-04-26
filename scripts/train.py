@@ -668,6 +668,7 @@ class Trainer:
 
     def check_update_optimizer(self):
 
+        # Update optimizer if neccesary
         if self.validations_without_improvement > 0 and self.params.update_optimizer_every > 0 \
             and self.validations_without_improvement % self.params.update_optimizer_every == 0:
 
@@ -676,11 +677,17 @@ class Trainer:
                 logger.info(f"Updating optimizer...")
 
                 for param_group in self.optimizer.param_groups:
-                    param_group['lr'] = param_group['lr'] * 0.5
-                
+
+                    param_group['lr'] = param_group['lr'] * 0.5 # FIX hardcoded value  
+                    
+                    logger.info(f"New learning rate: {param_group['lr']}")
                 
                 logger.info(f"Optimizer updated.")
-                logger.info(f"New learning rate: {param_group['lr']}")
+
+        # Calculate actual learning rate
+        # HACK only taking one param group lr as the overall lr (our case has only one param group)
+        for param_group in self.optimizer.param_groups:
+            self.learning_rate = param_group['lr']             
 
 
     def check_early_stopping(self):
@@ -755,7 +762,8 @@ class Trainer:
                     {
                         "epoch" : self.epoch,
                         "batch_number" : self.batch_number,
-                        "loss": self.train_loss,
+                        "loss" : self.train_loss,
+                        "learning_rate" : self.learning_rate,
                         "train_sc_eval_metric" : self.train_sc_eval_metric,
                         "valid_sv_eval_metric" : self.valid_sv_eval_metric,
                         'best_model_train_loss' : self.best_model_train_loss,
