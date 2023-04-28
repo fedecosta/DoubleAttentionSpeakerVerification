@@ -411,7 +411,8 @@ class Trainer:
             # (even if we may already trained with some batches in that epoch in the last training from the checkpoint).
             self.starting_epoch = loaded_training_variables['epoch']
             self.step = loaded_training_variables['step'] + 1 
-            self.validations_without_improvement = loaded_training_variables['validations_without_improvement'] 
+            self.validations_without_improvement = loaded_training_variables['validations_without_improvement']
+            self.validations_without_improvement_or_opt_update = loaded_training_variables['validations_without_improvement_or_opt_update'] 
             self.early_stopping_flag = False
             self.train_loss = loaded_training_variables['train_loss'] 
             self.train_sc_eval_metric = loaded_training_variables['train_sc_eval_metric'] 
@@ -427,6 +428,7 @@ class Trainer:
             logger.info(f"Epoch {self.starting_epoch}")
             logger.info(f"Step {self.step}")
             logger.info(f"validations_without_improvement {self.validations_without_improvement}")
+            logger.info(f"validations_without_improvement_or_opt_update {self.validations_without_improvement_or_opt_update}")
             logger.info(f"Loss {self.train_loss:.3f}")
             logger.info(f"best_model_train_loss {self.best_model_train_loss:.3f}")
             logger.info(f"best_model_train_sc_eval_metric {self.best_model_train_sc_eval_metric:.3f}")
@@ -436,6 +438,7 @@ class Trainer:
             self.starting_epoch = 0
             self.step = 0 
             self.validations_without_improvement = 0 
+            self.validations_without_improvement_or_opt_update = 0 
             self.early_stopping_flag = False
             self.train_loss = None
             self.train_sc_eval_metric = 0.0
@@ -574,6 +577,7 @@ class Trainer:
             'batch_number' : self.batch_number,
             'step' : self.step,
             'validations_without_improvement' : self.validations_without_improvement,
+            'validations_without_improvement_or_opt_update' : self.validations_without_improvement_or_opt_update,
             'train_loss' : self.train_loss,
             'train_sc_eval_metric' : self.train_sc_eval_metric,
             'valid_sv_eval_metric' : self.valid_sv_eval_metric,
@@ -653,15 +657,19 @@ class Trainer:
 
                 self.save_model() 
 
-                # Since we found and improvement, validations_without_improvement is reseted.
+                # Since we found and improvement, validations_without_improvement and validations_without_improvement_or_opt_update are reseted.
                 self.validations_without_improvement = 0
+                self.validations_without_improvement_or_opt_update = 0
             
             else:
                 # In this case the search didn't improved the model
                 # We are one validation closer to do early stopping
                 self.validations_without_improvement = self.validations_without_improvement + 1
+                self.validations_without_improvement_or_opt_update = self.validations_without_improvement_or_opt_update + 1
+                
 
             logger.info(f"Consecutive validations without improvement: {self.validations_without_improvement}")
+            logger.info(f"Consecutive validations without improvement or optimizer update: {self.validations_without_improvement_or_opt_update}")
             logger.info('Evaluating and saving done.')
             #self.info_mem(self.step)
 
@@ -669,8 +677,9 @@ class Trainer:
     def check_update_optimizer(self):
 
         # Update optimizer if neccesary
-        if self.validations_without_improvement > 0 and self.params.update_optimizer_every > 0 \
-            and self.validations_without_improvement % self.params.update_optimizer_every == 0:
+        if self.validations_without_improvement > 0 and self.validations_without_improvement_or_opt_update > 0\
+            and self.params.update_optimizer_every > 0 \
+            and self.validations_without_improvement_or_opt_update % self.params.update_optimizer_every == 0:
 
             if self.params.optimizer == 'sgd' or self.params.optimizer == 'adam':
 
@@ -683,6 +692,9 @@ class Trainer:
                     logger.info(f"New learning rate: {param_group['lr']}")
                 
                 logger.info(f"Optimizer updated.")
+
+            # We reset validations_without_improvement_or_opt_update since we updated the optimizer
+            self.validations_without_improvement_or_opt_update = 0
 
         # Calculate actual learning rate
         # HACK only taking one param group lr as the overall lr (our case has only one param group)
