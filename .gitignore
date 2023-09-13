@@ -1,9 +1,9 @@
 .ipynb_checkpoints/
 __pycache__/
-augmentation_experiments/
-datasets/
-/feature_extractor/
-improvement_experiments/
+0_augmentation_experiments/
+0_ocean_experiments/
+0_improvement_experiments/
+feature_extractor/
 labels/
 logs/
 metadata/

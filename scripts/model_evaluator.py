@@ -500,14 +500,15 @@ class ArgsParser:
             help = 'Name of the log file.',
             )
 
-        self.parser.add_argument(
-            '--normalization', 
-            type = str, 
-            default = MODEL_EVALUATOR_DEFAULT_SETTINGS['normalization'], 
-            choices = ['cmn', 'cmvn'],
-            help = 'Type of normalization applied to the features. \
-                It can be Cepstral Mean Normalization or Cepstral Mean and Variance Normalization',
-            )
+        # TODO check that evaluation automatically uses the same normalization that was used at training the model
+        #self.parser.add_argument(
+        #    '--normalization', 
+        #    type = str, 
+        #    default = MODEL_EVALUATOR_DEFAULT_SETTINGS['normalization'], 
+        #    choices = ['cmn', 'cmvn'],
+        #    help = 'Type of normalization applied to the features. \
+        #        It can be Cepstral Mean Normalization or Cepstral Mean and Variance Normalization',
+        #    )
 
         self.parser.add_argument(
             '--evaluation_type', 

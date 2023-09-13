@@ -6,22 +6,22 @@
 #SBATCH --mem=32G      					# Max CPU Memory
 #SBATCH --job-name=labels_generator
 python scripts/labels_generator.py \
-	'/home/usuaris/veussd/federico.costa/datasets/tiny/dev/22_12_02_21_20_39_3gq59pny_iconic-totem-7/' \
-	--train_sc_labels_dump_file_folder './labels/improvements_tests/train/' \
-	--train_sc_labels_dump_file_name 'sc_labels.ndx' \
-	--valid_sc_labels_dump_file_folder './labels/improvements_tests/valid/' \
-	--valid_sc_labels_dump_file_name 'sc_labels.ndx' \
-	--valid_sv_impostors_labels_dump_file_folder './labels/improvements_tests/valid/' \
-	--valid_sv_impostors_labels_dump_file_name 'sv_impostors.ndx' \
-	--valid_sv_clients_labels_dump_file_folder './labels/improvements_tests/valid/' \
-	--valid_sv_clients_labels_dump_file_name 'sv_clients.ndx' \
-	--train_speakers_pctg 0.1 \
-	--no-random_split \
+	'/home/usuaris/veussd/federico.costa/datasets/voxceleb_2/dev/22_12_05_21_59_21_f0yycx91_azure-pine-7/' \
+	--train_sc_labels_dump_file_folder './labels/train/voxceleb_2/' \
+	--train_sc_labels_dump_file_name 'sc_labels_hard_reduced.ndx' \
+	--valid_sc_labels_dump_file_folder './labels/valid/voxceleb_2/' \
+	--valid_sc_labels_dump_file_name 'sc_labels_hard_reduced.ndx' \
+	--valid_sv_impostors_labels_dump_file_folder './labels/valid/voxceleb_2/' \
+	--valid_sv_impostors_labels_dump_file_name 'sv_impostors_hard_reduced.ndx' \
+	--valid_sv_clients_labels_dump_file_folder './labels/valid/voxceleb_2/' \
+	--valid_sv_clients_labels_dump_file_name 'sv_clients_hard_reduced.ndx' \
+	--train_speakers_pctg 0.995 \
+	--random_split \
 	--train_sc_lines_max -1 \
 	--valid_sc_lines_max -1 \
-	--valid_sv_clients_lines_max 10 \
-	--valid_sv_impostors_lines_max 10 \
-	--no-sv_hard_pairs \
-	--no-sv_reduced_pairs \
-	--metadata_file_path './metadata/vox1_meta_cleaned.csv' \
-	> logs/console_output/labels_generator/console_output.log 2>&1
+	--valid_sv_clients_lines_max 20000 \
+	--valid_sv_impostors_lines_max 20000 \
+	--sv_hard_pairs \
+	--sv_reduced_pairs \
+	--metadata_file_path './metadata/vox2_meta_cleaned.csv' \
+	> logs/console_output/labels_generator/console_output_hard_reduced.log 2>&1
