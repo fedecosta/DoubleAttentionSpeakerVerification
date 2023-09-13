@@ -1,35 +1,26 @@
+# Imports
+# ---------------------------------------------------------------------
+import os
 import torch
 from torch.nn import functional as F
 import numpy as np
 import datetime
 import psutil
+# ---------------------------------------------------------------------
 
+# Utils
+# ---------------------------------------------------------------------
+def score(SC, th, rate):
 
-def Score(SC, th, rate):
+     SC = np.array(SC)
 
-    score_count = 0.0
-    for sc in SC:
-        if rate == 'FAR':
-            if float(sc) >= float(th):
-                score_count += 1
-        elif rate == 'FRR':
-            if float(sc) < float(th):
-                score_count += 1
+     cond = SC >= th
+     if rate == 'FAR':
+         score_count = sum(cond)
+     else:
+         score_count = sum(cond == False)
 
-    return round(score_count * 100 / float(len(SC)), 4)
-
-
-def Score_2(SC, th, rate):
-
-    SC = np.array(SC)
-
-    cond = SC >= th
-    if rate == 'FAR':
-        score_count = sum(cond)
-    else:
-        score_count = sum(cond == False)
-
-    return round(score_count * 100 / float(len(SC)), 4)
+     return round(score_count * 100 / float(len(SC)), 4)
 
 
 def scoreCosineDistance(emb1, emb2):
@@ -60,18 +51,6 @@ def chkptsave(opt, model, optimizer, epoch, step, start_datetime):
     checkpoint['end_datetime'] = end_datetime
 
     torch.save(checkpoint,'{}/{}_{}.chkpt'.format(opt.out_dir, opt.model_name, step))
-
-
-def Accuracy(pred, labels):
-
-    acc = 0.0
-    num_pred = pred.size()[0]
-    pred = torch.max(pred, 1)[1]
-    for idx in range(num_pred):
-        if pred[idx].item() == labels[idx].item():
-            acc += 1
-
-    return acc/num_pred
 
 
 def get_number_of_speakers(labels_file_path):
@@ -109,27 +88,6 @@ def generate_model_name(params, start_datetime, wandb_run_id, wandb_run_name):
     return model_name
 
 
-def calculate_EER(clients_similarities, impostors_similarities):
-
-    # Given clients and impostors similarities, calculate EER
-
-    thresholds = np.arange(-1, 1, 0.01)
-    FRR, FAR = np.zeros(len(thresholds)), np.zeros(len(thresholds))
-    for idx, th in enumerate(thresholds):
-        FRR[idx] = Score(clients_similarities, th, 'FRR')
-        FAR[idx] = Score(impostors_similarities, th, 'FAR')
-
-    EER_Idx = np.argwhere(np.diff(np.sign(FAR - FRR)) != 0).reshape(-1)
-    if len(EER_Idx) > 0:
-        if len(EER_Idx) > 1:
-            EER_Idx = EER_Idx[0]
-        EER = round((FAR[int(EER_Idx)] + FRR[int(EER_Idx)]) / 2, 4)
-    else:
-        EER = 50.00
-
-    return EER
-
-
 def get_memory_info(cpu = True, gpu = True):
 
     cpu_available_pctg, gpu_free = None, None
@@ -151,9 +109,119 @@ def get_memory_info(cpu = True, gpu = True):
 
     return cpu_available_pctg, gpu_free
 
+
+def format_sc_labels(labels_path, prepend_directories = None):
     
+    '''Format Speaker Classification type labels.'''
+
+    # Expected labels line input format: /speaker/interview/file speaker_label -1
+    # prepend_directories must be a list of potential directory(s) to prepend
+
+    # Read the paths of the audios and their labels
+    with open(labels_path, 'r') as data_labels_file:
+        labels_lines = data_labels_file.readlines()
+
+    # Format labels lines
+    formatted_labels_lines = []
+    for labels_line in labels_lines:
+
+        # If labels are of the form /speaker/interview/file we need to remove the first "/" to join paths
+        if labels_line[0] == "/":
+            labels_line = labels_line[1:]
+
+        # Remove the file extension (if has) and add the pickle extension to the file path
+        file_path = labels_line.split(" ")[0]
+        rest_of_line = labels_line.split(" ")[1:]
+        if len(file_path.split(".")) > 1:
+
+            file_path = '.'.join(file_path.split(".")[:-1])
+            file_path = f"{file_path}.pickle"
+
+        # Prepend optional additional directory to the labels paths (but first checks if file exists)
+        if prepend_directories is not None:
+            data_founded = False
+            for dir in prepend_directories:
+                if os.path.exists(os.path.join(dir, file_path)):
+                    file_path = os.path.join(dir, file_path)
+                    data_founded = True
+                    break
+            assert data_founded, f"{dir} {file_path} not founded."
+        else:
+            if not os.path.exists(file_path):
+                assert data_founded, f"{file_path} not founded."
+
+        labels_line = " ".join([file_path] + rest_of_line)
+        
+        formatted_labels_lines.append(labels_line)
+
+    return formatted_labels_lines
 
 
+def format_sv_labels(labels_path, prepend_directories = None):
+
+    '''Format Speaker Verification type labels.'''
+
+    # Expected labels line input format: /speaker_1/interview_/file /speaker_2/interview_/file
+
+    # Read the paths of the audios and their labels
+    with open(labels_path, 'r') as data_labels_file:
+        labels_lines = data_labels_file.readlines()
+
+    # Format labels lines
+    formatted_labels_lines = []
+    for labels_line in labels_lines:
+
+        speaker_1 = labels_line.split(" ")[0].strip()
+        speaker_2 = labels_line.split(" ")[1].strip()
+
+        # If labels are of the form /speaker/interview/file we need to remove the first "/" to join paths
+        if speaker_1[0] == "/":
+            speaker_1 = speaker_1[1:]
+        if speaker_2[0] == "/":
+            speaker_2 = speaker_2[1:]
+
+        # Remove the file extension (if has) and add the pickle extension to the file path
+        if len(speaker_1.split(".")) > 1:
+            speaker_1 = '.'.join(speaker_1.split(".")[:-1]) 
+        if len(speaker_2.split(".")) > 1:
+            speaker_2 = '.'.join(speaker_2.split(".")[:-1]) 
+        
+        # Add the pickle extension
+        speaker_1 = f"{speaker_1}.pickle"
+        speaker_2 = f"{speaker_2}.pickle"
+
+        # Prepend optional additional directory to the labels paths (but first checks if file exists)
+        if prepend_directories is not None:
+            data_founded = False
+            for dir in prepend_directories:
+                if os.path.exists(os.path.join(dir, speaker_1)):
+                    speaker_1 = os.path.join(dir, speaker_1)
+                    data_founded = True
+                    break
+            assert data_founded, f"{speaker_1} not founded."
+
+            data_founded = False
+            for dir in prepend_directories:
+                if os.path.exists(os.path.join(dir, speaker_2)):
+                    speaker_2 = os.path.join(dir, speaker_2)
+                    data_founded = True
+                    break
+            assert data_founded, f"{speaker_2} not founded."
+        else:
+            if not os.path.exists(speaker_1):
+                assert data_founded, f"{speaker_1} not founded."
+            if not os.path.exists(speaker_2):
+                assert data_founded, f"{speaker_2} not founded."
+
+        labels_line = f"{speaker_1} {speaker_2}"
+        
+        formatted_labels_lines.append(labels_line)
+
+    return formatted_labels_lines
+# ---------------------------------------------------------------------
+
+# Unnused functions
+# ---------------------------------------------------------------------
 #def normalize_features(self, features):
 #
 #    # Used when getting embeddings
@@ -163,5 +231,19 @@ def get_memory_info(cpu = True, gpu = True):
 #    norm_features = norm_features - np.mean(norm_features, axis = 0)
 #    
 #    return norm_features
+
+
+# def Score(SC, th, rate):
+#
+#     score_count = 0.0
+#     for sc in SC:
+#         if rate == 'FAR':
+#             if float(sc) >= float(th):
+#                 score_count += 1
+#         elif rate == 'FRR':
+#             if float(sc) < float(th):
+#                 score_count += 1
+#
+#     return round(score_count * 100 / float(len(SC)), 4)
 
 

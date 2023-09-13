@@ -79,20 +79,13 @@ def normalize_features(features, normalization = 'cmn'):
         return features
 
 
-class Dataset(data.Dataset):
+class TrainDataset(data.Dataset):
 
     def __init__(self, utterances_paths, parameters):
         
         self.utterances_paths = utterances_paths
         self.parameters = parameters
         self.num_samples = len(utterances_paths)
-
-
-    def __len__(self):
-        
-        # Mandatory torch method
-
-        return self.num_samples
 
 
     def normalize(self, features):
@@ -159,16 +152,23 @@ class Dataset(data.Dataset):
         return features, labels
 
 
+    def __len__(self):
+        
+        # Mandatory torch method
+
+        return self.num_samples
+
+
 class TestDataset(data.Dataset):
 
-    def __init__(self, clients_utterances_paths, impostors_utterances_paths, train_parameters, input_parameters):
+    def __init__(self, clients_utterances_paths, impostors_utterances_paths, train_parameters, random_crop_frames, evaluation_type):
 
         self.clients_utterances_paths = clients_utterances_paths
         self.impostors_utterances_paths = impostors_utterances_paths
         self.parameters = train_parameters
-        self.input_parameters = input_parameters
+        self.random_crop_frames = random_crop_frames
+        self.evaluation_type = evaluation_type
         self.format_input_paths()
-        #self.load_utterances_paths()
         self.num_samples = len(self.formatted_utterances_paths)
 
 
@@ -178,26 +178,6 @@ class TestDataset(data.Dataset):
         formatted_clients = [f"{trial} 1" for trial in self.clients_utterances_paths]
         formatted_impostors = [f"{trial} 0" for trial in self.impostors_utterances_paths]
         self.formatted_utterances_paths = formatted_clients + formatted_impostors
-
-
-    def load_utterances_paths(self):
-
-        # Read the paths of the clients audios
-        with open(self.input_parameters.test_clients, 'r') as clients_file:
-            self.clients_utterances_paths = clients_file.readlines()
-        
-        # Read the paths of the impostors audios
-        with open(self.input_parameters.test_impostors, 'r') as impostors_file:
-            self.impostors_utterances_paths = impostors_file.readlines()
-
-        self.format_input_paths()
-
-    
-    def __len__(self):
-        
-        # Mandatory torch method
-
-        return self.num_samples
 
 
     def normalize(self, features):
@@ -214,10 +194,10 @@ class TestDataset(data.Dataset):
         file_frames = features.shape[0]
         
         # Get a random start point
-        index = randint(0, max(0, file_frames - self.input_parameters.random_crop_frames - 1))
+        index = randint(0, max(0, file_frames - self.random_crop_frames - 1))
 
         # Generate the index slicing
-        a = np.array(range(min(file_frames, int(self.input_parameters.random_crop_frames)))) + index
+        a = np.array(range(min(file_frames, int(self.random_crop_frames)))) + index
         
         # Slice the spectrogram
         sliced_spectrogram = features[a,:]
@@ -241,27 +221,12 @@ class TestDataset(data.Dataset):
         
         features = self.normalize(features)
 
-        if self.input_parameters.evaluation_type == "random_crop":
+        if self.evaluation_type == "random_crop":
             features = self.sample_spectogram_crop(features)
-        elif self.input_parameters.evaluation_type == "total_length":
-            self.input_parameters.random_crop_size = 0
+        elif self.evaluation_type == "total_length":
+            self.random_crop_size = 0
     
         return features   
-
-
-    def generate_path(self, directories, partial_path):
-
-        data_founded = False
-        partial_path = f"{partial_path}.pickle"
-        for dir in directories:
-            complete_utterance_path = os.path.join(dir, partial_path)
-            if os.path.exists(complete_utterance_path):
-                data_founded = True
-                break
-
-        assert data_founded, f"{complete_utterance_path} not founded."
-
-        return complete_utterance_path
 
 
     def __getitem__(self, index):
@@ -271,13 +236,11 @@ class TestDataset(data.Dataset):
 
         # Each line of the dataset is like: speaker_1_path speaker_2_path label \n
         utterance_tuple = self.formatted_utterances_paths[index].strip().replace('\n', '').split(' ')
-
-        #speaker_1_utterance_path = self.generate_path(self.input_parameters.data_dir, utterance_tuple[0])
-        #speaker_2_utterance_path = self.generate_path(self.input_parameters.data_dir, utterance_tuple[1])
         speaker_1_utterance_path = utterance_tuple[0]
         speaker_2_utterance_path = utterance_tuple[1]
 
         utterance_label = int(utterance_tuple[2])
+
         speaker_1_features = self.get_feature_vector(speaker_1_utterance_path)
         speaker_2_features = self.get_feature_vector(speaker_2_utterance_path)
 
@@ -290,3 +253,10 @@ class TestDataset(data.Dataset):
             torch.from_numpy(speaker_2_features), 
             utterance_label,
             )
+
+
+    def __len__(self):
+        
+        # Mandatory torch method
+
+        return self.num_samples

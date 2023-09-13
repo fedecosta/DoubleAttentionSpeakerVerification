@@ -19,7 +19,7 @@ python scripts/train.py \
 	--print_training_info_every 100 \
 	--early_stopping 0 \
 	--update_optimizer_every 0 \
-	--normalization 'cmn' \
+	--normalization 'full' \
 	--model_name_prefix 'vgg_tsa_ap_fc' \
 	--embedding_size 400 \
 	--front_end 'VGGNL' \
@@ -28,8 +28,8 @@ python scripts/train.py \
 	--pooling_heads_number 0 \
 	--no-pooling_positional_encoding \
 	--transformer_n_blocks 2 \
-	--transformer_expansion_coef 2 \
+	--transformer_expansion_coef 4 \
 	--transformer_attention_type 'SelfAttention' \
-	--transformer_drop_out 0.0 \
+	--transformer_drop_out 0.1 \
 	--bottleneck_drop_out 0.0 \
 	> logs/console_output/train/3_vgg_tsa_ap_fc.log 2>&1

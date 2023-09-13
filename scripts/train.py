@@ -1,3 +1,5 @@
+# Imports
+# ---------------------------------------------------------------------
 import argparse
 import os
 import numpy as np
@@ -11,11 +13,16 @@ from torch.utils.data import DataLoader
 from torch import optim
 from torchsummary import summary
 
-from data import Dataset, normalize_features, feature_reader
+from data import TrainDataset, TestDataset
 from model import SpeakerClassifier
-from utils import get_number_of_speakers, generate_model_name, Accuracy, scoreCosineDistance, Score, get_memory_info
+from utils import get_number_of_speakers, generate_model_name, get_memory_info, format_sc_labels, format_sv_labels
+from model_evaluator import calculate_EER, calculate_accuracy, calculate_similarities
 from settings import TRAIN_DEFAULT_SETTINGS
+# ---------------------------------------------------------------------
 
+
+# Logging
+# ---------------------------------------------------------------------
 # Set logging config
 import logging
 
@@ -33,12 +40,19 @@ logger_stream_handler.setFormatter(logger_formatter)
 
 # Add handlers
 logger.addHandler(logger_stream_handler)
+# ---------------------------------------------------------------------
 
+
+# Wandb config
+# ---------------------------------------------------------------------
 # Init a wandb project
 import wandb
-run = wandb.init(project = "speaker_verification_models", job_type = "training")
+run = wandb.init(project = "speaker_verification_models_2", job_type = "training", entity = "upc-veu")
+# ---------------------------------------------------------------------
 
 
+# Classes
+# ---------------------------------------------------------------------
 class Trainer:
 
     def __init__(self, input_params):
@@ -57,17 +71,68 @@ class Trainer:
 
 
     # Init methods
+    # ---------------------------------------------------------------------
+    def set_device(self):
+
+        '''Set torch device.'''
+        
+        logger.info('Setting device...')
+
+        # Set device to GPU or CPU depending on what is available
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        
+        logger.info(f"Running on {self.device} device.")
+        
+        self.gpus = torch.cuda.device_count()
+        logger.info(f"{self.gpus} GPUs available.")
+        
+        logger.info("Device setted.")
+    
+
+    def set_random_seed(self):
+
+        '''Set the random seed for experimental reproduction.'''
+
+        logger.info("Setting random seed...")
+
+        torch.manual_seed(1234)
+        torch.cuda.manual_seed(1234)
+        np.random.seed(1234)
+        random.seed(1234)
+
+        logger.info("Random seed setted.")
 
 
-    def info_mem(self, step = None):
-        cpu_available_pctg, gpu_free = get_memory_info()
-        if step is not None:
-            logger.info(f"Step {self.step}: CPU available {cpu_available_pctg:.2f}% - GPU free {gpu_free}")
-        else:
-            logger.info(f"CPU available {cpu_available_pctg:.2f}% - GPU free {gpu_free}")
+    def load_checkpoint(self):
+
+        '''Load trained model checkpoint to continue its training.'''
+
+        # Load checkpoint
+        checkpoint_folder = self.params.checkpoint_file_folder
+        checkpoint_file_name = self.params.checkpoint_file_name
+        checkpoint_path = os.path.join(checkpoint_folder, checkpoint_file_name)
+
+        logger.info(f"Loading checkpoint from {checkpoint_path}")
+
+        self.checkpoint = torch.load(checkpoint_path, map_location = self.device)
+
+        logger.info(f"Checkpoint loaded.")
+
+
+    def load_checkpoint_params(self):
+
+        '''Load checkpoint original parameters.'''
+
+        logger.info(f"Loading checkpoint params...")
+
+        self.params = self.checkpoint['settings']
+
+        logger.info(f"Checkpoint params loaded.")
 
 
     def set_params(self, input_params):
+
+        '''Set Trainer class parameters.'''
 
         logger.info("Setting params...")
 
@@ -91,32 +156,9 @@ class Trainer:
         logger.info("params setted.")
 
 
-    def load_checkpoint(self):
-
-        # Load checkpoint
-        checkpoint_folder = self.params.checkpoint_file_folder
-        checkpoint_file_name = self.params.checkpoint_file_name
-        checkpoint_path = os.path.join(checkpoint_folder, checkpoint_file_name)
-
-        logger.info(f"Loading checkpoint from {checkpoint_path}")
-
-        self.checkpoint = torch.load(checkpoint_path, map_location = self.device)
-
-        logger.info(f"Checkpoint loaded.")
-
-
-    def load_checkpoint_params(self):
-
-        logger.info(f"Loading checkpoint params...")
-
-        self.params = self.checkpoint['settings']
-
-        logger.info(f"Checkpoint params loaded.")
-
-
     def set_log_file_handler(self):
 
-        # Set a logging file handler
+        '''Set a logging file handler.'''
 
         if not os.path.exists(self.params.log_file_folder):
             os.makedirs(self.params.log_file_folder)
@@ -129,34 +171,33 @@ class Trainer:
 
         logger.addHandler(logger_file_handler)
 
-
-    def set_device(self):
-        
-        logger.info('Setting device...')
-
-        # Set device to GPU or CPU depending on what is available
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        
-        logger.info(f"Running on {self.device} device.")
-        
-        self.gpus = torch.cuda.device_count()
-        logger.info(f"{self.gpus} GPUs available.")
-        
-        logger.info("Device setted.")
-
     
-    def set_random_seed(self):
+    def format_train_labels(self):
 
-        logger.info("Setting random seed...")
+        self.train_sc_labels_lines = format_sc_labels(
+            labels_path = self.params.train_labels_path,
+            prepend_directories = self.params.train_data_dir,
+        )
 
-        # Set the seed for experimental reproduction
-        torch.manual_seed(1234)
-        torch.cuda.manual_seed(1234)
-        np.random.seed(1234)
-        random.seed(1234)
 
-        logger.info("Random seed setted.")
+    def format_valid_labels(self):
 
+        self.valid_sv_clients_labels_lines = format_sv_labels(
+            labels_path = self.params.valid_clients_path,
+            prepend_directories = self.params.valid_data_dir,
+        )
+
+        self.valid_sv_impostors_labels_lines = format_sv_labels(
+            labels_path = self.params.valid_impostors_path,
+            prepend_directories = self.params.valid_data_dir,
+        )
+
+
+    def format_labels(self):
+
+        self.format_train_labels()
+        self.format_valid_labels()
+        
 
     def set_random_crop_size(self, pickle_path):
 
@@ -191,66 +232,20 @@ class Trainer:
         logger.info(f'Random crop size calculated: {self.params.random_crop_frames} frames (eq to {self.params.random_crop_secs} seconds).')
         
 
-    def format_train_labels(self):
+    def load_training_data(self):
 
-        # Read the paths of the train audios and their labels
-        with open(self.params.train_labels_path, 'r') as data_labels_file:
-            train_labels = data_labels_file.readlines()
-
-        # If train labels are of the form /speaker/interview/file we need to remove the first "/" to join paths
-        self.train_labels = []
-        for train_label in train_labels:
-            if train_label[0] == "/":
-                train_label = train_label[1:]
-            self.train_labels.append(train_label)
-        
-        # We prepend train_data_dir to the paths
-        self.train_labels = [os.path.join(self.params.train_data_dir, train_label) for train_label in self.train_labels]
-
-
-    def format_valid_labels(self, labels_path):
-
-        # Read the paths of the train audios and their labels
-        with open(labels_path, 'r') as data_labels_file:
-            valid_labels = data_labels_file.readlines()
-
-        # If valid labels are of the form /speaker/interview/file /speaker/interview/file we need to remove the first "/" of each case to join paths
-        final_valid_labels = []
-        for valid_label in valid_labels:
-            speaker_1 = valid_label.split(" ")[0]
-            speaker_2 = valid_label.split(" ")[1]
-            if speaker_1[0] == "/":
-                speaker_1 = speaker_1[1:]
-            if speaker_2[0] == "/":
-                speaker_2 = speaker_2[1:]
-            speaker_1 = os.path.join(self.params.valid_data_dir, speaker_1)
-            speaker_2 = os.path.join(self.params.valid_data_dir, speaker_2)
-            
-            final_valid_labels.append(f"{speaker_1} {speaker_2}")
-    
-        return final_valid_labels
-
-
-    def format_labels(self):
-
-        self.format_train_labels()
-        self.valid_clients_labels = self.format_valid_labels(self.params.valid_clients_path)
-        self.valid_impostors_labels = self.format_valid_labels(self.params.valid_impostors_path)
-        
-
-    def load_data(self):
-            
-        logger.info(f'Loading data and labels from {self.params.train_labels_path}')
-
-        self.format_labels()
+        logger.info(f'Loading training data with labels from {self.params.train_labels_path}')
 
         # Get one sample to calculate the random crop size in frames for all the dataset
-        representative_sample = self.train_labels[0]
+        representative_sample = self.train_sc_labels_lines[0]
         pickle_path = representative_sample.replace('\n', '').split(' ')[0]
         self.set_random_crop_size(pickle_path)
 
         # Instanciate a Dataset class
-        dataset = Dataset(self.train_labels, self.params)
+        dataset = TrainDataset(
+            self.train_sc_labels_lines, 
+            self.params,
+            )
         
         # Load DataLoader params
         data_loader_parameters = {
@@ -270,6 +265,48 @@ class Trainer:
 
         logger.info("Data and labels loaded.")
 
+
+    def set_evaluation_batch_size(self):
+        # If evaluation_type is total_length, batch size must be 1 because we will have different-size samples
+        if self.params.evaluation_type == "total_length":
+            self.params.evaluation_batch_size = 1
+
+
+    def load_validation_data(self):
+
+        logger.info(f'Loading data from {self.params.valid_clients_path} and {self.params.valid_impostors_path}')
+        
+        # Instanciate a Dataset class
+        dataset = TestDataset(
+            clients_utterances_paths = self.valid_sv_clients_labels_lines,
+            impostors_utterances_paths = self.valid_sv_impostors_labels_lines,
+            train_parameters = self.params, 
+            random_crop_frames = self.params.random_crop_frames, # TODO we are assuming that random_crop_frames is the same with the training and validation data
+            evaluation_type = self.params.evaluation_type,
+            )
+
+        # If evaluation_type is total_length, batch size must be 1 because we will have different-size samples
+        self.set_evaluation_batch_size()
+        
+        # Instanciate a DataLoader class
+        self.evaluating_generator = DataLoader(
+            dataset, 
+            batch_size = self.params.evaluation_batch_size,
+            shuffle = False,
+            num_workers = 1, # TODO set this as a input parameter
+            )
+
+        self.evaluation_total_batches = len(self.evaluating_generator)
+
+        logger.info("Data and labels loaded.")
+
+
+    def load_data(self):
+
+        self.format_labels()
+        self.load_training_data()
+        self.load_validation_data()
+            
 
     def load_checkpoint_network(self):
 
@@ -374,15 +411,16 @@ class Trainer:
             # (even if we may already trained with some batches in that epoch in the last training from the checkpoint).
             self.starting_epoch = loaded_training_variables['epoch']
             self.step = loaded_training_variables['step'] + 1 
-            self.validations_without_improvement = loaded_training_variables['validations_without_improvement'] 
+            self.validations_without_improvement = loaded_training_variables['validations_without_improvement']
+            self.validations_without_improvement_or_opt_update = loaded_training_variables['validations_without_improvement_or_opt_update'] 
             self.early_stopping_flag = False
             self.train_loss = loaded_training_variables['train_loss'] 
-            self.train_eval_metric = loaded_training_variables['train_eval_metric'] 
-            self.valid_eval_metric = loaded_training_variables['valid_eval_metric'] 
+            self.train_sc_eval_metric = loaded_training_variables['train_sc_eval_metric'] 
+            self.valid_sv_eval_metric = loaded_training_variables['valid_sv_eval_metric'] 
             self.best_train_loss = loaded_training_variables['best_train_loss'] 
             self.best_model_train_loss = loaded_training_variables['best_model_train_loss'] 
-            self.best_model_train_eval_metric = loaded_training_variables['best_model_train_eval_metric'] 
-            self.best_model_valid_eval_metric = loaded_training_variables['best_model_valid_eval_metric']
+            self.best_model_train_sc_eval_metric = loaded_training_variables['best_model_train_sc_eval_metric'] 
+            self.best_model_valid_sv_eval_metric = loaded_training_variables['best_model_valid_sv_eval_metric']
             
 
             logger.info(f"Checkpoint training variables loaded.") 
@@ -390,23 +428,25 @@ class Trainer:
             logger.info(f"Epoch {self.starting_epoch}")
             logger.info(f"Step {self.step}")
             logger.info(f"validations_without_improvement {self.validations_without_improvement}")
+            logger.info(f"validations_without_improvement_or_opt_update {self.validations_without_improvement_or_opt_update}")
             logger.info(f"Loss {self.train_loss:.3f}")
             logger.info(f"best_model_train_loss {self.best_model_train_loss:.3f}")
-            logger.info(f"best_model_train_eval_metric {self.best_model_train_eval_metric:.3f}")
-            logger.info(f"best_model_valid_eval_metric {self.best_model_valid_eval_metric:.3f}")
+            logger.info(f"best_model_train_sc_eval_metric {self.best_model_train_sc_eval_metric:.3f}")
+            logger.info(f"best_model_valid_sv_eval_metric {self.best_model_valid_sv_eval_metric:.3f}")
 
         else:
             self.starting_epoch = 0
             self.step = 0 
             self.validations_without_improvement = 0 
+            self.validations_without_improvement_or_opt_update = 0 
             self.early_stopping_flag = False
             self.train_loss = None
-            self.train_eval_metric = 0.0
-            self.valid_eval_metric = 50.0
+            self.train_sc_eval_metric = 0.0
+            self.valid_sv_eval_metric = 50.0
             self.best_train_loss = np.inf
             self.best_model_train_loss = np.inf
-            self.best_model_train_eval_metric = 0.0
-            self.best_model_valid_eval_metric = 50.0
+            self.best_model_train_sc_eval_metric = 0.0
+            self.best_model_valid_sv_eval_metric = 50.0
         
         self.total_batches = len(self.training_generator)
 
@@ -421,7 +461,7 @@ class Trainer:
         # 2 - Save the feature extraction configuration params
 
         # Get one sample to get the feature extraction configuration for all the dataset
-        representative_sample = self.train_labels[0]
+        representative_sample = self.train_sc_labels_lines[0]
         pickle_path = representative_sample.replace('\n', '').split(' ')[0]
 
         # Load the file
@@ -445,125 +485,78 @@ class Trainer:
         del representative_sample
         del features_dict
         del dev_features_settings
-
+    # ---------------------------------------------------------------------
 
     # Training methods
-
+    # ---------------------------------------------------------------------
 
     def evaluate_training(self, prediction, label):
 
-        logger.info(f"Evaluating training...")
+        logger.info(f"Evaluating training Speaker Classification task...")
 
-        # Switch torch to evaluation mode
-        self.net.eval()
-        accuracy = Accuracy(prediction, label)
-        
-        self.train_eval_metric = accuracy
+        with torch.no_grad():
+
+            # Switch torch to evaluation mode
+            self.net.eval()
+            accuracy = calculate_accuracy(prediction, label)
+            
+            self.train_sc_eval_metric = accuracy
 
         # Return to torch training mode
         self.net.train()
 
-        logger.info(f"Training evaluated.")
+        logger.info(f"Training Speaker Classification task evaluated.")
         logger.info(f"Accuracy on training set: {accuracy:.3f}")
-        #self.info_mem(self.step)
-
-
-    def extractInputFromFeature(self, sline):
-
-        logger.debug(f"Using extractInputFromFeature on {sline}")
-
-        features1 = normalize_features(
-            feature_reader(sline[0]), 
-            normalization = self.params.normalization,
-            )
-        features2 = normalize_features(
-            feature_reader(sline[1]), 
-            normalization = self.params.normalization,
-            )
-
-        input1 = torch.FloatTensor(features1).to(self.device)
-        input2 = torch.FloatTensor(features2).to(self.device)
-        
-        logger.debug("extractInputFromFeature used")
-        
-        return input1.unsqueeze(0), input2.unsqueeze(0)
-
-
-    def extract_scores(self, trials):
-
-        logger.debug("Using extract_scores")
-
-        scores = []
-        for line in trials:
-            sline = line[:-1].split()
-
-            input1, input2 = self.extractInputFromFeature(sline)
-
-            if torch.cuda.device_count() > 1:
-                emb1, emb2 = self.net.module.get_embedding(input1), self.net.module.get_embedding(input2)
-            else:
-                emb1, emb2 = self.net.get_embedding(input1), self.net.get_embedding(input2)
-
-            dist = scoreCosineDistance(emb1, emb2)
-            scores.append(dist.item())
-
-        logger.debug("extract_scores used")
-        
-        return scores
-
-
-    def calculate_EER(self, CL, IM):
-
-        logger.debug("Using calculate_EER")
-
-        thresholds = np.arange(-1,1,0.01)
-        FRR, FAR = np.zeros(len(thresholds)), np.zeros(len(thresholds))
-        for idx,th in enumerate(thresholds):
-            FRR[idx] = Score(CL, th,'FRR')
-            FAR[idx] = Score(IM, th,'FAR')
-
-        EER_Idx = np.argwhere(np.diff(np.sign(FAR - FRR)) != 0).reshape(-1)
-        if len(EER_Idx)>0:
-            if len(EER_Idx)>1:
-                EER_Idx = EER_Idx[0]
-            EER = round((FAR[int(EER_Idx)] + FRR[int(EER_Idx)])/2,4)
-        else:
-            EER = 50.00
-
-        logger.debug("calculate_EER used")
-
-        return EER
 
 
     def evaluate_validation(self):
 
-        logger.info(f"Evaluating validation...")
+        logger.info(f"Evaluating validation Speaker Verification task...")
 
         with torch.no_grad():
 
             # Switch torch to evaluation mode
             self.net.eval()
 
-            # EER Validation score clients
-            CL = self.extract_scores(self.valid_clients_labels)
-            IM = self.extract_scores(self.valid_impostors_labels)
+            logger.info("Going to evaluate using these labels:")
+            logger.info(f"Clients: {self.params.valid_clients_path}")
+            logger.info(f"Impostors: {self.params.valid_impostors_path}")
+            logger.info(f"For each row in these labels where are using prefix {self.params.valid_data_dir}")
+
+            self.evaluation_clients_num = len(self.valid_sv_clients_labels_lines)
+            self.evaluation_impostors_num = len(self.valid_sv_impostors_labels_lines)
+
+            logger.info(f"{self.evaluation_clients_num} clients to evaluate.")
+            logger.info(f"{self.evaluation_impostors_num} impostors to evaluate.")
+
+            similarities = calculate_similarities(
+                logger_obj = logger, 
+                evaluation_total_batches = self.evaluation_total_batches, 
+                evaluating_generator = self.evaluating_generator, 
+                device = self.device, 
+                trained_net = self.net,
+                )
             
+            clients_similarities = [similarity for similarity, label in similarities if label == 1]
+            impostors_similarities = [similarity for similarity, label in similarities if label == 0]
+
             # Compute EER
-            EER = self.calculate_EER(CL, IM)
-            self.valid_eval_metric = EER
+            EER = calculate_EER(clients_similarities, impostors_similarities)
+            logger.info(f"Model evaluated, EER: {EER:.3f}")
+
+            self.valid_sv_eval_metric = EER
 
         # Return to training mode
         self.net.train()
 
+        logger.info(f"Validation Speaker Verification task evaluated.")
         logger.info(f"EER on validation set: {EER:.3f}")
-        logger.info(f"Validation evaluated.")
-        #self.info_mem(self.step)
 
 
     def evaluate(self, prediction, label):
 
         self.evaluate_training(prediction, label)
-        self.multiple_evaluate_validation()
+        #self.multiple_evaluate_validation()
         self.evaluate_validation()
         
 
@@ -575,8 +568,8 @@ class Trainer:
         
         model_results = {
             'best_model_train_loss' : self.best_model_train_loss,
-            'best_model_train_eval_metric' : self.best_model_train_eval_metric,
-            'best_model_valid_eval_metric' : self.best_model_valid_eval_metric,
+            'best_model_train_sc_eval_metric' : self.best_model_train_sc_eval_metric,
+            'best_model_valid_sv_eval_metric' : self.best_model_valid_sv_eval_metric,
         }
 
         training_variables = {
@@ -584,13 +577,14 @@ class Trainer:
             'batch_number' : self.batch_number,
             'step' : self.step,
             'validations_without_improvement' : self.validations_without_improvement,
+            'validations_without_improvement_or_opt_update' : self.validations_without_improvement_or_opt_update,
             'train_loss' : self.train_loss,
-            'train_eval_metric' : self.train_eval_metric,
-            'valid_eval_metric' : self.valid_eval_metric,
+            'train_sc_eval_metric' : self.train_sc_eval_metric,
+            'valid_sv_eval_metric' : self.valid_sv_eval_metric,
             'best_train_loss' : self.best_train_loss,
             'best_model_train_loss' : self.best_model_train_loss,
-            'best_model_train_eval_metric' : self.best_model_train_eval_metric,
-            'best_model_valid_eval_metric' : self.best_model_valid_eval_metric,
+            'best_model_train_sc_eval_metric' : self.best_model_train_sc_eval_metric,
+            'best_model_valid_sv_eval_metric' : self.best_model_valid_sv_eval_metric,
             'total_trainable_params' : self.total_trainable_params,
         }
         
@@ -648,49 +642,64 @@ class Trainer:
             self.evaluate(prediction, label)
 
             # Have we found a better model? (Better in validation metric).
-            if self.valid_eval_metric < self.best_model_valid_eval_metric:
+            if self.valid_sv_eval_metric < self.best_model_valid_sv_eval_metric:
 
                 logger.info('We found a better model!')
 
                 # Update best model evaluation metrics
                 self.best_model_train_loss = self.train_loss
-                self.best_model_train_eval_metric = self.train_eval_metric
-                self.best_model_valid_eval_metric = self.valid_eval_metric
+                self.best_model_train_sc_eval_metric = self.train_sc_eval_metric
+                self.best_model_valid_sv_eval_metric = self.valid_sv_eval_metric
 
                 logger.info(f"Best model train loss: {self.best_model_train_loss:.3f}")
-                logger.info(f"Best model train evaluation metric: {self.best_model_train_eval_metric:.3f}")
-                logger.info(f"Best model validation evaluation metric: {self.best_model_valid_eval_metric:.3f}")
+                logger.info(f"Best model train evaluation metric: {self.best_model_train_sc_eval_metric:.3f}")
+                logger.info(f"Best model validation evaluation metric: {self.best_model_valid_sv_eval_metric:.3f}")
 
                 self.save_model() 
 
-                # Since we found and improvement, validations_without_improvement is reseted.
+                # Since we found and improvement, validations_without_improvement and validations_without_improvement_or_opt_update are reseted.
                 self.validations_without_improvement = 0
+                self.validations_without_improvement_or_opt_update = 0
             
             else:
                 # In this case the search didn't improved the model
                 # We are one validation closer to do early stopping
                 self.validations_without_improvement = self.validations_without_improvement + 1
+                self.validations_without_improvement_or_opt_update = self.validations_without_improvement_or_opt_update + 1
+                
 
             logger.info(f"Consecutive validations without improvement: {self.validations_without_improvement}")
+            logger.info(f"Consecutive validations without improvement or optimizer update: {self.validations_without_improvement_or_opt_update}")
             logger.info('Evaluating and saving done.')
             #self.info_mem(self.step)
 
 
     def check_update_optimizer(self):
 
-        if self.validations_without_improvement > 0 and self.params.update_optimizer_every > 0 \
-            and self.validations_without_improvement % self.params.update_optimizer_every == 0:
+        # Update optimizer if neccesary
+        if self.validations_without_improvement > 0 and self.validations_without_improvement_or_opt_update > 0\
+            and self.params.update_optimizer_every > 0 \
+            and self.validations_without_improvement_or_opt_update % self.params.update_optimizer_every == 0:
 
             if self.params.optimizer == 'sgd' or self.params.optimizer == 'adam':
 
                 logger.info(f"Updating optimizer...")
 
                 for param_group in self.optimizer.param_groups:
-                    param_group['lr'] = param_group['lr'] * 0.5
-                
+
+                    param_group['lr'] = param_group['lr'] * 0.5 # FIX hardcoded value  
+                    
+                    logger.info(f"New learning rate: {param_group['lr']}")
                 
                 logger.info(f"Optimizer updated.")
-                logger.info(f"New learning rate: {param_group['lr']}")
+
+            # We reset validations_without_improvement_or_opt_update since we updated the optimizer
+            self.validations_without_improvement_or_opt_update = 0
+
+        # Calculate actual learning rate
+        # HACK only taking one param group lr as the overall lr (our case has only one param group)
+        for param_group in self.optimizer.param_groups:
+            self.learning_rate = param_group['lr']             
 
 
     def check_early_stopping(self):
@@ -711,7 +720,7 @@ class Trainer:
             info_to_print = info_to_print + f"batch {self.batch_number} of {self.total_batches}, "
             info_to_print = info_to_print + f"step {self.step}, "
             info_to_print = info_to_print + f"Loss {self.train_loss:.3f}, "
-            info_to_print = info_to_print + f"Best EER {self.best_model_valid_eval_metric:.3f}..."
+            info_to_print = info_to_print + f"Best EER {self.best_model_valid_sv_eval_metric:.3f}..."
 
             logger.info(info_to_print)
             
@@ -765,12 +774,13 @@ class Trainer:
                     {
                         "epoch" : self.epoch,
                         "batch_number" : self.batch_number,
-                        "loss": self.train_loss,
-                        "train_eval_metric" : self.train_eval_metric,
-                        "valid_eval_metric" : self.valid_eval_metric,
+                        "loss" : self.train_loss,
+                        "learning_rate" : self.learning_rate,
+                        "train_sc_eval_metric" : self.train_sc_eval_metric,
+                        "valid_sv_eval_metric" : self.valid_sv_eval_metric,
                         'best_model_train_loss' : self.best_model_train_loss,
-                        'best_model_train_eval_metric' : self.best_model_train_eval_metric,
-                        'best_model_valid_eval_metric' : self.best_model_valid_eval_metric,
+                        'best_model_train_sc_eval_metric' : self.best_model_train_sc_eval_metric,
+                        'best_model_valid_sv_eval_metric' : self.best_model_valid_sv_eval_metric,
                     },
                     step = self.step
                     )
@@ -785,8 +795,8 @@ class Trainer:
         logger.info(f"-"*50)
         logger.info(f"Epoch {epoch} finished with:")
         logger.info(f"Loss {self.train_loss:.3f}")
-        logger.info(f"Best model training evaluation metric: {self.best_model_train_eval_metric:.3f}")
-        logger.info(f"Best model validation evaluation metric: {self.best_model_valid_eval_metric:.3f}")
+        logger.info(f"Best model training evaluation metric: {self.best_model_train_sc_eval_metric:.3f}")
+        logger.info(f"Best model validation evaluation metric: {self.best_model_valid_sv_eval_metric:.3f}")
         logger.info(f"-"*50)
 
     
@@ -802,7 +812,20 @@ class Trainer:
                 break
             
         logger.info('Training finished!')
-    
+    # ---------------------------------------------------------------------
+
+    # Other methods
+    # ---------------------------------------------------------------------
+    def info_mem(self, step = None):
+
+        '''Logs CPU and GPU free memory.'''
+        
+        cpu_available_pctg, gpu_free = get_memory_info()
+        if step is not None:
+            logger.info(f"Step {self.step}: CPU available {cpu_available_pctg:.2f}% - GPU free {gpu_free}")
+        else:
+            logger.info(f"CPU available {cpu_available_pctg:.2f}% - GPU free {gpu_free}")
+
 
     def delete_version_artifacts(self):
 
@@ -867,8 +890,8 @@ class Trainer:
             # Switch torch to evaluation mode
             self.net.eval()
 
-            clients_len = len(self.valid_clients_labels)
-            impostors_len = len(self.valid_impostors_labels)
+            clients_len = len(self.valid_sv_clients_labels_lines)
+            impostors_len = len(self.valid_sv_impostors_labels_lines)
 
             epochs, steps, total_clients_lens, total_impostors_lens, reduced_clients_lens, reduced_impostors_lens, eer_list = [], [], [], [], [], [], []
 
@@ -876,8 +899,8 @@ class Trainer:
 
                 logger.info(f"Evaluating with {int(percentage * 100)}% of clients and impostors...")
 
-                reduced_clients = random.sample(self.valid_clients_labels, int(percentage * clients_len))
-                reduced_impostors = random.sample(self.valid_impostors_labels, int(percentage * impostors_len))
+                reduced_clients = random.sample(self.valid_sv_clients_labels_lines, int(percentage * clients_len))
+                reduced_impostors = random.sample(self.valid_sv_impostors_labels_lines, int(percentage * impostors_len))
 
                 # EER Validation score clients
                 CL = self.extract_scores(reduced_clients)
@@ -912,12 +935,15 @@ class Trainer:
         self.net.train()
 
         logger.info(f"Multiple validation evaluated.")
+    # ---------------------------------------------------------------------
 
-
+    # Main
+    # ---------------------------------------------------------------------
     def main(self):
 
         self.train(self.starting_epoch, self.params.max_epochs)
         self.save_model_artifact()
+    #----------------------------------------------------------------------
 
 
 class ArgsParser:
@@ -939,6 +965,7 @@ class ArgsParser:
         # TODO complete all helps
         
         # Directory parameters
+        # ---------------------------------------------------------------------
 
         self.parser.add_argument(
             '--train_labels_path', 
@@ -949,6 +976,7 @@ class ArgsParser:
         
         self.parser.add_argument(
             '--train_data_dir', 
+            nargs = '+',
             type = str, 
             default = TRAIN_DEFAULT_SETTINGS['train_data_dir'],
             help = 'Optional additional directory to prepend to the train_labels_path paths.',
@@ -970,6 +998,7 @@ class ArgsParser:
 
         self.parser.add_argument(
             '--valid_data_dir', 
+            nargs = '+',
             type = str, 
             default = TRAIN_DEFAULT_SETTINGS['valid_data_dir'], 
             help = 'Optional additional directory to prepend to valid_clients and valid_impostors paths.',
@@ -988,9 +1017,10 @@ class ArgsParser:
             default = TRAIN_DEFAULT_SETTINGS['log_file_folder'],
             help = 'Name of folder that will contain the log file.',
             )
+        # ---------------------------------------------------------------------
 
         # Training Parameters
-
+        # ---------------------------------------------------------------------
         self.parser.add_argument(
             '--max_epochs',
             type = int,
@@ -1057,9 +1087,31 @@ class ArgsParser:
             type = str, 
             help = 'Name of the model checkpoint file. Mandatory if load_checkpoint is True.',
             )
+        # ---------------------------------------------------------------------
+
+        # Evaluation Parameters
+        # ---------------------------------------------------------------------
+        self.parser.add_argument(
+            '--evaluation_type', 
+            type = str, 
+            choices = ['random_crop', 'total_length'],
+            default = TRAIN_DEFAULT_SETTINGS['evaluation_type'], 
+            help = 'With random_crop the utterances are croped at random with random_crop_secs secs before doing the forward pass.\
+                In this case, samples are batched with batch_size.\
+                With total_length, full length audios are passed through the forward.\
+                In this case, samples are automatically batched with batch_size = 1, since they have different lengths.',
+            )
+
+        self.parser.add_argument(
+            '--evaluation_batch_size', 
+            type = int, 
+            default = TRAIN_DEFAULT_SETTINGS['evaluation_batch_size'],
+            help = "Size of evaluation batches. Automatically set to 1 if evaluation_type is total_length.",
+            )
+        # ---------------------------------------------------------------------
 
         # Data Parameters
-
+        # ---------------------------------------------------------------------
         self.parser.add_argument(
             '--n_mels', 
             type = int, 
@@ -1089,9 +1141,10 @@ class ArgsParser:
             default = TRAIN_DEFAULT_SETTINGS['num_workers'],
             help = 'num_workers to be used by the data loader.'
             )
-
+        # ---------------------------------------------------------------------
+        
         # Network Parameters
-
+        # ---------------------------------------------------------------------
         self.parser.add_argument(
             '--model_name_prefix', 
             type = str, 
@@ -1215,9 +1268,10 @@ class ArgsParser:
             default = TRAIN_DEFAULT_SETTINGS['bottleneck_drop_out'], 
             help = 'Dropout probability to use in each layer of the final fully connected bottleneck.'
             )
+        # ---------------------------------------------------------------------
 
         # AMSoftmax Config
-
+        # ---------------------------------------------------------------------
         self.parser.add_argument(
             '--scaling_factor', 
             type = float, 
@@ -1231,9 +1285,10 @@ class ArgsParser:
             default = TRAIN_DEFAULT_SETTINGS['margin_factor'],
             help = 'Margin factor of the AM-Softmax (referred as m in the AM-Softmax definition).'
             )
+        # ---------------------------------------------------------------------
 
         # Optimization arguments
-
+        # ---------------------------------------------------------------------
         self.parser.add_argument(
             '--optimizer', 
             type = str, 
@@ -1252,9 +1307,10 @@ class ArgsParser:
             type = float, 
             default = TRAIN_DEFAULT_SETTINGS['weight_decay'],
             )
+        # ---------------------------------------------------------------------
 
         # Verbosity and debug Parameters
-        
+        # ---------------------------------------------------------------------
         self.parser.add_argument(
             "--verbose", 
             action = argparse.BooleanOptionalAction,
@@ -1267,6 +1323,7 @@ class ArgsParser:
 
         self.add_parser_args()
         self.arguments = self.parser.parse_args()
+# --------------------------------------------------------------------- 
 
 
 if __name__=="__main__":
