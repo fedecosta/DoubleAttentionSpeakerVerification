@@ -150,7 +150,7 @@ class LabelsGenerator:
                     
                 # If it is a .pickle file, add the path to speakers_dict
                 for file_name in file_names:
-                    if file_name.split(".")[-1] == "pickle":     
+                    if file_name.split(".")[-1] in ("pickle", "wav"):     
                         # TODO maybe is better to write only the id.../....pickle part of the path           
                         #file_path = os.path.join(dir_path, file_name.replace(".pickle", ""))
                         file_path = os.path.join(dir_path, file_name)

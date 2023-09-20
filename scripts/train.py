@@ -57,10 +57,11 @@ class Trainer:
 
     def __init__(self, input_params):
 
+        self.params = input_params
         self.start_datetime = datetime.datetime.strftime(datetime.datetime.now(), '%y-%m-%d %H:%M:%S')
         self.set_device()
         self.set_random_seed()
-        self.set_params(input_params)
+        self.set_other_params(self.params)
         self.set_log_file_handler()
         self.load_data()
         self.load_network()
@@ -72,6 +73,7 @@ class Trainer:
 
     # Init methods
     # ---------------------------------------------------------------------
+    
     def set_device(self):
 
         '''Set torch device.'''
@@ -130,13 +132,12 @@ class Trainer:
         logger.info(f"Checkpoint params loaded.")
 
 
-    def set_params(self, input_params):
+    def set_other_params(self, input_params):
 
-        '''Set Trainer class parameters.'''
+        '''Set other Trainer class parameters.'''
 
         logger.info("Setting params...")
 
-        self.params = input_params
         self.params.number_speakers = get_number_of_speakers(self.params.train_labels_path)
         self.params.model_name = generate_model_name(
             self.params, 
@@ -199,47 +200,9 @@ class Trainer:
         self.format_valid_labels()
         
 
-    def set_random_crop_size(self, pickle_path):
-
-        logger.info(f'Defining the random crop size in frames from a sample...')
-        logger.info(f'(We are assuming that all files in the dataset have the same spectrogram settings).')
-        
-        # Takes a path of a .pickle file that has a spectrogram matrix and its settings parameters.
-        # Given a random crop size in seconds, we calculate the equivalent size in frames.
-        # For this it is crucial to know the setting parameters of the spectrogram.
-
-        # Load the file
-        with open(pickle_path, 'rb') as pickle_file:
-            features_dict = pickle.load(pickle_file)
-            
-        # Unpack the spectrogram and the settings
-        features = features_dict["features"]
-        features_settings = features_dict["settings"]
-        
-        # Get the setting parameters
-        file_frames = features.shape[0]
-        sampling_rate = features_settings.sampling_rate
-        hop_length = int(features_settings.hop_length_secs * sampling_rate)
-        n_fft = int(features_settings.n_fft_secs * sampling_rate)
-
-        # Estimate the random crop size in frames
-        estimated_samples = (file_frames - 1) * hop_length + n_fft
-        estimated_audio_length_secs = estimated_samples / sampling_rate
-        estimated_frames_1_sec = file_frames / estimated_audio_length_secs 
-        
-        self.params.random_crop_frames = int(self.params.random_crop_secs * estimated_frames_1_sec)
-
-        logger.info(f'Random crop size calculated: {self.params.random_crop_frames} frames (eq to {self.params.random_crop_secs} seconds).')
-        
-
     def load_training_data(self):
 
         logger.info(f'Loading training data with labels from {self.params.train_labels_path}')
-
-        # Get one sample to calculate the random crop size in frames for all the dataset
-        representative_sample = self.train_sc_labels_lines[0]
-        pickle_path = representative_sample.replace('\n', '').split(' ')[0]
-        self.set_random_crop_size(pickle_path)
 
         # Instanciate a Dataset class
         dataset = TrainDataset(
@@ -260,7 +223,6 @@ class Trainer:
             **data_loader_parameters,
             )
 
-        del representative_sample
         del dataset
 
         logger.info("Data and labels loaded.")
@@ -281,7 +243,7 @@ class Trainer:
             clients_utterances_paths = self.valid_sv_clients_labels_lines,
             impostors_utterances_paths = self.valid_sv_impostors_labels_lines,
             train_parameters = self.params, 
-            random_crop_frames = self.params.random_crop_frames, # TODO we are assuming that random_crop_frames is the same with the training and validation data
+            random_crop_secs = self.params.random_crop_secs, # TODO we are assuming that random_crop_secs is the same with the training and validation data
             evaluation_type = self.params.evaluation_type,
             )
 
@@ -458,33 +420,13 @@ class Trainer:
         # 1 - Save the params
         self.wandb_config = vars(self.params)
 
-        # 2 - Save the feature extraction configuration params
-
-        # Get one sample to get the feature extraction configuration for all the dataset
-        representative_sample = self.train_sc_labels_lines[0]
-        pickle_path = representative_sample.replace('\n', '').split(' ')[0]
-
-        # Load the file
-        with open(pickle_path, 'rb') as pickle_file:
-            features_dict = pickle.load(pickle_file)
-            
-        # Unpack the spectrogram and the features settings
-        # features = features_dict["features"]
-        dev_features_settings = features_dict["settings"]
-
-        self.wandb_config["dev_features_settings"] = vars(dev_features_settings)
-
-        # 3 - Save additional params
+        # 2 - Save additional params
 
         self.wandb_config["total_trainable_params"] = self.total_trainable_params
         self.wandb_config["gpus"] = self.gpus
 
-        # 4 - Update the wandb config
+        # 3 - Update the wandb config
         wandb.config.update(self.wandb_config)
-
-        del representative_sample
-        del features_dict
-        del dev_features_settings
     # ---------------------------------------------------------------------
 
     # Training methods
@@ -956,7 +898,7 @@ class ArgsParser:
     def initialize_parser(self):
 
         self.parser = argparse.ArgumentParser(
-            description = 'Train a VGG based Speaker Embedding Extractor.',
+            description = 'Create an train a NN-based Speaker Embedding Extractor.',
             )
 
 
@@ -1112,6 +1054,14 @@ class ArgsParser:
 
         # Data Parameters
         # ---------------------------------------------------------------------
+        
+        self.parser.add_argument(
+            '--sample_rate', 
+            type = int, 
+            default = TRAIN_DEFAULT_SETTINGS['sample_rate'], 
+            help = 'Sample rate (in Hz) for the audio data.'
+            )
+        
         self.parser.add_argument(
             '--n_mels', 
             type = int, 
@@ -1124,6 +1074,36 @@ class ArgsParser:
             type = float, 
             default = TRAIN_DEFAULT_SETTINGS['random_crop_secs'], 
             help = 'Cut the input spectrogram with random_crop_secs length at a random starting point.'
+            )
+        
+        self.parser.add_argument(
+            "--n_fft_secs", 
+            type = float,
+            default = TRAIN_DEFAULT_SETTINGS['n_fft_secs'],
+            help = "Length of the windowed signal after padding with zeros (in seconds).\
+                int(n_fft_secs x sampling_rate) should be a power of 2 for better performace,\
+                 and n_fft_secs must be greater or equal than win_length_secs.",
+            )
+
+        self.parser.add_argument(
+            "--win_length_secs", 
+            type = float,
+            default = TRAIN_DEFAULT_SETTINGS['win_length_secs'],
+            help = "(In seconds). Each frame of audio is windowed by window of length win_length_secs and then padded with zeros to match n_fft_secs.",
+            )
+
+        self.parser.add_argument(
+            "--hop_length_secs", 
+            type = float,
+            default = TRAIN_DEFAULT_SETTINGS['hop_length_secs'],
+            help = "Hop length (in seconds).",
+            )
+
+        self.parser.add_argument(
+            "--pre_emph_coef", 
+            type = float,
+            default = TRAIN_DEFAULT_SETTINGS['pre_emph_coef'],
+            help = "Pre-emphasis coefficient. (0 if not pre-emphasis is needed.)",
             )
 
         self.parser.add_argument(

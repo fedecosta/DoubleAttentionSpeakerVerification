@@ -125,17 +125,23 @@ def format_sc_labels(labels_path, prepend_directories = None):
     formatted_labels_lines = []
     for labels_line in labels_lines:
 
+        # Remove end of line character, if has
+        labels_line = labels_line.replace("\n", "")
+
         # If labels are of the form /speaker/interview/file we need to remove the first "/" to join paths
         if labels_line[0] == "/":
             labels_line = labels_line[1:]
 
-        # Remove the file extension (if has) and add the pickle extension to the file path
         file_path = labels_line.split(" ")[0]
         rest_of_line = labels_line.split(" ")[1:]
-        if len(file_path.split(".")) > 1:
 
-            file_path = '.'.join(file_path.split(".")[:-1])
-            file_path = f"{file_path}.pickle"
+        # Remove the file extension (if has) and add the pickle extension to the file path
+        # HACK
+        if False:
+            if len(file_path.split(".")) > 1:
+
+                file_path = '.'.join(file_path.split(".")[:-1])
+                file_path = f"{file_path}.pickle"
 
         # Prepend optional additional directory to the labels paths (but first checks if file exists)
         if prepend_directories is not None:
@@ -181,14 +187,16 @@ def format_sv_labels(labels_path, prepend_directories = None):
             speaker_2 = speaker_2[1:]
 
         # Remove the file extension (if has) and add the pickle extension to the file path
-        if len(speaker_1.split(".")) > 1:
-            speaker_1 = '.'.join(speaker_1.split(".")[:-1]) 
-        if len(speaker_2.split(".")) > 1:
-            speaker_2 = '.'.join(speaker_2.split(".")[:-1]) 
+        # TODO
+        if False:
+            if len(speaker_1.split(".")) > 1:
+                speaker_1 = '.'.join(speaker_1.split(".")[:-1]) 
+            if len(speaker_2.split(".")) > 1:
+                speaker_2 = '.'.join(speaker_2.split(".")[:-1]) 
         
-        # Add the pickle extension
-        speaker_1 = f"{speaker_1}.pickle"
-        speaker_2 = f"{speaker_2}.pickle"
+            # Add the pickle extension
+            speaker_1 = f"{speaker_1}.pickle"
+            speaker_2 = f"{speaker_2}.pickle"
 
         # Prepend optional additional directory to the labels paths (but first checks if file exists)
         if prepend_directories is not None:
